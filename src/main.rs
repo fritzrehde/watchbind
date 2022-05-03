@@ -15,9 +15,15 @@ use tui::{
 };
 use events::Events;
 
+mod cli;
 mod events;
+mod command;
 
 fn main() -> Result<(), io::Error> {
+	// parse args and options
+	let args = cli::parse_args();
+	let command = args.value_of("command").expect("Command is required by clap");
+
 	// setup terminal
 	enable_raw_mode()?;
 	let mut stdout = io::stdout();
@@ -27,12 +33,7 @@ fn main() -> Result<(), io::Error> {
 
 	// run tui program
 	let tick_rate = Duration::from_millis(250);
-	let mut events = Events::new(vec![
-		String::from("Item 1"),
-		String::from("Item 2"),
-		String::from("Item 3"),
-		String::from("Ende"),
-	]);
+	let mut events = Events::new(command::output_lines(command));
 	run(&mut terminal, &mut events, tick_rate)?;
 
 	// restore terminal

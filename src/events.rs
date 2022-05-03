@@ -19,7 +19,7 @@ impl Events {
 	}
 
 	pub fn next(&mut self) {
-		let last = self.get_last();
+		let last = self.last_index();
 		let i = match self.state.selected() {
 			Some(i) => {
 				if i >= last {
@@ -34,7 +34,7 @@ impl Events {
 	}
 
 	pub fn previous(&mut self) {
-		let first = self.get_first();
+		let first = self.first_index();
 		let i = match self.state.selected() {
 			Some(i) => {
 				if i == first {
@@ -53,18 +53,18 @@ impl Events {
 	}
 
 	pub fn first(&mut self) {
-		self.state.select(Some(self.get_first()));
+		self.state.select(Some(self.first_index()));
 	}
 
 	pub fn last(&mut self) {
-		self.state.select(Some(self.get_last()));
+		self.state.select(Some(self.last_index()));
 	}
 
-	fn get_first(&self) -> usize {
+	fn first_index(&self) -> usize {
 		0
 	}
 
-	fn get_last(&self) -> usize {
+	fn last_index(&self) -> usize {
 		self.items.len() - 1
 	}
 }
