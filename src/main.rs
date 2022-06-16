@@ -1,3 +1,5 @@
+use std::thread;
+use std::sync::mpsc;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
 	execute,
@@ -19,10 +21,15 @@ mod cli;
 mod events;
 mod command;
 
+const DEFAULT_INTERVAL: u64 = 5;
+const TICK_RATE: u64 = 250;
+
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	let command = args.value_of("command").expect("Command is required by clap");
+	let command = args.value_of("command").unwrap();
+	let interval: u64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL);
+	let watch_rate = Duration::from_secs(interval);
 
 	// setup terminal
 	enable_raw_mode()?;
@@ -32,9 +39,8 @@ fn main() -> Result<(), io::Error> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// run tui program
-	let tick_rate = Duration::from_millis(250);
-	let mut events = Events::new(command::output_lines(command));
-	run(&mut terminal, &mut events, tick_rate)?;
+	let tick_rate = Duration::from_millis(TICK_RATE);
+	run(&mut terminal, args.clone(), command.clone(), tick_rate, watch_rate)?;
 
 	// restore terminal
 	disable_raw_mode()?;
@@ -50,25 +56,39 @@ fn main() -> Result<(), io::Error> {
 
 fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
-	events: &mut Events,
+	args: clap::ArgMatches,
+	command: &str,
 	tick_rate: Duration,
+	watch_rate: Duration,
 ) -> io::Result<()> {
 	let mut last_tick = Instant::now();
+	let (tx, rx) = mpsc::channel();
+	thread::spawn(move || {
+		loop {
+			let command = args.value_of("command").unwrap();
+			tx.send(command::output_lines(command)).unwrap();
+			thread::sleep(watch_rate);
+		}
+	});
+	let mut events = Events::new(rx.recv().unwrap());
+
 	loop {
-		terminal.draw(|f| ui(f, events))?;
+		match rx.try_recv() {
+			Ok(items) => events.set_items(items),
+			_ => {},
+		};
+		terminal.draw(|f| ui(f, &mut events))?;
 
 		let timeout = tick_rate
 			.checked_sub(last_tick.elapsed())
 			.unwrap_or_else(|| Duration::from_secs(0));
-		if crossterm::event::poll(timeout)? {
+		if crossterm::event::poll(timeout)? { // wait for event (keyboard input) for max time of timeout
 			if let Event::Key(key) = event::read()? {
 				match key.code {
 					KeyCode::Char('q') => return Ok(()),
-					KeyCode::Left => events.unselect(),
-					KeyCode::Down => events.next(),
-					KeyCode::Up => events.previous(),
-					KeyCode::Char('j') => events.next(),
-					KeyCode::Char('k') => events.previous(),
+					KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => events.unselect(),
+					KeyCode::Down | KeyCode::Char('j') => events.next(),
+					KeyCode::Up | KeyCode::Char('k') => events.previous(),
 					KeyCode::Char('g') => events.first(),
 					KeyCode::Char('G') => events.last(),
 					_ => {}

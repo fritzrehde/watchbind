@@ -1,4 +1,4 @@
-use clap::{command, Arg, ArgMatches};
+use clap::{command, value_parser, Arg, ArgMatches};
 
 pub fn parse_args() -> ArgMatches {
 	command!()
@@ -8,8 +8,9 @@ pub fn parse_args() -> ArgMatches {
 		.arg(Arg::new("interval")
 				 .long("interval")
 				 .short('i')
-				 .value_name("SECS")
 				 .help("Seconds to wait between updates")
-				 .takes_value(true))
+				 .takes_value(true)
+				 .value_name("SECS")
+				 .value_parser(value_parser!(u64)))
 		.get_matches()
 }

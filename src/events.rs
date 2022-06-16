@@ -15,7 +15,23 @@ impl Events {
 
 	pub fn set_items(&mut self, items: Vec<String>) {
 		self.items = items;
-		self.state = ListState::default();
+		self.calibrate();
+	}
+
+	// if selected line no longer exists, select last line
+	pub fn calibrate(&mut self) {
+		let last = self.last_index();
+		let i = match self.state.selected() {
+			Some(i) => {
+				if i > last {
+					Some(last)
+				} else {
+					Some(i)
+				}
+			},
+			None => None,
+		};
+		self.state.select(i);
 	}
 
 	pub fn next(&mut self) {
@@ -43,7 +59,7 @@ impl Events {
 					i - 1
 				}
 			}
-			None => 0,
+			None => self.last_index(),
 		};
 		self.state.select(Some(i));
 	}
