@@ -1,4 +1,5 @@
 use std::{
+	io,
 	collections::HashMap,
 	str::FromStr,
 };
@@ -20,16 +21,16 @@ pub enum Command {
 	Execute(String),
 }
 
-pub fn parse_bindings(bindings: &str) -> HashMap<KeyCode, Command> {
+pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
 	// TODO: handle duplicates
-	format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
+	Ok(format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
 		.split(",")
 		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
 		.map(|s| s.split(":").collect_tuple().unwrap())
 		.map(|(key, cmd)| {
 			(keycode_from_str(key).unwrap(), Command::from_str(cmd).unwrap())
 		})
-		.collect()
+		.collect())
 }
 
 pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events: &mut Events) -> bool {

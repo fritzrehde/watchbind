@@ -21,7 +21,7 @@ use std::collections::HashMap;
 
 mod cli;
 mod events;
-mod command;
+mod exec;
 mod keys;
 
 const TICK_RATE: u64 = 250; // tui repaint interval
@@ -33,9 +33,8 @@ fn main() -> Result<(), io::Error> {
 	let command = args.value_of("command").unwrap();
 	let interval: u64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL);
 	let watch_rate = Duration::from_secs(interval);
-	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""));
+	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?;
 	// println!("command: {}\n", command);
-	// println!("keybindings: {:?}\n", keybindings);
 
 	// setup terminal
 	enable_raw_mode()?;
@@ -46,7 +45,10 @@ fn main() -> Result<(), io::Error> {
 
 	// run tui program
 	let tick_rate = Duration::from_millis(TICK_RATE);
-	run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
+	// run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
+	match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
+		_ => {},
+	};
 
 	// restore terminal
 	disable_raw_mode()?;
@@ -68,33 +70,42 @@ fn run<B: Backend>(
 	tick_rate: Duration,
 	watch_rate: Duration,
 ) -> io::Result<()> {
+	// let mut events: Events;
 	let mut last_tick = Instant::now();
 	let (tx, rx) = mpsc::channel();
 	thread::spawn(move || {
 		loop {
 			let command = args.value_of("command").unwrap();
-			tx.send(command::output_lines(command)).unwrap();
+			tx.send(exec::output_lines(command)).unwrap();
+			
+			// tx.send(exec::output_lines(command)).unwrap();
 			if watch_rate == Duration::ZERO {
 				break;
 			}
 			thread::sleep(watch_rate);
 		}
 	});
-	let mut events = Events::new(rx.recv().unwrap());
+	let mut events = Events::new(rx.recv().unwrap()?);
+	// let mut events = Events::new(rx.recv()?);
 
 	loop {
+		// match rx.try_recv() {
+		// 	Ok(items) => events.set_items(items),
+		// 	_ => {},
+		// };
 		match rx.try_recv() {
-			Ok(items) => events.set_items(items),
+			Ok(recv) => events.set_items(recv?),
 			_ => {},
 		};
+
 		terminal.draw(|f| ui(f, &mut events))?;
 
 		let timeout = tick_rate
 			.checked_sub(last_tick.elapsed())
 			.unwrap_or_else(|| Duration::ZERO);
-		if event::poll(timeout)? { // wait for event (keyboard input) for max time of timeout
+		if event::poll(timeout)? { // wait for keyboard input for max time of timeout
 			if let Event::Key(key) = event::read()? {
-				if !keys::handle_key(key.code, keybindings, &mut events) {
+				if !keys::handle_key(key.code, keybindings, &mut events) { // TODO: use sth more elegant than bool return type
 					return Ok(());
 				}
 			}
