@@ -30,11 +30,12 @@ const DEFAULT_INTERVAL: u64 = 5; // watch interval
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	let command = args.value_of("command").unwrap();
+	// let command = args.values_of("command").unwrap();
+	let command = args.get_many::<String>("command").unwrap();
 	let interval: u64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL);
 	let watch_rate = Duration::from_secs(interval);
-	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?;
-	// println!("command: {}\n", command);
+	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
+	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().last().unwrap());
 
 	// setup terminal
 	enable_raw_mode()?;
@@ -46,7 +47,8 @@ fn main() -> Result<(), io::Error> {
 	// run tui program
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	// run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
-	match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
+	// match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
+	match run(&mut terminal, &keybindings, args.clone(), tick_rate, watch_rate) {
 		_ => {},
 	};
 
@@ -66,7 +68,7 @@ fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
 	args: clap::ArgMatches,
-	command: &str,
+	// command: &str,
 	tick_rate: Duration,
 	watch_rate: Duration,
 ) -> io::Result<()> {
@@ -75,10 +77,9 @@ fn run<B: Backend>(
 	let (tx, rx) = mpsc::channel();
 	thread::spawn(move || {
 		loop {
-			let command = args.value_of("command").unwrap();
+			// let command = args.value_of("command").unwrap();
+			let command = args.get_many::<String>("command").unwrap();
 			tx.send(exec::output_lines(command)).unwrap();
-			
-			// tx.send(exec::output_lines(command)).unwrap();
 			if watch_rate == Duration::ZERO {
 				break;
 			}
@@ -86,13 +87,8 @@ fn run<B: Backend>(
 		}
 	});
 	let mut events = Events::new(rx.recv().unwrap()?);
-	// let mut events = Events::new(rx.recv()?);
 
 	loop {
-		// match rx.try_recv() {
-		// 	Ok(items) => events.set_items(items),
-		// 	_ => {},
-		// };
 		match rx.try_recv() {
 			Ok(recv) => events.set_items(recv?),
 			_ => {},
