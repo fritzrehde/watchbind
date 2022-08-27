@@ -1,6 +1,9 @@
 use std::process::Command;
 use std::io::Error;
 
+// TODO: try &Vec<String>
+// TODO: possibly replace all Strings with &str
+// TODO: handle command failing
 pub fn output_lines(command: &Vec<&str>) -> Result<Vec<String>, Error> {
 	// execute command
 	let output = Command::new(command[0])

@@ -15,7 +15,14 @@ impl Events {
 
 	pub fn set_items(&mut self, items: Vec<String>) {
 		self.items = items;
-		self.calibrate();
+		self.calibrate(); // TODO: optimize through earlier if statements
+	}
+
+	pub fn get_selected_line(&mut self) -> Option<&str> {
+		match self.state.selected() { // index of selected line
+			Some(i) => Some(&self.items[i]),
+			None => None, // no selected line
+		}
 	}
 
 	// if selected line no longer exists, select last line

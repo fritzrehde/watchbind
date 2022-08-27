@@ -90,6 +90,7 @@ fn run<B: Backend>(
 	let mut events = Events::new(rx.recv().unwrap()?);
 
 	// main thread loop
+	// TODO: create keyboard input worker thread
 	loop {
 		match rx.try_recv() {
 			Ok(recv) => events.set_items(recv?),
@@ -120,6 +121,11 @@ fn ui<B: Backend>(f: &mut Frame<B>, events: &mut Events) {
 		.items.iter()
 		.map(|i| ListItem::new(i.as_ref()))
 		.collect();
+	// let items = vec![
+	// 	ListItem::new("line one"),
+	// 	ListItem::new(""),
+	// 	ListItem::new("line four"),
+	// ];
 	let list = List::new(items)
 		.style(Style::default().fg(Color::White))
 		.highlight_style(Style::default().fg(Color::Black).bg(Color::White));

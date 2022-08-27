@@ -2,6 +2,7 @@ use std::{
 	io,
 	collections::HashMap,
 	str::FromStr,
+	process,
 };
 use crossterm::event::KeyCode::{self, *};
 use itertools::Itertools;
@@ -35,15 +36,30 @@ pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
 
 pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events: &mut Events) -> bool {
 	match keybindings.get(&key) {
-		Some(cmd) => {
-			match cmd {
+		Some(binding) => {
+			match binding {
 				Exit => return false,
 				Unselect => events.unselect(),
 				Next => events.next(),
 				Previous => events.previous(),
 				First => events.first(),
 				Last => events.last(),
-				Execute(shell) => {}, // TODO
+				Execute(cmd) => {
+					// TODO: instantly reload afterwards
+					// TODO: handle command failing and exit application
+					// TODO: be able to directly call sth like --bind "l:dunstify \"\$LINE\""
+					match events.get_selected_line() {
+						Some(line) => {
+							let command: Vec<&str> = cmd.split_whitespace().collect();
+							// println!("{:?}", command);
+							process::Command::new(command[0])
+								.env("LINE", line) // provide selected line as environment variable
+								.args(&command[1..])
+								.spawn();
+						},
+						None => {}, // no line selected, so do nothing
+					}
+				},
 			};
 		},
 		None => {}, // do nothing, since key has no binding
@@ -100,7 +116,7 @@ impl FromStr for Command {
 			"previous" => Previous,
 			"first" => First,
 			"last" => Last,
-			shell => Execute(shell.to_string()),
+			cmd => Execute(cmd.to_string()),
 		};
 		Ok(command)
 	}

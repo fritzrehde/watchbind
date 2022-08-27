@@ -3,8 +3,8 @@ use clap::{command, value_parser, Arg, ArgMatches};
 pub fn parse_args() -> ArgMatches {
 	command!()
 		.trailing_var_arg(true)
-		.arg(Arg::new("command") // TODO: use all of last values instead of one
-				 .help("Input command to execute periodically")
+		.arg(Arg::new("command")
+				 .help("Command to execute periodically")
 				 .multiple_values(true)
 				 .required(true)
 				 .value_parser(value_parser!(String)))
