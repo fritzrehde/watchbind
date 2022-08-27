@@ -30,12 +30,11 @@ const DEFAULT_INTERVAL: u64 = 5; // watch interval
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	// let command = args.values_of("command").unwrap();
-	let command = args.get_many::<String>("command").unwrap();
 	let interval: u64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL);
 	let watch_rate = Duration::from_secs(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
-	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().last().unwrap());
+	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().next().unwrap());
+	let command: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
 
 	// setup terminal
 	enable_raw_mode()?;
@@ -47,8 +46,9 @@ fn main() -> Result<(), io::Error> {
 	// run tui program
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	// run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
-	// match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
-	match run(&mut terminal, &keybindings, args.clone(), tick_rate, watch_rate) {
+	// TODO: cleanup
+	match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
+	// match run(&mut terminal, &keybindings, args.clone(), tick_rate, watch_rate) {
 		_ => {},
 	};
 
@@ -68,18 +68,21 @@ fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
 	args: clap::ArgMatches,
-	// command: &str,
+	command: Vec<&str>,
 	tick_rate: Duration,
 	watch_rate: Duration,
 ) -> io::Result<()> {
 	// let mut events: Events;
 	let mut last_tick = Instant::now();
 	let (tx, rx) = mpsc::channel();
+	// TODO: use command from outside thread
 	thread::spawn(move || {
+		let command1: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
+
+		// worker thread loop that executes command
 		loop {
-			// let command = args.value_of("command").unwrap();
-			let command = args.get_many::<String>("command").unwrap();
-			tx.send(exec::output_lines(command)).unwrap();
+			tx.send(exec::output_lines(&command1)).unwrap();
+			// TODO: handle as invalid argument
 			if watch_rate == Duration::ZERO {
 				break;
 			}
@@ -88,6 +91,7 @@ fn run<B: Backend>(
 	});
 	let mut events = Events::new(rx.recv().unwrap()?);
 
+	// main thread loop
 	loop {
 		match rx.try_recv() {
 			Ok(recv) => events.set_items(recv?),
