@@ -47,11 +47,9 @@ pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events:
 				Execute(cmd) => {
 					// TODO: instantly reload afterwards
 					// TODO: handle command failing and exit application
-					// TODO: be able to directly call sth like --bind "l:dunstify \"\$LINE\""
 					match events.get_selected_line() {
 						Some(line) => {
-							let command: Vec<&str> = cmd.split_whitespace().collect();
-							// println!("{:?}", command);
+							let command: Vec<&str> = vec!["sh", "-c", cmd];
 							process::Command::new(command[0])
 								.env("LINE", line) // provide selected line as environment variable
 								.args(&command[1..])
