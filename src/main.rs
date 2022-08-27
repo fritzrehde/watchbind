@@ -24,14 +24,14 @@ mod events;
 mod exec;
 mod keys;
 
-const TICK_RATE: u64 = 250; // tui repaint interval
-const DEFAULT_INTERVAL: u64 = 5; // watch interval
+const TICK_RATE: u64 = 250; // tui repaint interval in ms
+const DEFAULT_INTERVAL: f64 = 5.0; // watch interval in s
 
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	let interval: u64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL);
-	let watch_rate = Duration::from_secs(interval);
+	let interval: f64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL); // TODO: use default duration directly
+	let watch_rate = Duration::from_secs_f64(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
 	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().next().unwrap());
 	let command: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
@@ -48,7 +48,6 @@ fn main() -> Result<(), io::Error> {
 	// run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
 	// TODO: cleanup
 	match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
-	// match run(&mut terminal, &keybindings, args.clone(), tick_rate, watch_rate) {
 		_ => {},
 	};
 
@@ -82,8 +81,7 @@ fn run<B: Backend>(
 		// worker thread loop that executes command
 		loop {
 			tx.send(exec::output_lines(&command1)).unwrap();
-			// TODO: handle as invalid argument
-			if watch_rate == Duration::ZERO {
+			if watch_rate == Duration::ZERO { // only execute command once
 				break;
 			}
 			thread::sleep(watch_rate);
