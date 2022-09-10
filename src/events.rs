@@ -88,6 +88,10 @@ impl Events {
 	}
 
 	fn last_index(&self) -> usize {
-		self.items.len() - 1
+		if self.items.is_empty() {
+			0
+		} else {
+			self.items.len() - 1
+		}
 	}
 }
