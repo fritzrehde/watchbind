@@ -11,6 +11,7 @@ use crate::keys::Command::*;
 
 const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
 
+// TODO: add reload command
 #[derive(Debug)]
 pub enum Command {
 	Exit,

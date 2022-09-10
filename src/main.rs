@@ -31,10 +31,14 @@ fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
 	let interval: f64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL); // TODO: use default duration directly
+	let tick_rate = Duration::from_millis(TICK_RATE);
 	let watch_rate = Duration::from_secs_f64(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
 	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().next().unwrap());
-	let command: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
+	let _command: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
+	// let _command: &str = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
+	let command: &str = &args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
+	println!("{}", command);
 
 	// setup terminal
 	enable_raw_mode()?;
@@ -44,12 +48,7 @@ fn main() -> Result<(), io::Error> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// run tui program
-	let tick_rate = Duration::from_millis(TICK_RATE);
-	// run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate)?;
-	// TODO: cleanup
-	match run(&mut terminal, &keybindings, args.clone(), command.clone(), tick_rate, watch_rate) {
-		_ => {},
-	};
+	let res = run(&mut terminal, &keybindings, args.clone(), _command.clone(), tick_rate, watch_rate);
 
 	// restore terminal
 	disable_raw_mode()?;
@@ -60,6 +59,12 @@ fn main() -> Result<(), io::Error> {
 	)?;
 	terminal.show_cursor()?;
 
+	// print errors to stdout
+	match res {
+		Err(e) => println!("{}", e),
+		_ => {},
+	};
+
 	Ok(())
 }
 
@@ -67,10 +72,10 @@ fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
 	args: clap::ArgMatches,
-	command: Vec<&str>,
+	_command: Vec<&str>,
 	tick_rate: Duration,
 	watch_rate: Duration,
-) -> io::Result<()> {
+) -> Result<(), io::Error> {
 	// let mut events: Events;
 	let mut last_tick = Instant::now();
 	let (tx, rx) = mpsc::channel();
