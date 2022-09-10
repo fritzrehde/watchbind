@@ -3,9 +3,9 @@ use std::io::{Error, ErrorKind};
 
 // TODO: try &Vec<String>
 // TODO: possibly replace all Strings with &str
-// TODO: handle command failing
-pub fn output_lines(command: &Vec<&str>) -> Result<Vec<String>, Error> {
+pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	// execute command
+	let command: Vec<&str> = vec!["sh", "-c", cmd];
 	let output = Command::new(command[0])
 		.args(&command[1..])
 		.output()?;
@@ -16,16 +16,12 @@ pub fn output_lines(command: &Vec<&str>) -> Result<Vec<String>, Error> {
 		.map(|s| s.to_string())
 		.collect();
 
-	// TODO: possibly get stderr instead of stdout for failure
+	// handle command error
 	match output.status.success() {
 		true => Ok(lines),
 		false => {
-			let error_msg = match output.status.code() {
-				Some(code) => format!("Command ... failed with error code {}", code),
-				None => format!("Command ... terminated by signal"),
-			};
-			Err(Error::new(ErrorKind::Other, error_msg))
+			let stderr = String::from_utf8(output.stderr).unwrap();
+			Err(Error::new(ErrorKind::Other, stderr))
 		}
 	}
-
 }
