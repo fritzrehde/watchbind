@@ -34,10 +34,10 @@ fn main() -> Result<(), io::Error> {
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	let watch_rate = Duration::from_secs_f64(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
-	let command: &str = &args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
+	let command: String = args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
 
 	// test command once and exit on failure
-	match exec::output_lines(command) {
+	match exec::output_lines(&command) {
 		Err(e) => {
 			print!("{}", e);
 			return Ok(());
@@ -53,7 +53,7 @@ fn main() -> Result<(), io::Error> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// run tui program
-	let res = run(&mut terminal, &keybindings, args.clone(), command, tick_rate, watch_rate);
+	let res = run(&mut terminal, &keybindings, command, tick_rate, watch_rate);
 
 	// restore terminal
 	disable_raw_mode()?;
@@ -76,21 +76,16 @@ fn main() -> Result<(), io::Error> {
 fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
-	args: clap::ArgMatches,
-	command: &str,
+	command: String,
 	tick_rate: Duration,
 	watch_rate: Duration,
 ) -> Result<(), io::Error> {
-	// let mut events: Events;
 	let mut last_tick = Instant::now();
 	let (tx, rx) = mpsc::channel();
-	// TODO: use command from outside thread
 	thread::spawn(move || {
-		let command1: &str = &args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
-
-		// worker thread loop that executes command
+		// worker thread that executes command in loop
 		loop {
-			tx.send(exec::output_lines(command1)).unwrap();
+			tx.send(exec::output_lines(&command)).unwrap();
 			if watch_rate == Duration::ZERO { // only execute command once
 				break;
 			}
