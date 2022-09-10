@@ -1,5 +1,5 @@
 use std::{
-	io,
+	io::{self, Error, ErrorKind},
 	collections::HashMap,
 	str::FromStr,
 	process,
@@ -35,11 +35,11 @@ pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
 		.collect())
 }
 
-pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events: &mut Events) -> bool {
+pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events: &mut Events) -> Result<bool, io::Error> {
 	match keybindings.get(&key) {
 		Some(binding) => {
 			match binding {
-				Exit => return false,
+				Exit => return Ok(false),
 				Unselect => events.unselect(),
 				Next => events.next(),
 				Previous => events.previous(),
@@ -47,14 +47,20 @@ pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events:
 				Last => events.last(),
 				Execute(cmd) => {
 					// TODO: instantly reload afterwards
-					// TODO: handle command failing and exit application
 					match events.get_selected_line() {
 						Some(line) => {
+							// execute command
 							let command: Vec<&str> = vec!["sh", "-c", cmd];
-							process::Command::new(command[0])
+							let output = process::Command::new(command[0])
 								.env("LINE", line) // provide selected line as environment variable
 								.args(&command[1..])
-								.spawn();
+								.output()?;
+
+							// handle command error
+							if !output.status.success() {
+								let stderr = String::from_utf8(output.stderr).unwrap();
+								return Err(Error::new(ErrorKind::Other, stderr));
+							}
 						},
 						None => {}, // no line selected, so do nothing
 					}
@@ -63,7 +69,7 @@ pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events:
 		},
 		None => {}, // do nothing, since key has no binding
 	};
-	true
+	Ok(true)
 }
 
 // TODO: add modifiers

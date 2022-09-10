@@ -34,10 +34,7 @@ fn main() -> Result<(), io::Error> {
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	let watch_rate = Duration::from_secs_f64(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
-	// println!("command: {:#?}\n", args.get_many::<String>("command").unwrap().next().unwrap());
-	let _command: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
 	let command: &str = &args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
-	// println!("{}", command);
 
 	// test command once and exit on failure
 	match exec::output_lines(command) {
@@ -56,7 +53,6 @@ fn main() -> Result<(), io::Error> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// run tui program
-	// let res = run(&mut terminal, &keybindings, args.clone(), _command.clone(), tick_rate, watch_rate);
 	let res = run(&mut terminal, &keybindings, args.clone(), command, tick_rate, watch_rate);
 
 	// restore terminal
@@ -81,7 +77,6 @@ fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
 	args: clap::ArgMatches,
-	// _command: Vec<&str>,
 	command: &str,
 	tick_rate: Duration,
 	watch_rate: Duration,
@@ -91,7 +86,6 @@ fn run<B: Backend>(
 	let (tx, rx) = mpsc::channel();
 	// TODO: use command from outside thread
 	thread::spawn(move || {
-		// let command1: Vec<&str> = args.values_of("command").unwrap().collect(); // TODO: deprecated, replace with get_many()
 		let command1: &str = &args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
 
 		// worker thread loop that executes command
@@ -120,9 +114,11 @@ fn run<B: Backend>(
 			.unwrap_or_else(|| Duration::ZERO);
 		if event::poll(timeout)? { // wait for keyboard input for max time of timeout
 			if let Event::Key(key) = event::read()? {
-				if !keys::handle_key(key.code, keybindings, &mut events) { // TODO: use sth more elegant than bool return type
-					return Ok(());
-				}
+				match keys::handle_key(key.code, keybindings, &mut events) { // TODO: use sth more elegant than bool return type
+					Ok(false) => return Ok(()),
+					Err(e) => return Err(e),
+					_ => {},
+				};
 			}
 		}
 		if last_tick.elapsed() >= tick_rate {

@@ -19,8 +19,8 @@ pub fn parse_args() -> ArgMatches {
 		.arg(Arg::new("keybindings")
 				 .long("bind")
 				 .short('b')
-				 .help("Keybindings in the format <key>:<cmd>,<key>:<cmd>")
+				 .help("Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*")
 				 .takes_value(true)
-				 .value_name("key1:cmd1,key2:cmd2"))
+				 .value_name("KEYBINDINGS"))
 		.get_matches()
 }

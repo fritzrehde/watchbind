@@ -1,8 +1,6 @@
 use std::process::Command;
 use std::io::{Error, ErrorKind};
 
-// TODO: try &Vec<String>
-// TODO: possibly replace all Strings with &str
 pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	// execute command
 	let command: Vec<&str> = vec!["sh", "-c", cmd];
