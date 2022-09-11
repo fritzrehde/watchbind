@@ -28,7 +28,6 @@ pub fn parse_args() -> ArgMatches {
 				.default_value(DEFAULT_BINDINGS)
 				.value_parser(value_parser!(String))
 		)
-		// colors
 		.arg(
 			arg!(--fg <COLOR> "Foreground color")
 				.required(false)
@@ -40,10 +39,12 @@ pub fn parse_args() -> ArgMatches {
 		.arg(
 			arg!(--"fg+" <COLOR> "Foreground color of selected line")
 				.required(false)
+				.default_value("black")
 		)
 		.arg(
 			arg!(--"bg+" <COLOR> "Background color of selected line")
 				.required(false)
+				.default_value("blue")
 		)
 		.get_matches()
 }

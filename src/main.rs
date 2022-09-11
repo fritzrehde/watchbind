@@ -30,7 +30,6 @@ const TICK_RATE: u64 = 250; // tui repaint interval in ms
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	// let interval: f64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL); // TODO: use default duration directly
 	let interval: f64 = *args.get_one("interval").unwrap();
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	let watch_rate = Duration::from_secs_f64(interval);
