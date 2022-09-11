@@ -1,48 +1,59 @@
-use std::{
-	io,
-	thread,
-	time::{Duration, Instant},
-	sync::mpsc,
-};
+use crate::color::Styles;
+use crate::events::Events;
+use crate::keys::Command;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use std::{
+	collections::HashMap,
+	io,
+	sync::mpsc,
+	thread,
+	time::{Duration, Instant},
+};
 use tui::{
 	backend::{Backend, CrosstermBackend},
-	style::{Color, Style},
 	widgets::{List, ListItem},
 	Frame, Terminal,
 };
-use crate::events::Events;
-use crate::keys::Command;
-use std::collections::HashMap;
 
 mod cli;
+mod color;
 mod events;
 mod exec;
 mod keys;
 
 const TICK_RATE: u64 = 250; // tui repaint interval in ms
-const DEFAULT_INTERVAL: f64 = 5.0; // watch interval in s
 
 fn main() -> Result<(), io::Error> {
 	// parse args and options
 	let args = cli::parse_args();
-	let interval: f64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL); // TODO: use default duration directly
+	// let interval: f64 = *args.get_one("interval").unwrap_or(&DEFAULT_INTERVAL); // TODO: use default duration directly
+	let interval: f64 = *args.get_one("interval").unwrap();
 	let tick_rate = Duration::from_millis(TICK_RATE);
 	let watch_rate = Duration::from_secs_f64(interval);
 	let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
-	let command: String = args.values_of("command").unwrap().collect::<Vec<&str>>().join(" "); // TODO: deprecated, replace with get_many()
+	let command: String = args
+		.values_of("command")
+		.unwrap()
+		.collect::<Vec<&str>>()
+		.join(" "); // TODO: deprecated, replace with get_many()
+	let styles: Styles = color::parse_colors(
+		args.value_of("fg"),
+		args.value_of("bg"),
+		args.value_of("fg+"),
+		args.value_of("bg+"),
+	);
 
 	// test command once and exit on failure
 	match exec::output_lines(&command) {
 		Err(e) => {
 			print!("{}", e);
 			return Ok(());
-		},
-		_ => {},
+		}
+		_ => {}
 	};
 
 	// setup terminal
@@ -53,7 +64,14 @@ fn main() -> Result<(), io::Error> {
 	let mut terminal = Terminal::new(backend)?;
 
 	// run tui program
-	let res = run(&mut terminal, &keybindings, command, tick_rate, watch_rate);
+	let res = run(
+		&mut terminal,
+		&keybindings,
+		command,
+		styles,
+		tick_rate,
+		watch_rate,
+	);
 
 	// restore terminal
 	disable_raw_mode()?;
@@ -67,7 +85,7 @@ fn main() -> Result<(), io::Error> {
 	// print errors to stdout
 	match res {
 		Err(e) => print!("{}", e),
-		_ => {},
+		_ => {}
 	};
 
 	Ok(())
@@ -77,6 +95,7 @@ fn run<B: Backend>(
 	terminal: &mut Terminal<B>,
 	keybindings: &HashMap<KeyCode, Command>,
 	command: String,
+	styles: Styles,
 	tick_rate: Duration,
 	watch_rate: Duration,
 ) -> Result<(), io::Error> {
@@ -86,7 +105,8 @@ fn run<B: Backend>(
 		// worker thread that executes command in loop
 		loop {
 			tx.send(exec::output_lines(&command)).unwrap();
-			if watch_rate == Duration::ZERO { // only execute command once
+			if watch_rate == Duration::ZERO {
+				// only execute command once
 				break;
 			}
 			thread::sleep(watch_rate);
@@ -99,20 +119,22 @@ fn run<B: Backend>(
 	loop {
 		match rx.try_recv() {
 			Ok(recv) => events.set_items(recv?),
-			_ => {},
+			_ => {}
 		};
 
-		terminal.draw(|f| ui(f, &mut events))?;
+		terminal.draw(|f| ui(f, &mut events, &styles))?;
 
 		let timeout = tick_rate
 			.checked_sub(last_tick.elapsed())
 			.unwrap_or_else(|| Duration::ZERO);
-		if event::poll(timeout)? { // wait for keyboard input for max time of timeout
+		// wait for keyboard input for max time of timeout
+		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
-				match keys::handle_key(key.code, keybindings, &mut events) { // TODO: use sth more elegant than bool return type
+				match keys::handle_key(key.code, keybindings, &mut events) {
+					// TODO: use sth more elegant than bool return type
 					Ok(false) => return Ok(()),
 					Err(e) => return Err(e),
-					_ => {},
+					_ => {}
 				};
 			}
 		}
@@ -123,9 +145,10 @@ fn run<B: Backend>(
 }
 
 // TODO: simplify
-fn ui<B: Backend>(f: &mut Frame<B>, events: &mut Events) {
+fn ui<B: Backend>(f: &mut Frame<B>, events: &mut Events, styles: &Styles) {
 	let items: Vec<ListItem> = events
-		.items.iter()
+		.items
+		.iter()
 		.map(|i| ListItem::new(i.as_ref()))
 		.collect();
 	// let items = vec![
@@ -134,7 +157,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, events: &mut Events) {
 	// 	ListItem::new("line four"),
 	// ];
 	let list = List::new(items)
-		.style(Style::default().fg(Color::White))
-		.highlight_style(Style::default().fg(Color::Black).bg(Color::White));
+		.style(styles.style)
+		.highlight_style(styles.highlight_style);
 	f.render_stateful_widget(list, f.size(), &mut events.state);
 }

@@ -19,7 +19,8 @@ impl Events {
 	}
 
 	pub fn get_selected_line(&mut self) -> Option<&str> {
-		match self.state.selected() { // index of selected line
+		match self.state.selected() {
+			// index of selected line
 			Some(i) => Some(&self.items[i]),
 			None => None, // no selected line
 		}
@@ -35,7 +36,7 @@ impl Events {
 				} else {
 					Some(i)
 				}
-			},
+			}
 			None => None,
 		};
 		self.state.select(i);

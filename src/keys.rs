@@ -1,13 +1,13 @@
-use std::{
-	io::{self, Error, ErrorKind},
-	collections::HashMap,
-	str::FromStr,
-	process,
-};
-use crossterm::event::KeyCode::{self, *};
-use itertools::Itertools;
 use crate::events::Events;
 use crate::keys::Command::*;
+use crossterm::event::KeyCode::{self, *};
+use itertools::Itertools;
+use std::{
+	collections::HashMap,
+	io::{self, Error, ErrorKind},
+	process,
+	str::FromStr,
+};
 
 const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
 
@@ -25,17 +25,26 @@ pub enum Command {
 
 pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
 	// TODO: handle duplicates
-	Ok(format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
-		.split(",")
-		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
-		.map(|s| s.split(":").collect_tuple().unwrap())
-		.map(|(key, cmd)| {
-			(keycode_from_str(key).unwrap(), Command::from_str(cmd).unwrap())
-		})
-		.collect())
+	Ok(
+		format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
+			.split(",")
+			.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
+			.map(|s| s.split(":").collect_tuple().unwrap())
+			.map(|(key, cmd)| {
+				(
+					keycode_from_str(key).unwrap(),
+					Command::from_str(cmd).unwrap(),
+				)
+			})
+			.collect(),
+	)
 }
 
-pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events: &mut Events) -> Result<bool, io::Error> {
+pub fn handle_key(
+	key: KeyCode,
+	keybindings: &HashMap<KeyCode, Command>,
+	events: &mut Events,
+) -> Result<bool, io::Error> {
 	match keybindings.get(&key) {
 		Some(binding) => {
 			match binding {
@@ -61,13 +70,13 @@ pub fn handle_key(key: KeyCode, keybindings: &HashMap<KeyCode, Command>, events:
 								let stderr = String::from_utf8(output.stderr).unwrap();
 								return Err(Error::new(ErrorKind::Other, stderr));
 							}
-						},
-						None => {}, // no line selected, so do nothing
+						}
+						None => {} // no line selected, so do nothing
 					}
-				},
+				}
 			};
-		},
-		None => {}, // do nothing, since key has no binding
+		}
+		None => {} // do nothing, since key has no binding
 	};
 	Ok(true)
 }
@@ -113,8 +122,8 @@ fn keycode_from_str(input: &str) -> Result<KeyCode, ()> {
 
 impl FromStr for Command {
 	type Err = ();
-	fn from_str(input: &str) -> Result<Command, Self::Err> {
-		let command = match input {
+	fn from_str(src: &str) -> Result<Command, Self::Err> {
+		Ok(match src.to_lowercase().as_str() {
 			"exit" => Exit,
 			"unselect" => Unselect,
 			"next" => Next,
@@ -122,7 +131,6 @@ impl FromStr for Command {
 			"first" => First,
 			"last" => Last,
 			cmd => Execute(cmd.to_string()),
-		};
-		Ok(command)
+		})
 	}
 }
