@@ -2,6 +2,17 @@ This project is still a work in progress.
 
 # Watchbind
 
+## Piping
+
+If you want to use pipes in your command, make sure to escape the pipe symbol like so:
+```
+watchbind ls \| grep "test"
+```
+or put quotes around the command
+```
+watchbind "ls | grep test"
+```
+
 ## Shell
 
 The commands you bind to keys will be executed in a subshell using `sh -c`.

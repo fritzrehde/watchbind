@@ -46,6 +46,7 @@ fn main() -> Result<(), io::Error> {
 		args.value_of("bg+"),
 	);
 
+	// TODO: possibly remove for speed reasons
 	// test command once and exit on failure
 	match exec::output_lines(&command) {
 		Err(e) => {

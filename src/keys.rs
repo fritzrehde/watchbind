@@ -56,22 +56,18 @@ pub fn handle_key(
 				Last => events.last(),
 				Execute(cmd) => {
 					// TODO: instantly reload afterwards
-					match events.get_selected_line() {
-						Some(line) => {
-							// execute command
-							let command: Vec<&str> = vec!["sh", "-c", cmd];
-							let output = process::Command::new(command[0])
-								.env("LINE", line) // provide selected line as environment variable
-								.args(&command[1..])
-								.output()?;
+					// execute command
+					let command: Vec<&str> = vec!["sh", "-c", cmd];
+					let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
+					let output = process::Command::new(command[0])
+						.env("LINE", line) // provide selected line as environment variable
+						.args(&command[1..])
+						.output()?;
 
-							// handle command error
-							if !output.status.success() {
-								let stderr = String::from_utf8(output.stderr).unwrap();
-								return Err(Error::new(ErrorKind::Other, stderr));
-							}
-						}
-						None => {} // no line selected, so do nothing
+					// handle command error
+					if !output.status.success() {
+						let stderr = String::from_utf8(output.stderr).unwrap();
+						return Err(Error::new(ErrorKind::Other, stderr));
 					}
 				}
 			};
