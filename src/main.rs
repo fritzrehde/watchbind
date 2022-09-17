@@ -1,4 +1,4 @@
-use crate::color::Styles;
+use crate::style::Styles;
 use crate::events::Events;
 use crate::keys::Command;
 use crossterm::{
@@ -20,7 +20,7 @@ use tui::{
 };
 
 mod cli;
-mod color;
+mod style;
 mod events;
 mod exec;
 mod keys;
@@ -39,11 +39,13 @@ fn main() -> Result<(), io::Error> {
 		.unwrap()
 		.collect::<Vec<&str>>()
 		.join(" "); // TODO: deprecated, replace with get_many()
-	let styles: Styles = color::parse_colors(
+	let styles: Styles = style::parse_colors(
 		args.value_of("fg"),
 		args.value_of("bg"),
 		args.value_of("fg+"),
 		args.value_of("bg+"),
+		args.contains_id("bold"),
+		args.contains_id("bold+"),
 	);
 
 	// TODO: possibly remove for speed reasons

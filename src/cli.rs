@@ -46,5 +46,13 @@ pub fn parse_args() -> ArgMatches {
 				.required(false)
 				.default_value("blue")
 		)
+		.arg(
+			arg!(--bold "All lines except selected line are bold")
+				.required(false)
+		)
+		.arg(
+			arg!(--"bold+" "Selected line is bold")
+				.required(false)
+		)
 		.get_matches()
 }
