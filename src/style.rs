@@ -4,13 +4,14 @@ use tui::style::{
 	Style,
 };
 
+// TODO: remove derive
 #[derive(Default)]
 pub struct Styles {
 	pub style: Style,
 	pub highlight_style: Style,
 }
 
-pub fn parse_colors(
+pub fn parse_style(
 	fg: Option<&str>,
 	bg: Option<&str>,
 	fg_sel: Option<&str>,

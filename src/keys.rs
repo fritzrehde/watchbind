@@ -1,5 +1,3 @@
-use crate::events::Events;
-use crate::keys::Command::*;
 use crossterm::event::KeyCode::{self, *};
 use itertools::Itertools;
 use std::{
@@ -8,6 +6,8 @@ use std::{
 	process,
 	str::FromStr,
 };
+use crate::events::Events;
+use crate::keys::Command::*;
 
 const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
 
