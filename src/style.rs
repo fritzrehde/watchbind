@@ -12,10 +12,16 @@ pub struct Styles {
 }
 
 pub fn parse_style(
-	fg: Option<&str>,
-	bg: Option<&str>,
-	fg_sel: Option<&str>,
-	bg_sel: Option<&str>,
+	// fg: Option<&str>,
+	// bg: Option<&str>,
+	// fg_sel: Option<&str>,
+	// bg_sel: Option<&str>,
+	// bold: bool,
+	// bold_sel: bool,
+	fg: Option<String>,
+	bg: Option<String>,
+	fg_sel: Option<String>,
+	bg_sel: Option<String>,
 	bold: bool,
 	bold_sel: bool,
 ) -> Styles {
@@ -39,7 +45,7 @@ fn parse_bold(bold: bool) -> Modifier {
 	}
 }
 
-fn parse_color(src: Option<&str>) -> Color {
+fn parse_color(src: Option<String>) -> Color {
 	match src {
 		Some(color) => match color.to_lowercase().as_str() {
 			"white" => Color::White,

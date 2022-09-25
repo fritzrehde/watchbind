@@ -7,10 +7,9 @@ license-file = "LICENSE.md"
 description = "A cli menu for periodically watching a program's output and executing commands on its lines through keybindings"
 
 [dependencies]
-clap = { version = "3.2.5", default-features = false, features = ["std", "cargo"] }
+clap = { version = "3.2.5", default-features = false, features = ["std", "cargo", "derive"] }
 tui = "0.18"
 crossterm = "0.23"
 itertools = "0.10.3"
-toml = "0.4.2"
+config = { version = "0.13.1", features = ["toml"] }
 serde = "1.0"
-config = { version = "0.13.1", features = ["yaml", "toml"] }

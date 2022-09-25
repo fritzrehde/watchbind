@@ -1,10 +1,9 @@
 use crossterm::{
-	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::{
-	collections::HashMap,
 	io,
 	sync::mpsc,
 	thread,
@@ -18,7 +17,6 @@ use tui::{
 use crate::config::Config;
 use crate::style::Styles;
 use crate::events::Events;
-use crate::keys::Command;
 
 mod config;
 mod cli;
@@ -29,25 +27,6 @@ mod events;
 mod exec;
 
 fn main() -> Result<(), io::Error> {
-	// parse args and options
-	// let interval: f64 = *args.get_one("interval").unwrap();
-	// let tick_rate = Duration::from_millis(TICK_RATE);
-	// let watch_rate = Duration::from_secs_f64(interval);
-	// let keybindings = keys::parse_bindings(args.value_of("keybindings").unwrap_or(""))?; // TODO: replace with get_many
-	// let command: String = args
-	// 	.values_of("command")
-	// 	.unwrap()
-	// 	.collect::<Vec<&str>>()
-	// 	.join(" "); // TODO: deprecated, replace with get_many()
-	// let styles: Styles = style::parse_style(
-	// 	args.value_of("fg"),
-	// 	args.value_of("bg"),
-	// 	args.value_of("fg+"),
-	// 	args.value_of("bg+"),
-	// 	args.contains_id("bold"),
-	// 	args.contains_id("bold+"),
-	// );
-
 	let config = config::parse_config();
 
 	// TODO: possibly remove for speed reasons
@@ -120,7 +99,7 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 		// wait for keyboard input for max time of timeout
 		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
-				match keys::handle_key(key.code, config.keybindings, &mut events) {
+				match keys::handle_key(key.code, &config.keybindings, &mut events) {
 					// TODO: use sth more elegant than bool return type
 					Ok(false) => return Ok(()),
 					Err(e) => return Err(e),

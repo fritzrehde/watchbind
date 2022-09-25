@@ -1,5 +1,5 @@
 use crossterm::event::KeyCode::{self, *};
-use itertools::Itertools;
+// use itertools::Itertools;
 use std::{
 	collections::HashMap,
 	io::{self, Error, ErrorKind},
@@ -10,6 +10,10 @@ use crate::events::Events;
 use crate::keys::Command::*;
 
 const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
+
+// TODO: better name than Raw
+pub type Keybindings = HashMap<KeyCode, Command>;
+pub type KeybindingsRaw = HashMap<String, String>;
 
 // TODO: add reload command
 #[derive(Debug)]
@@ -23,26 +27,48 @@ pub enum Command {
 	Execute(String),
 }
 
-pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
-	// TODO: handle duplicates
-	Ok(
-		format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
-			.split(",")
-			.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
-			.map(|s| s.split(":").collect_tuple().unwrap())
-			.map(|(key, cmd)| {
-				(
-					keycode_from_str(key).unwrap(),
-					Command::from_str(cmd).unwrap(),
-				)
-			})
-			.collect(),
-	)
+pub fn default_keybindingsraw() -> KeybindingsRaw {
+	[
+		("q", "exit"),
+		("esc", "unselect"),
+		("down", "next"),
+		("up", "previous"),
+		("j", "next"),
+		("k", "previous"),
+		("g", "first"),
+		("G", "last")
+	]
+	.into_iter()
+	.map(|(k, v)| (k.to_string(), v.to_string()))
+	.collect()
+}
+
+// pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
+// 	// TODO: handle duplicates
+// 	let str_map: HashMap<&str, &str> = format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
+// 		.split(",")
+// 		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
+// 		.map(|s| s.split(":").collect_tuple().unwrap())
+// 		.collect();
+	
+// 	parse_str_map(str_map)
+// }
+
+pub fn parse_str_map(raw: KeybindingsRaw) -> Keybindings {
+	raw
+		.into_iter()
+		.map(|(key, cmd)| {
+			(
+				keycode_from_str(&key).unwrap(),
+				Command::from_str(&cmd).unwrap(),
+			)
+		})
+		.collect()
 }
 
 pub fn handle_key(
 	key: KeyCode,
-	keybindings: &HashMap<KeyCode, Command>,
+	keybindings: &Keybindings,
 	events: &mut Events,
 ) -> Result<bool, io::Error> {
 	match keybindings.get(&key) {
@@ -55,6 +81,7 @@ pub fn handle_key(
 				First => events.first(),
 				Last => events.last(),
 				Execute(cmd) => {
+					// TODO: move to exec module
 					// TODO: instantly reload afterwards
 					// execute command
 					let command: Vec<&str> = vec!["sh", "-c", cmd];
