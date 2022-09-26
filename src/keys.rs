@@ -1,5 +1,5 @@
 use crossterm::event::KeyCode::{self, *};
-// use itertools::Itertools;
+use itertools::{Itertools, chain};
 use std::{
 	collections::HashMap,
 	io::{self, Error, ErrorKind},
@@ -9,7 +9,7 @@ use std::{
 use crate::events::Events;
 use crate::keys::Command::*;
 
-const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
+// const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
 
 // TODO: better name than Raw
 pub type Keybindings = HashMap<KeyCode, Command>;
@@ -43,20 +43,18 @@ pub fn default_keybindingsraw() -> KeybindingsRaw {
 	.collect()
 }
 
-// pub fn parse_bindings(bindings: &str) -> io::Result<HashMap<KeyCode, Command>> {
-// 	// TODO: handle duplicates
-// 	let str_map: HashMap<&str, &str> = format!("{},{}", DEFAULT_BINDINGS, bindings) // TODO: handle empty "bindings"
-// 		.split(",")
-// 		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
-// 		.map(|s| s.split(":").collect_tuple().unwrap())
-// 		.collect();
-	
-// 	parse_str_map(str_map)
-// }
+// TODO: handle duplicates
+// TODO: merge two map() into one
+pub fn parse_str(bindings: String) -> KeybindingsRaw {
+	bindings.split(",")
+		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
+		.map(|s| s.split(":").collect_tuple().unwrap())
+		.map(|(k, v)| (k.to_string(), v.to_string()))
+		.collect()
+}
 
-pub fn parse_str_map(raw: KeybindingsRaw) -> Keybindings {
-	raw
-		.into_iter()
+pub fn parse_raw(raw: KeybindingsRaw) -> Keybindings {
+	raw.into_iter()
 		.map(|(key, cmd)| {
 			(
 				keycode_from_str(&key).unwrap(),
@@ -65,6 +63,21 @@ pub fn parse_str_map(raw: KeybindingsRaw) -> Keybindings {
 		})
 		.collect()
 }
+
+// // new and old have same key => keep new value
+// pub fn merge(new: Keybindings, old: Keybindings) -> Keybindings {
+// 	chain!(new.into_iter(), old.into_iter())
+// 		.unique_by(|(k, _)| k) 
+// 		.collect()
+// }
+
+// // new and old have same key => keep new value
+// pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> Keybindings {
+// 	let mut old_ = parse_raw(old);
+// 	let new_ = parse_raw(new);
+// 	old_.extend(new_.into_iter());
+// 	old_
+// }
 
 pub fn handle_key(
 	key: KeyCode,

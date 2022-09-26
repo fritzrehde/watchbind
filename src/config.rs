@@ -25,55 +25,82 @@ struct ConfigRaw {
 	keybindings: KeybindingsRaw,
 }
 
-#[derive(Deserialize, Parser)]
+#[derive(Parser)]
 #[clap(about)]
-pub struct ConfigRawOptional {
+pub struct ConfigRawArgs {
 	/// Command to execute periodically
 	command: Option<String>,
-
 	/// YAML config file path
 	#[clap(short, long, value_name = "FILE")]
 	config: Option<String>,
-
 	/// Seconds to wait between updates, 0 only executes once
 	#[clap(short, long, value_name = "SECS")]
 	interval: Option<f64>,
-
 	/// Foreground color of unselected lines
 	#[clap(long, value_name = "COLOR")]
 	fg: Option<String>,
-
 	/// Background color of unselected lines
 	#[clap(long, value_name = "COLOR")]
 	bg: Option<String>,
-
 	/// Foreground color of selected lines
 	#[clap(long, value_name = "COLOR")]
 	fg_plus: Option<String>,
-
 	/// Foreground color of selected lines
 	#[clap(long, value_name = "COLOR")]
 	bg_plus: Option<String>,
-
 	/// All lines except selected line are bold
 	#[clap(long)]
 	bold: Option<bool>,
-
 	/// Selected line is bold
 	#[clap(long)]
 	bold_plus: Option<bool>,
-
 	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
 	#[clap(short, long, value_name = "KEYBINDINGS")]
+	keybindings: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ConfigRawOptional {
+	command: Option<String>,
+	config: Option<String>,
+	interval: Option<f64>,
+	fg: Option<String>,
+	bg: Option<String>,
+	fg_plus: Option<String>,
+	bg_plus: Option<String>,
+	bold: Option<bool>,
+	bold_plus: Option<bool>,
 	keybindings: Option<KeybindingsRaw>,
 }
 
+fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
+	ConfigRawOptional {
+		command: args.command,
+		config: args.config,
+		interval: args.interval,
+		fg: args.fg,
+		bg: args.bg,
+		fg_plus: args.fg_plus,
+		bg_plus: args.bg_plus,
+		bold: args.bold,
+		bold_plus: args.bold_plus,
+		keybindings: {
+			match args.keybindings {
+				Some(s) => Some(keys::parse_str(s)),
+				None => None,
+			}
+		}
+	}
+	// args.keybindings = keys::parse_str(args.keybindings);
+	// args
+}
+
 pub fn parse_config() -> Config {
-	let cli = ConfigRawOptional::parse();
+	let cli = args2optional(ConfigRawArgs::parse());
 	// match cli.config.as_deref() {
-	match cli.config {
+	match &cli.config {
 		Some(path) => {
-			let toml_config = toml::parse_toml(&path);
+			let toml_config = toml::parse_toml(path);
 			merge_default(merge_opt(cli, toml_config))
 		},
 		None => merge_default(cli)
@@ -101,6 +128,7 @@ impl Default for ConfigRaw {
 
 // Merge a ConfigRawOptional config with the default config
 fn merge_default(opt: ConfigRawOptional) -> Config {
+	// TODO: inefficient: possibly loading unused defaults
 	let default: ConfigRaw = ConfigRaw::default();
 	Config {
 		// TODO: handle missing command, no default
@@ -114,7 +142,16 @@ fn merge_default(opt: ConfigRawOptional) -> Config {
 			opt.bg_plus.or(default.bg_plus),
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_plus.unwrap_or(default.bold_plus)),
-		keybindings: opt.keybindings.unwrap_or(default.keybindings),
+		keybindings: {
+			match opt.keybindings {
+				Some(keys) => {
+					let mut new = keys::parse_raw(default.keybindings);
+					new.extend(keys::parse_raw(keys));
+					new
+				},
+				None => keys::parse_raw(default.keybindings),
+			}
+		}
 	}
 }
 
