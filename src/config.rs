@@ -109,12 +109,13 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bold: args.bold.then_some(args.bold),
 		bold_plus: args.bold_plus.then_some(args.bold_plus),
 		// TODO: simplify syntax
-		keybindings: {
-			match args.keybindings {
-				Some(s) => keys::parse_str(s),
-				None => HashMap::new(),
-			}
-		}
+		keybindings: args.keybindings.map_or(HashMap::new(), |s| keys::parse_str(s)),
+		// keybindings: {
+		// 	match args.keybindings {
+		// 		Some(s) => keys::parse_str(s),
+		// 		None => HashMap::new(),
+		// 	}
+		// }
 	}
 }
 
