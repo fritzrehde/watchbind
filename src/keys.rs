@@ -1,13 +1,13 @@
 use crossterm::event::KeyCode::{self, *};
-use itertools::{Itertools, chain};
+use itertools::Itertools;
 use std::{
 	collections::HashMap,
-	io::{self, Error, ErrorKind},
-	process,
+	io,
 	str::FromStr,
 };
 use crate::events::Events;
 use crate::keys::Command::*;
+use crate::exec;
 
 pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
@@ -71,20 +71,10 @@ pub fn handle_key(
 				First => events.first(),
 				Last => events.last(),
 				Execute(cmd) => {
-					// TODO: move to exec module
 					// TODO: instantly reload afterwards
-					// execute command
-					let command: Vec<&str> = vec!["sh", "-c", cmd];
-					let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
-					let output = process::Command::new(command[0])
-						.env("LINE", line) // provide selected line as environment variable
-						.args(&command[1..])
-						.output()?;
-
-					// handle command error
-					if !output.status.success() {
-						let stderr = String::from_utf8(output.stderr).unwrap();
-						return Err(Error::new(ErrorKind::Other, stderr));
+					match exec::run_selected_line(&cmd, events) {
+						Err(e) => return Err(e),
+						_ => {}
 					}
 				}
 			};

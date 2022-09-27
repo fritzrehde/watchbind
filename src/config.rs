@@ -106,20 +106,8 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bg: args.bg,
 		fg_plus: args.fg_plus,
 		bg_plus: args.bg_plus,
-		bold: {
-			if args.bold {
-				Some(args.bold)
-			} else {
-				None
-			}
-		},
-		bold_plus: {
-			if args.bold_plus {
-				Some(args.bold_plus)
-			} else {
-				None
-			}
-		},
+		bold: args.bold.then_some(args.bold),
+		bold_plus: args.bold_plus.then_some(args.bold_plus),
 		// TODO: simplify syntax
 		keybindings: {
 			match args.keybindings {
