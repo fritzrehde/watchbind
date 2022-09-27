@@ -26,7 +26,7 @@ mod events;
 mod exec;
 
 fn main() -> Result<(), io::Error> {
-	let config = config::parse_config();
+	let config = config::parse_config()?;
 	// println!("{:?}", config);
 
 	// TODO: possibly remove for speed reasons
@@ -66,6 +66,8 @@ fn main() -> Result<(), io::Error> {
 
 	Ok(())
 }
+
+
 
 fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io::Error> {
 	let mut last_tick = Instant::now();

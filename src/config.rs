@@ -1,4 +1,5 @@
 use std::{time::Duration, collections::HashMap};
+use std::io::{Error, ErrorKind};
 use serde::Deserialize;
 use clap::{Parser};
 use crate::{style, toml, keys::{self, Keybindings, KeybindingsRaw}};
@@ -14,7 +15,6 @@ pub struct Config {
 }
 
 struct ConfigRaw {
-	command: String,
 	interval: f64,
 	tick_rate: u64,
 	fg: Option<String>,
@@ -85,12 +85,13 @@ pub struct ConfigRawOptional {
 	keybindings: KeybindingsRaw,
 }
 
-pub fn parse_config() -> Config {
+pub fn parse_config() -> Result<Config, Error> {
 	let cli = ConfigRawArgs::parse();
 	let config_file = cli.config_file.clone();
 	let args = args2optional(cli);
 	match &config_file {
 		Some(path) => {
+			// TODO: can go wrong
 			let file = file2optional(toml::parse_toml(path));
 			merge_default(merge_opt(args, file))
 		},
@@ -98,60 +99,27 @@ pub fn parse_config() -> Config {
 	}
 }
 
-fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
-	ConfigRawOptional {
-		command: args.command,
-		interval: args.interval,
-		fg: args.fg,
-		bg: args.bg,
-		fg_plus: args.fg_plus,
-		bg_plus: args.bg_plus,
-		bold: args.bold.then_some(args.bold),
-		bold_plus: args.bold_plus.then_some(args.bold_plus),
-		// TODO: simplify syntax
-		keybindings: args.keybindings.map_or(HashMap::new(), |s| keys::parse_str(s)),
-		// keybindings: {
-		// 	match args.keybindings {
-		// 		Some(s) => keys::parse_str(s),
-		// 		None => HashMap::new(),
-		// 	}
-		// }
-	}
-}
-
-fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
-	ConfigRawOptional {
-		command: file.command,
-		interval: file.interval,
-		fg: file.fg,
-		bg: file.bg,
-		fg_plus: file.fg_plus,
-		bg_plus: file.bg_plus,
-		bold: file.bold,
-		bold_plus: file.bold_plus,
-		keybindings: file.keybindings.unwrap_or(HashMap::new()),
-	}
-}
-
-// TODO: remove repitition with macro
-
 // Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional) -> Config {
+fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 	let default: ConfigRaw = ConfigRaw::default();
-	Config {
-		// TODO: handle missing command, no default
-		command: opt.command.expect("Arg command must exist"),
-		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
-		tick_rate: Duration::from_millis(default.tick_rate),
-		styles: style::parse_style(
-			opt.fg.or(default.fg),
-			opt.bg.or(default.bg),
-			opt.fg_plus.or(default.fg_plus),
-			opt.bg_plus.or(default.bg_plus),
-			opt.bold.unwrap_or(default.bold),
-			opt.bold_plus.unwrap_or(default.bold_plus)),
-		keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings)),
-	}
+	Ok(
+		Config {
+			// TODO: handle missing command, no default
+			command: opt.command
+				.ok_or(Error::new(ErrorKind::Other, "Command must be provided via command line or config file"))?,
+			// clap::Cli::command().error(clap::error::ErrorKind::MissingRequiredArgument, "Command must be provided via command line or config file").exit()
+			watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
+			tick_rate: Duration::from_millis(default.tick_rate),
+			styles: style::parse_style(
+				opt.fg.or(default.fg),
+				opt.bg.or(default.bg),
+				opt.fg_plus.or(default.fg_plus),
+				opt.bg_plus.or(default.bg_plus),
+				opt.bold.unwrap_or(default.bold),
+				opt.bold_plus.unwrap_or(default.bold_plus)),
+			keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings)),
+		}
+	)
 }
 
 // Merge two ConfigRawOptional configs, opt1 is favoured
@@ -169,10 +137,37 @@ fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptio
 	}
 }
 
+fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
+	ConfigRawOptional {
+		command: args.command,
+		interval: args.interval,
+		fg: args.fg,
+		bg: args.bg,
+		fg_plus: args.fg_plus,
+		bg_plus: args.bg_plus,
+		bold: args.bold.then_some(args.bold),
+		bold_plus: args.bold_plus.then_some(args.bold_plus),
+		keybindings: args.keybindings.map_or(HashMap::new(), |s| keys::parse_str(s)),
+	}
+}
+
+fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
+	ConfigRawOptional {
+		command: file.command,
+		interval: file.interval,
+		fg: file.fg,
+		bg: file.bg,
+		fg_plus: file.fg_plus,
+		bg_plus: file.bg_plus,
+		bold: file.bold,
+		bold_plus: file.bold_plus,
+		keybindings: file.keybindings.unwrap_or(HashMap::new()),
+	}
+}
+
 impl Default for ConfigRaw {
 	fn default() -> ConfigRaw {
 		ConfigRaw {
-			command: "ls".to_string(),
 			interval: 5.0,
 			tick_rate: 250,
 			fg: None,
