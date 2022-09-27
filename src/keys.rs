@@ -9,9 +9,6 @@ use std::{
 use crate::events::Events;
 use crate::keys::Command::*;
 
-// const DEFAULT_BINDINGS: &str = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
-
-// TODO: better name than Raw
 pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
 
@@ -25,22 +22,6 @@ pub enum Command {
 	First,
 	Last,
 	Execute(String),
-}
-
-pub fn default_keybindingsraw() -> KeybindingsRaw {
-	[
-		("q", "exit"),
-		("esc", "unselect"),
-		("down", "next"),
-		("up", "previous"),
-		("j", "next"),
-		("k", "previous"),
-		("g", "first"),
-		("G", "last")
-	]
-	.into_iter()
-	.map(|(k, v)| (k.to_string(), v.to_string()))
-	.collect()
 }
 
 // TODO: handle duplicates
@@ -64,20 +45,16 @@ pub fn parse_raw(raw: KeybindingsRaw) -> Keybindings {
 		.collect()
 }
 
-// // new and old have same key => keep new value
-// pub fn merge(new: Keybindings, old: Keybindings) -> Keybindings {
-// 	chain!(new.into_iter(), old.into_iter())
-// 		.unique_by(|(k, _)| k) 
-// 		.collect()
-// }
-
-// // new and old have same key => keep new value
-// pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> Keybindings {
-// 	let mut old_ = parse_raw(old);
-// 	let new_ = parse_raw(new);
-// 	old_.extend(new_.into_iter());
-// 	old_
-// }
+// new and old have same key => keep new value
+pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
+	let mut merged = old.clone();
+	merged.extend(new);
+	merged
+	// chain!(new.into_iter(), old.into_iter())
+	// 	.unique_by(|(k, _)| k) 
+	// 	// .unique()
+	// 	.collect()
+}
 
 pub fn handle_key(
 	key: KeyCode,
@@ -159,7 +136,7 @@ fn keycode_from_str(input: &str) -> Result<KeyCode, ()> {
 impl FromStr for Command {
 	type Err = ();
 	fn from_str(src: &str) -> Result<Command, Self::Err> {
-		Ok(match src.to_lowercase().as_str() {
+		Ok(match src {
 			"exit" => Exit,
 			"unselect" => Unselect,
 			"next" => Next,
@@ -169,4 +146,20 @@ impl FromStr for Command {
 			cmd => Execute(cmd.to_string()),
 		})
 	}
+}
+
+pub fn default_keybindingsraw() -> KeybindingsRaw {
+	[
+		("q", "exit"),
+		("esc", "unselect"),
+		("down", "next"),
+		("up", "previous"),
+		("j", "next"),
+		("k", "previous"),
+		("g", "first"),
+		("G", "last")
+	]
+	.into_iter()
+	.map(|(k, v)| (k.to_string(), v.to_string()))
+	.collect()
 }

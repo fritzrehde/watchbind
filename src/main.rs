@@ -19,7 +19,6 @@ use crate::style::Styles;
 use crate::events::Events;
 
 mod config;
-mod cli;
 mod toml;
 mod style;
 mod keys;
@@ -28,6 +27,7 @@ mod exec;
 
 fn main() -> Result<(), io::Error> {
 	let config = config::parse_config();
+	// println!("{:?}", config);
 
 	// TODO: possibly remove for speed reasons
 	// test command once and exit on failure

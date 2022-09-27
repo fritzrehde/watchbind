@@ -1,12 +1,12 @@
-command = "ls"
-interval = 5.0
+command = "date"
+interval = 1.0
 fg = "none"
 bg = "none"
 fg_plus = "black"
 bg_plus = "blue"
-bold = true
+bold = false
 bold_plus = true
 
 [keybindings]
-"l" = "echo \"$LINE\" | '{ print $1 }'"
-"x" = "dunstify \"$LINE\""
+"l" = "dunstify \"Printing $LINE\""
+"x" = "dunstify \"Deleted $LINE\""

@@ -5,23 +5,17 @@ use tui::style::{
 };
 
 // TODO: remove derive
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Styles {
 	pub style: Style,
 	pub highlight_style: Style,
 }
 
 pub fn parse_style(
-	// fg: Option<&str>,
-	// bg: Option<&str>,
-	// fg_sel: Option<&str>,
-	// bg_sel: Option<&str>,
-	// bold: bool,
-	// bold_sel: bool,
 	fg: Option<String>,
 	bg: Option<String>,
-	fg_sel: Option<String>,
-	bg_sel: Option<String>,
+	fg_plus: Option<String>,
+	bg_plus: Option<String>,
 	bold: bool,
 	bold_sel: bool,
 ) -> Styles {
@@ -31,8 +25,8 @@ pub fn parse_style(
 			.bg(parse_color(bg))
 			.add_modifier(parse_bold(bold)),
 		highlight_style: Style::reset()
-			.fg(parse_color(fg_sel))
-			.bg(parse_color(bg_sel))
+			.fg(parse_color(fg_plus))
+			.bg(parse_color(bg_plus))
 			.add_modifier(parse_bold(bold_sel)),
 	}
 }

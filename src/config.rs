@@ -1,9 +1,10 @@
-use std::time::Duration;
+use std::{time::Duration, collections::HashMap};
 use serde::Deserialize;
 use clap::{Parser};
 use crate::{style, toml, keys::{self, Keybindings, KeybindingsRaw}};
 
 // TODO: find better solution than to make all fields public
+#[derive(Debug)]
 pub struct Config {
 	pub command: String,
 	pub watch_rate: Duration,
@@ -26,13 +27,13 @@ struct ConfigRaw {
 }
 
 #[derive(Parser)]
-#[clap(about)]
+#[clap(version, about)]
 pub struct ConfigRawArgs {
 	/// Command to execute periodically
 	command: Option<String>,
 	/// YAML config file path
 	#[clap(short, long, value_name = "FILE")]
-	config: Option<String>,
+	config_file: Option<String>,
 	/// Seconds to wait between updates, 0 only executes once
 	#[clap(short, long, value_name = "SECS")]
 	interval: Option<f64>,
@@ -43,26 +44,25 @@ pub struct ConfigRawArgs {
 	#[clap(long, value_name = "COLOR")]
 	bg: Option<String>,
 	/// Foreground color of selected lines
-	#[clap(long, value_name = "COLOR")]
+	#[clap(long = "fg+", value_name = "COLOR")]
 	fg_plus: Option<String>,
 	/// Foreground color of selected lines
-	#[clap(long, value_name = "COLOR")]
+	#[clap(long = "bg+", value_name = "COLOR")]
 	bg_plus: Option<String>,
 	/// All lines except selected line are bold
 	#[clap(long)]
-	bold: Option<bool>,
+	bold: bool,
 	/// Selected line is bold
-	#[clap(long)]
-	bold_plus: Option<bool>,
+	#[clap(long = "bold+")]
+	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
-	#[clap(short, long, value_name = "KEYBINDINGS")]
+	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS")]
 	keybindings: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct ConfigRawOptional {
+pub struct ConfigRawFile {
 	command: Option<String>,
-	config: Option<String>,
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
@@ -73,54 +73,74 @@ pub struct ConfigRawOptional {
 	keybindings: Option<KeybindingsRaw>,
 }
 
+pub struct ConfigRawOptional {
+	command: Option<String>,
+	interval: Option<f64>,
+	fg: Option<String>,
+	bg: Option<String>,
+	fg_plus: Option<String>,
+	bg_plus: Option<String>,
+	bold: Option<bool>,
+	bold_plus: Option<bool>,
+	keybindings: KeybindingsRaw,
+}
+
+pub fn parse_config() -> Config {
+	let cli = ConfigRawArgs::parse();
+	let config_file = cli.config_file.clone();
+	let args = args2optional(cli);
+	match &config_file {
+		Some(path) => {
+			let file = file2optional(toml::parse_toml(path));
+			merge_default(merge_opt(args, file))
+		},
+		None => merge_default(args)
+	}
+}
+
 fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 	ConfigRawOptional {
 		command: args.command,
-		config: args.config,
 		interval: args.interval,
 		fg: args.fg,
 		bg: args.bg,
 		fg_plus: args.fg_plus,
 		bg_plus: args.bg_plus,
-		bold: args.bold,
-		bold_plus: args.bold_plus,
+		bold: {
+			if args.bold {
+				Some(args.bold)
+			} else {
+				None
+			}
+		},
+		bold_plus: {
+			if args.bold_plus {
+				Some(args.bold_plus)
+			} else {
+				None
+			}
+		},
+		// TODO: simplify syntax
 		keybindings: {
 			match args.keybindings {
-				Some(s) => Some(keys::parse_str(s)),
-				None => None,
+				Some(s) => keys::parse_str(s),
+				None => HashMap::new(),
 			}
 		}
 	}
-	// args.keybindings = keys::parse_str(args.keybindings);
-	// args
 }
 
-pub fn parse_config() -> Config {
-	let cli = args2optional(ConfigRawArgs::parse());
-	// match cli.config.as_deref() {
-	match &cli.config {
-		Some(path) => {
-			let toml_config = toml::parse_toml(path);
-			merge_default(merge_opt(cli, toml_config))
-		},
-		None => merge_default(cli)
-	}
-}
-
-impl Default for ConfigRaw {
-	fn default() -> ConfigRaw {
-		ConfigRaw {
-			command: "ls".to_string(),
-			interval: 5.0,
-			tick_rate: 250,
-			fg: None,
-			bg: None,
-			fg_plus: None,
-			bg_plus: None,
-			bold: false,
-			bold_plus: false,
-			keybindings: keys::default_keybindingsraw(),
-		}
+fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
+	ConfigRawOptional {
+		command: file.command,
+		interval: file.interval,
+		fg: file.fg,
+		bg: file.bg,
+		fg_plus: file.fg_plus,
+		bg_plus: file.bg_plus,
+		bold: file.bold,
+		bold_plus: file.bold_plus,
+		keybindings: file.keybindings.unwrap_or(HashMap::new()),
 	}
 }
 
@@ -128,7 +148,6 @@ impl Default for ConfigRaw {
 
 // Merge a ConfigRawOptional config with the default config
 fn merge_default(opt: ConfigRawOptional) -> Config {
-	// TODO: inefficient: possibly loading unused defaults
 	let default: ConfigRaw = ConfigRaw::default();
 	Config {
 		// TODO: handle missing command, no default
@@ -142,24 +161,14 @@ fn merge_default(opt: ConfigRawOptional) -> Config {
 			opt.bg_plus.or(default.bg_plus),
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_plus.unwrap_or(default.bold_plus)),
-		keybindings: {
-			match opt.keybindings {
-				Some(keys) => {
-					let mut new = keys::parse_raw(default.keybindings);
-					new.extend(keys::parse_raw(keys));
-					new
-				},
-				None => keys::parse_raw(default.keybindings),
-			}
-		}
+		keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings)),
 	}
 }
 
-// Merge two ConfigRawOptional configs
+// Merge two ConfigRawOptional configs, opt1 is favoured
 fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptional {
 	ConfigRawOptional {
 		command: opt1.command.or(opt2.command),
-		config: opt1.config.or(opt2.config),
 		interval: opt1.interval.or(opt2.interval),
 		fg: opt1.fg.or(opt2.fg),
 		bg: opt1.bg.or(opt2.bg),
@@ -167,6 +176,23 @@ fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptio
 		bg_plus: opt1.bg_plus.or(opt2.bg_plus),
 		bold: opt1.bold.or(opt2.bold),
 		bold_plus: opt1.bold_plus.or(opt2.bold_plus),
-		keybindings: opt1.keybindings.or(opt2.keybindings),
+		keybindings: keys::merge_raw(opt1.keybindings, opt2.keybindings),
+	}
+}
+
+impl Default for ConfigRaw {
+	fn default() -> ConfigRaw {
+		ConfigRaw {
+			command: "ls".to_string(),
+			interval: 5.0,
+			tick_rate: 250,
+			fg: None,
+			bg: None,
+			fg_plus: Some("black".to_string()),
+			bg_plus: Some("blue".to_string()),
+			bold: false,
+			bold_plus: true,
+			keybindings: keys::default_keybindingsraw(),
+		}
 	}
 }

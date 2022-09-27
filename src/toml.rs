@@ -1,7 +1,7 @@
 use config::{File, Config};
-use crate::config::ConfigRawOptional;
+use crate::config::ConfigRawFile;
 
-pub fn parse_toml(config_file: &str) -> ConfigRawOptional {
+pub fn parse_toml(config_file: &str) -> ConfigRawFile {
 	Config::builder()
 		.add_source(File::with_name(config_file))
 		.build().unwrap()
