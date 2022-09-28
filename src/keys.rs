@@ -1,13 +1,13 @@
+use crate::events::Events;
+use crate::exec;
+use crate::keys::Command::*;
 use crossterm::event::KeyCode::{self, *};
 use itertools::Itertools;
 use std::{
 	collections::HashMap,
-	io,
+	io::{Error, ErrorKind},
 	str::FromStr,
 };
-use crate::events::Events;
-use crate::keys::Command::*;
-use crate::exec;
 
 pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
@@ -25,23 +25,21 @@ pub enum Command {
 }
 
 // TODO: handle duplicates
-// TODO: merge two map() into one
 pub fn parse_str(bindings: String) -> KeybindingsRaw {
-	bindings.split(",")
-		.filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
-		.map(|s| s.split(":").collect_tuple().unwrap())
-		.map(|(k, v)| (k.to_string(), v.to_string()))
+	bindings
+		.split(",")
+		// .filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
+		.map(|s| {
+			let (k, v) = s.split(":").collect_tuple().unwrap();
+			(k.to_string(), v.to_string())
+		})
 		.collect()
 }
 
-pub fn parse_raw(raw: KeybindingsRaw) -> Keybindings {
-	raw.into_iter()
-		.map(|(key, cmd)| {
-			(
-				keycode_from_str(&key).unwrap(),
-				Command::from_str(&cmd).unwrap(),
-			)
-		})
+pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
+	raw
+		.into_iter()
+		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, Command::from_str(&cmd)?)))
 		.collect()
 }
 
@@ -50,17 +48,13 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	let mut merged = old.clone();
 	merged.extend(new);
 	merged
-	// chain!(new.into_iter(), old.into_iter())
-	// 	.unique_by(|(k, _)| k) 
-	// 	// .unique()
-	// 	.collect()
 }
 
 pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	events: &mut Events,
-) -> Result<bool, io::Error> {
+) -> Result<bool, Error> {
 	match keybindings.get(&key) {
 		Some(binding) => {
 			match binding {
@@ -70,13 +64,8 @@ pub fn handle_key(
 				Previous => events.previous(),
 				First => events.first(),
 				Last => events.last(),
-				Execute(cmd) => {
-					// TODO: instantly reload afterwards
-					match exec::run_selected_line(&cmd, events) {
-						Err(e) => return Err(e),
-						_ => {}
-					}
-				}
+				// TODO: instantly reload afterwards
+				Execute(cmd) => exec::run_selected_line(&cmd, events)?,
 			};
 		}
 		None => {} // do nothing, since key has no binding
@@ -84,8 +73,13 @@ pub fn handle_key(
 	Ok(true)
 }
 
+pub fn default_raw() -> KeybindingsRaw {
+	let keybindings = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
+	parse_str(keybindings.to_string())
+}
+
 // TODO: add modifiers
-fn keycode_from_str(input: &str) -> Result<KeyCode, ()> {
+fn keycode_from_str(input: &str) -> Result<KeyCode, Error> {
 	let key = match input {
 		"esc" => Esc,
 		"enter" => Enter,
@@ -118,13 +112,18 @@ fn keycode_from_str(input: &str) -> Result<KeyCode, ()> {
 		"space" => Char(' '),
 		"tab" => Tab,
 		c if c.len() == 1 => Char(c.chars().next().unwrap()),
-		_ => return Err(()),
+		invalid => {
+			return Err(Error::new(
+				ErrorKind::Other,
+				format!("Invalid key provided in keybinding: {}", invalid),
+			))
+		}
 	};
 	Ok(key)
 }
 
 impl FromStr for Command {
-	type Err = ();
+	type Err = Error;
 	fn from_str(src: &str) -> Result<Command, Self::Err> {
 		Ok(match src {
 			"exit" => Exit,
@@ -136,20 +135,4 @@ impl FromStr for Command {
 			cmd => Execute(cmd.to_string()),
 		})
 	}
-}
-
-pub fn default_keybindingsraw() -> KeybindingsRaw {
-	[
-		("q", "exit"),
-		("esc", "unselect"),
-		("down", "next"),
-		("up", "previous"),
-		("j", "next"),
-		("k", "previous"),
-		("g", "first"),
-		("G", "last")
-	]
-	.into_iter()
-	.map(|(k, v)| (k.to_string(), v.to_string()))
-	.collect()
 }

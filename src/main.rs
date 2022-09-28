@@ -1,10 +1,13 @@
+use crate::config::Config;
+use crate::events::Events;
+use crate::style::Styles;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::{
-	io,
+	io::{self, Error},
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
@@ -14,60 +17,47 @@ use tui::{
 	widgets::{List, ListItem},
 	Frame, Terminal,
 };
-use crate::config::Config;
-use crate::style::Styles;
-use crate::events::Events;
 
 mod config;
-mod toml;
-mod style;
-mod keys;
 mod events;
 mod exec;
+mod keys;
+mod style;
+mod toml;
 
-fn main() -> Result<(), io::Error> {
-	let config = config::parse_config()?;
-	// println!("{:?}", config);
+fn main() -> Result<(), Error> {
+	match config::parse_config() {
+		Ok(config) => {
+			// setup terminal
+			enable_raw_mode()?;
+			let mut stdout = io::stdout();
+			execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+			let backend = CrosstermBackend::new(stdout);
+			let mut terminal = Terminal::new(backend)?;
 
-	// TODO: possibly remove for speed reasons
-	// test command once and exit on failure
-	// match exec::output_lines(&config.command) {
-	// 	Err(e) => {
-	// 		print!("{}", e);
-	// 		return Ok(());
-	// 	}
-	// 	_ => {}
-	// };
+			// run tui program
+			let res = run(&mut terminal, config);
 
-	// setup terminal
-	enable_raw_mode()?;
-	let mut stdout = io::stdout();
-	execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-	let backend = CrosstermBackend::new(stdout);
-	let mut terminal = Terminal::new(backend)?;
+			// restore terminal
+			disable_raw_mode()?;
+			execute!(
+				terminal.backend_mut(),
+				LeaveAlternateScreen,
+				DisableMouseCapture
+			)?;
+			terminal.show_cursor()?;
 
-	// run tui program
-	let res = run(&mut terminal, config);
-
-	// restore terminal
-	disable_raw_mode()?;
-	execute!(
-		terminal.backend_mut(),
-		LeaveAlternateScreen,
-		DisableMouseCapture
-	)?;
-	terminal.show_cursor()?;
-
-	// print errors to stdout
-	match res {
-		Err(e) => print!("{}", e),
-		_ => {}
+			// print errors to stdout
+			match res {
+				Err(e) => eprint!("{}", e),
+				_ => {}
+			};
+		}
+		// print config errors
+		Err(e) => eprintln!("{}", e),
 	};
-
 	Ok(())
 }
-
-
 
 fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io::Error> {
 	let mut last_tick = Instant::now();
@@ -95,7 +85,8 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 
 		terminal.draw(|f| ui(f, &mut events, &config.styles))?;
 
-		let timeout = config.tick_rate
+		let timeout = config
+			.tick_rate
 			.checked_sub(last_tick.elapsed())
 			.unwrap_or_else(|| Duration::ZERO);
 		// wait for keyboard input for max time of timeout

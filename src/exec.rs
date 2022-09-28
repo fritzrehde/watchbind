@@ -1,6 +1,6 @@
+use crate::events::Events;
 use std::io::{Error, ErrorKind};
 use std::process::Command;
-use crate::events::Events;
 
 pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	// execute command
@@ -40,6 +40,6 @@ pub fn run_selected_line(cmd: &str, events: &mut Events) -> Result<(), Error> {
 		false => {
 			let stderr = String::from_utf8(output.stderr).unwrap();
 			return Err(Error::new(ErrorKind::Other, stderr));
-		},
+		}
 	}
 }

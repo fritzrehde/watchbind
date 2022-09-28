@@ -1,8 +1,4 @@
-use tui::style::{
-	Color,
-	Modifier,
-	Style,
-};
+use tui::style::{Color, Modifier, Style};
 
 // TODO: remove derive
 #[derive(Debug)]

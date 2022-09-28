@@ -1,8 +1,12 @@
-use std::{time::Duration, collections::HashMap};
 use std::io::{Error, ErrorKind};
+use std::{collections::HashMap, time::Duration};
+// use clap::error::{Error, ErrorKind};
+use crate::{
+	keys::{self, Keybindings, KeybindingsRaw},
+	style, toml,
+};
+use clap::Parser;
 use serde::Deserialize;
-use clap::{Parser};
-use crate::{style, toml, keys::{self, Keybindings, KeybindingsRaw}};
 
 // TODO: find better solution than to make all fields public
 #[derive(Debug)]
@@ -94,32 +98,33 @@ pub fn parse_config() -> Result<Config, Error> {
 			// TODO: can go wrong
 			let file = file2optional(toml::parse_toml(path));
 			merge_default(merge_opt(args, file))
-		},
-		None => merge_default(args)
+		}
+		None => merge_default(args),
 	}
 }
 
 // Merge a ConfigRawOptional config with the default config
 fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 	let default: ConfigRaw = ConfigRaw::default();
-	Ok(
-		Config {
-			// TODO: handle missing command, no default
-			command: opt.command
-				.ok_or(Error::new(ErrorKind::Other, "Command must be provided via command line or config file"))?,
-			// clap::Cli::command().error(clap::error::ErrorKind::MissingRequiredArgument, "Command must be provided via command line or config file").exit()
-			watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
-			tick_rate: Duration::from_millis(default.tick_rate),
-			styles: style::parse_style(
-				opt.fg.or(default.fg),
-				opt.bg.or(default.bg),
-				opt.fg_plus.or(default.fg_plus),
-				opt.bg_plus.or(default.bg_plus),
-				opt.bold.unwrap_or(default.bold),
-				opt.bold_plus.unwrap_or(default.bold_plus)),
-			keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings)),
-		}
-	)
+	Ok(Config {
+		// TODO: handle missing command, no default
+		command: opt.command.ok_or(Error::new(
+			ErrorKind::Other,
+			"Command must be provided via command line or config file",
+		))?,
+		// .ok_or(Cli::command().error(ErrorKind::MissingRequiredArgument, "Command must be provided via command line or config file"))?,
+		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
+		tick_rate: Duration::from_millis(default.tick_rate),
+		styles: style::parse_style(
+			opt.fg.or(default.fg),
+			opt.bg.or(default.bg),
+			opt.fg_plus.or(default.fg_plus),
+			opt.bg_plus.or(default.bg_plus),
+			opt.bold.unwrap_or(default.bold),
+			opt.bold_plus.unwrap_or(default.bold_plus),
+		),
+		keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings))?,
+	})
 }
 
 // Merge two ConfigRawOptional configs, opt1 is favoured
@@ -147,7 +152,9 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bg_plus: args.bg_plus,
 		bold: args.bold.then_some(args.bold),
 		bold_plus: args.bold_plus.then_some(args.bold_plus),
-		keybindings: args.keybindings.map_or(HashMap::new(), |s| keys::parse_str(s)),
+		keybindings: args
+			.keybindings
+			.map_or(HashMap::new(), |s| keys::parse_str(s)),
 	}
 }
 
@@ -176,7 +183,7 @@ impl Default for ConfigRaw {
 			bg_plus: Some("blue".to_string()),
 			bold: false,
 			bold_plus: true,
-			keybindings: keys::default_keybindingsraw(),
+			keybindings: keys::default_raw(),
 		}
 	}
 }
