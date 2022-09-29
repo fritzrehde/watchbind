@@ -107,7 +107,6 @@ pub fn parse_config() -> Result<Config, Error> {
 fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
-		// TODO: handle missing command, no default
 		command: opt.command.ok_or_else(|| Error::new(
 			ErrorKind::Other,
 			"Command must be provided via command line or config file",
