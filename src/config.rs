@@ -60,8 +60,8 @@ pub struct ConfigRawArgs {
 	#[clap(long = "bold+")]
 	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
-	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS")]
-	keybindings: Option<String>,
+	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_key_val)]
+	keybindings: Option<Vec<(String, String)>>,
 }
 
 #[derive(Deserialize)]
@@ -108,11 +108,10 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
 		// TODO: handle missing command, no default
-		command: opt.command.ok_or(Error::new(
+		command: opt.command.ok_or_else(|| Error::new(
 			ErrorKind::Other,
 			"Command must be provided via command line or config file",
 		))?,
-		// .ok_or(Cli::command().error(ErrorKind::MissingRequiredArgument, "Command must be provided via command line or config file"))?,
 		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
 		tick_rate: Duration::from_millis(default.tick_rate),
 		styles: style::parse_style(
@@ -154,7 +153,7 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bold_plus: args.bold_plus.then_some(args.bold_plus),
 		keybindings: args
 			.keybindings
-			.map_or(HashMap::new(), |s| keys::parse_str(s)),
+			.map_or(HashMap::new(), |s| s.into_iter().collect()),
 	}
 }
 

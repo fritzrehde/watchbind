@@ -13,7 +13,7 @@ pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
 
 // TODO: add reload command
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Command {
 	Exit,
 	Unselect,
@@ -24,16 +24,14 @@ pub enum Command {
 	Execute(String),
 }
 
-// TODO: handle duplicates
-pub fn parse_str(bindings: String) -> KeybindingsRaw {
-	bindings
-		.split(",")
-		// .filter(|s| s.matches(":").count() == 1) // only keep bindings with exactly one ":"
-		.map(|s| {
-			let (k, v) = s.split(":").collect_tuple().unwrap();
-			(k.to_string(), v.to_string())
-		})
-		.collect()
+pub fn parse_key_val(s: &str) -> Result<(String, String), Error> {
+	let pos = s
+		.find(':')
+		.ok_or_else(|| Error::new(
+			ErrorKind::Other,
+			format!("invalid KEY:value: no `:` found in `{}`", s)
+		))?;
+	Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
@@ -79,8 +77,8 @@ pub fn default_raw() -> KeybindingsRaw {
 }
 
 // TODO: add modifiers
-fn keycode_from_str(input: &str) -> Result<KeyCode, Error> {
-	let key = match input {
+fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
+	let key = match s {
 		"esc" => Esc,
 		"enter" => Enter,
 		"left" => Left,
