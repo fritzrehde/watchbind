@@ -34,6 +34,7 @@ fn main() -> Result<(), Error> {
 			execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 			let backend = CrosstermBackend::new(stdout);
 			let mut terminal = Terminal::new(backend)?;
+			terminal.hide_cursor()?;
 
 			// run tui program
 			let res = run(&mut terminal, config);
@@ -65,12 +66,16 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 	thread::spawn(move || {
 		// worker thread that executes command in loop
 		loop {
-			tx.send(exec::output_lines(&config.command)).unwrap();
+			let before = Instant::now();
+			let lines = exec::output_lines(&config.command);
+			let exec_time = Instant::now().duration_since(before);
+			tx.send(lines).unwrap();
+			// TODO: optimize
 			if config.watch_rate == Duration::ZERO {
 				// only execute command once
 				break;
 			}
-			thread::sleep(config.watch_rate);
+			thread::sleep(config.watch_rate.saturating_sub(exec_time));
 		}
 	});
 	let mut events = Events::new(rx.recv().unwrap()?);
