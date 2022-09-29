@@ -2,7 +2,6 @@ use crate::events::Events;
 use crate::exec;
 use crate::keys::Command::*;
 use crossterm::event::KeyCode::{self, *};
-use itertools::Itertools;
 use std::{
 	collections::HashMap,
 	io::{Error, ErrorKind},
@@ -72,8 +71,19 @@ pub fn handle_key(
 }
 
 pub fn default_raw() -> KeybindingsRaw {
-	let keybindings = "q:exit,esc:unselect,down:next,up:previous,j:next,k:previous,g:first,G:last";
-	parse_str(keybindings.to_string())
+	[
+		("q", "exit"),
+		("esc", "unselect"),
+		("down", "next"),
+		("up", "previous"),
+		("j", "next"),
+		("k", "previous"),
+		("g", "first"),
+		("G", "last")
+	]
+	.into_iter()
+	.map(|(k, v)| (k.to_string(), v.to_string()))
+	.collect()
 }
 
 // TODO: add modifiers
