@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::events::Events;
+use crate::keys::Command;
 use crate::style::Styles;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
@@ -50,40 +51,43 @@ fn main() -> Result<(), Error> {
 
 			// print errors to stdout
 			match res {
-				Err(e) => eprint!("{}", e),
+				Err(e) => eprint!("error: {}", e),
 				_ => {}
 			};
 		}
 		// print config errors
-		Err(e) => eprintln!("{}", e),
+		Err(e) => eprintln!("error: {}", e),
 	};
 	Ok(())
 }
 
 fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io::Error> {
 	let mut last_tick = Instant::now();
-	let (tx, rx) = mpsc::channel();
+	let (data_send, data_rcv) = mpsc::channel();
+	let (info_send, info_rcv) = mpsc::channel();
 	thread::spawn(move || {
-		// worker thread that executes command in loop
-		loop {
-			let before = Instant::now();
-			let lines = exec::output_lines(&config.command);
-			let exec_time = Instant::now().duration_since(before);
-			tx.send(lines).unwrap();
-			// TODO: optimize
-			if config.watch_rate == Duration::ZERO {
-				// only execute command once
-				break;
+		// only execute command once
+		if config.watch_rate == Duration::ZERO {
+			data_send.send(exec::output_lines(&config.command)).unwrap();
+		} else {
+			// worker thread that executes command in loop
+			loop {
+				let before = Instant::now();
+				let lines = exec::output_lines(&config.command);
+				let exec_time = Instant::now().duration_since(before);
+				let sleep = config.watch_rate.saturating_sub(exec_time);
+				// ignore error that occurs when main thread (and channels) close
+				data_send.send(lines).ok();
+				info_rcv.recv_timeout(sleep).ok();
 			}
-			thread::sleep(config.watch_rate.saturating_sub(exec_time));
 		}
 	});
-	let mut events = Events::new(rx.recv().unwrap()?);
+	let mut events = Events::new(data_rcv.recv().unwrap()?);
 
 	// main thread loop
 	// TODO: create keyboard input worker thread
 	loop {
-		match rx.try_recv() {
+		match data_rcv.try_recv() {
 			Ok(recv) => events.set_items(recv?),
 			_ => {}
 		};
@@ -98,8 +102,8 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
 				match keys::handle_key(key.code, &config.keybindings, &mut events) {
-					// TODO: use sth more elegant than bool return type
-					Ok(false) => return Ok(()),
+					Ok(Command::Exit) => return Ok(()),
+					Ok(Command::Reload) => info_send.send(true).unwrap(),
 					Err(e) => return Err(e),
 					_ => {}
 				};

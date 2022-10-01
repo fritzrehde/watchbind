@@ -107,10 +107,12 @@ pub fn parse_config() -> Result<Config, Error> {
 fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
-		command: opt.command.ok_or_else(|| Error::new(
-			ErrorKind::Other,
-			"Command must be provided via command line or config file",
-		))?,
+		command: opt.command.ok_or_else(|| {
+			Error::new(
+				ErrorKind::Other,
+				"Command must be provided via command line or config file",
+			)
+		})?,
 		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
 		tick_rate: Duration::from_millis(default.tick_rate),
 		styles: style::parse_style(

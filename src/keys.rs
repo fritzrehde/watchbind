@@ -11,25 +11,26 @@ use std::{
 pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
 
-// TODO: add reload command
 #[derive(Debug, Clone)]
 pub enum Command {
 	Exit,
+	Reload,
 	Unselect,
 	Next,
 	Previous,
 	First,
 	Last,
+	Nop,
 	Execute(String),
 }
 
 pub fn parse_key_val(s: &str) -> Result<(String, String), Error> {
-	let pos = s
-		.find(':')
-		.ok_or_else(|| Error::new(
+	let pos = s.find(':').ok_or_else(|| {
+		Error::new(
 			ErrorKind::Other,
-			format!("invalid KEY:value: no `:` found in `{}`", s)
-		))?;
+			format!("invalid KEY:value: no `:` found in `{}`", s),
+		)
+	})?;
 	Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
@@ -51,35 +52,44 @@ pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	events: &mut Events,
-) -> Result<bool, Error> {
-	match keybindings.get(&key) {
-		Some(binding) => {
-			match binding {
-				Exit => return Ok(false),
+) -> Result<Command, Error> {
+	let key = keybindings.get(&key);
+	match key {
+		Some(cmd) => {
+			match cmd {
 				Unselect => events.unselect(),
 				Next => events.next(),
 				Previous => events.previous(),
 				First => events.first(),
 				Last => events.last(),
-				// TODO: instantly reload afterwards
 				Execute(cmd) => exec::run_selected_line(&cmd, events)?,
+				_ => {}
 			};
 		}
-		None => {} // do nothing, since key has no binding
+		// do nothing, since key has no binding
+		None => {}
 	};
-	Ok(true)
+	Ok(match key {
+		Some(cmd) => match cmd {
+			Exit => Exit,
+			Reload => Reload,
+			_ => Nop,
+		},
+		_ => Nop,
+	})
 }
 
 pub fn default_raw() -> KeybindingsRaw {
 	[
 		("q", "exit"),
+		("r", "reload"),
 		("esc", "unselect"),
 		("down", "next"),
 		("up", "previous"),
 		("j", "next"),
 		("k", "previous"),
 		("g", "first"),
-		("G", "last")
+		("G", "last"),
 	]
 	.into_iter()
 	.map(|(k, v)| (k.to_string(), v.to_string()))
@@ -135,6 +145,7 @@ impl FromStr for Command {
 	fn from_str(src: &str) -> Result<Command, Self::Err> {
 		Ok(match src {
 			"exit" => Exit,
+			"reload" => Reload,
 			"unselect" => Unselect,
 			"next" => Next,
 			"previous" => Previous,
