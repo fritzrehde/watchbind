@@ -24,7 +24,7 @@ pub enum Command {
 	Execute(String),
 }
 
-pub fn parse_key_val(s: &str) -> Result<(String, String), Error> {
+pub fn parse_str(s: &str) -> Result<(String, String), Error> {
 	let pos = s.find(':').ok_or_else(|| {
 		Error::new(
 			ErrorKind::Other,

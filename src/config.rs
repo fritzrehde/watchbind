@@ -60,7 +60,7 @@ pub struct ConfigRawArgs {
 	#[clap(long = "bold+")]
 	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
-	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_key_val)]
+	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_str)]
 	keybindings: Option<Vec<(String, String)>>,
 }
 

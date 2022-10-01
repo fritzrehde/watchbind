@@ -2,6 +2,8 @@ This project is still a work in progress.
 
 # Watchbind
 
+[test-video](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/demo.mp4)
+
 ## Piping
 
 If you want to use pipes in your command, make sure to escape the pipe symbol like so:

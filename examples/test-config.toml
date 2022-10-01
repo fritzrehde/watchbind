@@ -1,4 +1,4 @@
-command = "date"
+command = "ls -la"
 interval = 1.0
 fg = "none"
 bg = "none"
@@ -8,5 +8,8 @@ bold = false
 bold_plus = true
 
 [keybindings]
+"q" = "exit"
+"j" = "next"
+"k" = "previous"
 "l" = "dunstify \"Printing $LINE\""
 "x" = "dunstify \"Deleted $LINE\""
