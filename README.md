@@ -2,6 +2,8 @@ This project is still a work in progress.
 
 # Watchbind
 
+![watchbind demo](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/demo.gif)
+
 https://user-images.githubusercontent.com/80471265/193427365-43a3bdfd-d4ec-4d10-8d16-a75480ae361b.mp4
 
 ## Piping
