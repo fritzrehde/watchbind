@@ -54,6 +54,7 @@ In a toml config file, specify keybindings like so:
 ```
 <details>
 	<summary>All supported KEY values</summary>
+
 	- "esc"
 	- "enter"
 	- "left"
@@ -89,6 +90,7 @@ In a toml config file, specify keybindings like so:
 
 <details>
 	<summary>All supported CMD values</summary>
+
 	- "exit"
 	- "reload"
 	- "unselect"
@@ -108,6 +110,7 @@ Foreground colors, background colors and boldness of the selected line and all u
 
 <details>
 	<summary>All supported COLOR values</summary>
+
 	- "white"
 	- "black"
 	- "red"
