@@ -21,14 +21,8 @@ pub enum Command {
 	First,
 	Last,
 	Nop,
-	Execute(ShellCommand),
-}
-
-#[derive(Clone)]
-pub struct ShellCommand {
-	// whether to wait for output or execute as background process
-	background: bool,
-	command: String,
+	// execute as background process or wait for output
+	Execute { background: bool, command: String },
 }
 
 pub fn parse_str(s: &str) -> Result<(String, String), Error> {
@@ -69,11 +63,14 @@ pub fn handle_key(
 				Previous => events.previous(),
 				First => events.first(),
 				Last => events.last(),
-				Execute(sh) => {
+				Execute {
+					background,
+					command,
+				} => {
 					let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
-					exec::run_line(&sh.command, line, sh.background)?
-				},
-				_ => {},
+					exec::run_line(&command, line, *background)?
+				}
+				_ => {}
 			};
 		}
 		// do nothing, since key has no binding
@@ -162,10 +159,10 @@ impl FromStr for Command {
 			"first" => First,
 			"last" => Last,
 			// TODO: remove " &" from cmd
-			cmd => Execute(ShellCommand {
+			cmd => Execute {
 				background: cmd.contains(" &"),
 				command: cmd.to_string(),
-			})
+			},
 		})
 	}
 }
