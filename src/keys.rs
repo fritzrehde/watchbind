@@ -11,7 +11,7 @@ use std::{
 pub type Keybindings = HashMap<KeyCode, Command>;
 pub type KeybindingsRaw = HashMap<String, String>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Command {
 	Exit,
 	Reload,
@@ -21,14 +21,21 @@ pub enum Command {
 	First,
 	Last,
 	Nop,
-	Execute(String),
+	Execute(ShellCommand),
+}
+
+#[derive(Clone)]
+pub struct ShellCommand {
+	// whether to wait for output or execute as background process
+	background: bool,
+	command: String,
 }
 
 pub fn parse_str(s: &str) -> Result<(String, String), Error> {
 	let pos = s.find(':').ok_or_else(|| {
 		Error::new(
 			ErrorKind::Other,
-			format!("invalid KEY:value: no `:` found in `{}`", s),
+			format!("invalid KEY:value: no \":\" found in \"{}\"", s),
 		)
 	})?;
 	Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
@@ -62,8 +69,11 @@ pub fn handle_key(
 				Previous => events.previous(),
 				First => events.first(),
 				Last => events.last(),
-				Execute(cmd) => exec::run_selected_line(&cmd, events)?,
-				_ => {}
+				Execute(sh) => {
+					let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
+					exec::run_line(&sh.command, line, sh.background)?
+				},
+				_ => {},
 			};
 		}
 		// do nothing, since key has no binding
@@ -151,7 +161,11 @@ impl FromStr for Command {
 			"previous" => Previous,
 			"first" => First,
 			"last" => Last,
-			cmd => Execute(cmd.to_string()),
+			// TODO: remove " &" from cmd
+			cmd => Execute(ShellCommand {
+				background: cmd.contains(" &"),
+				command: cmd.to_string(),
+			})
 		})
 	}
 }

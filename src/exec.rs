@@ -1,4 +1,3 @@
-use crate::events::Events;
 use std::io::{Error, ErrorKind};
 use std::process::Command;
 
@@ -25,21 +24,23 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn run_selected_line(cmd: &str, events: &mut Events) -> Result<(), Error> {
+pub fn run_line(cmd: &str, line: &str, background: bool) -> Result<(), Error> {
 	// execute command
-	let command: Vec<&str> = vec!["sh", "-c", cmd];
-	let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
-	let output = Command::new(command[0])
+	let sh: Vec<&str> = vec!["sh", "-c", cmd];
+	let mut cmd = Command::new(sh[0]);
+	let cmd = cmd
 		.env("LINE", line) // provide selected line as environment variable
-		.args(&command[1..])
-		.output()?;
+		.args(&sh[1..]);
 
-	// handle command error
-	match output.status.success() {
-		true => Ok(()),
-		false => {
+	if background {
+		cmd.spawn()?;
+	} else {
+		let output = cmd.output()?;
+		// handle command error
+		if !output.status.success() {
 			let stderr = String::from_utf8(output.stderr).unwrap();
 			return Err(Error::new(ErrorKind::Other, stderr));
 		}
 	}
+	Ok(())
 }

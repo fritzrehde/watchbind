@@ -12,4 +12,4 @@ bold_plus = true
 "j" = "next"
 "k" = "previous"
 "l" = "dunstify \"Printing $LINE\""
-"x" = "dunstify \"Deleted $LINE\""
+"x" = "kitty &"

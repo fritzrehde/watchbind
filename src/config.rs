@@ -9,7 +9,6 @@ use clap::Parser;
 use serde::Deserialize;
 
 // TODO: find better solution than to make all fields public
-#[derive(Debug)]
 pub struct Config {
 	pub command: String,
 	pub watch_rate: Duration,
@@ -36,31 +35,31 @@ pub struct ConfigRawArgs {
 	/// Command to execute periodically
 	command: Option<String>,
 	/// YAML config file path
-	#[clap(short, long, value_name = "FILE")]
+	#[arg(short, long, value_name = "FILE")]
 	config_file: Option<String>,
 	/// Seconds to wait between updates, 0 only executes once
-	#[clap(short, long, value_name = "SECS")]
+	#[arg(short, long, value_name = "SECS")]
 	interval: Option<f64>,
 	/// Foreground color of unselected lines
-	#[clap(long, value_name = "COLOR")]
+	#[arg(long, value_name = "COLOR")]
 	fg: Option<String>,
 	/// Background color of unselected lines
-	#[clap(long, value_name = "COLOR")]
+	#[arg(long, value_name = "COLOR")]
 	bg: Option<String>,
 	/// Foreground color of selected lines
-	#[clap(long = "fg+", value_name = "COLOR")]
+	#[arg(long = "fg+", value_name = "COLOR")]
 	fg_plus: Option<String>,
 	/// Foreground color of selected lines
-	#[clap(long = "bg+", value_name = "COLOR")]
+	#[arg(long = "bg+", value_name = "COLOR")]
 	bg_plus: Option<String>,
 	/// All lines except selected line are bold
-	#[clap(long)]
+	#[arg(long)]
 	bold: bool,
 	/// Selected line is bold
-	#[clap(long = "bold+")]
+	#[arg(long = "bold+")]
 	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
-	#[clap(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_str)]
+	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_str)]
 	keybindings: Option<Vec<(String, String)>>,
 }
 
