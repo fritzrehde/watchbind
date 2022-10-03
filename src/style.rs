@@ -1,6 +1,5 @@
 use tui::style::{Color, Modifier, Style};
 
-// TODO: remove derive
 #[derive(Debug)]
 pub struct Styles {
 	pub style: Style,
@@ -54,6 +53,7 @@ fn parse_color(src: Option<String>) -> Color {
 			"light_blue" => Color::LightBlue,
 			"light_magenta" => Color::LightMagenta,
 			"light_cyan" => Color::LightCyan,
+			// TODO: throw error on incorrect color
 			_ => Color::Reset,
 		},
 		_ => Color::Reset,

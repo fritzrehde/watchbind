@@ -33,7 +33,8 @@ struct ConfigRaw {
 #[clap(version, about)]
 pub struct ConfigRawArgs {
 	/// Command to execute periodically
-	command: Option<String>,
+	#[arg(trailing_var_arg(true))]
+	command: Option<Vec<String>>,
 	/// YAML config file path
 	#[arg(short, long, value_name = "FILE")]
 	config_file: Option<String>,
@@ -143,7 +144,7 @@ fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptio
 
 fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 	ConfigRawOptional {
-		command: args.command,
+		command: args.command.map_or(None, |s| Some(s.join(" "))),
 		interval: args.interval,
 		fg: args.fg,
 		bg: args.bg,
@@ -153,7 +154,7 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bold_plus: args.bold_plus.then_some(args.bold_plus),
 		keybindings: args
 			.keybindings
-			.map_or(HashMap::new(), |s| s.into_iter().collect()),
+			.map_or_else(|| HashMap::new(), |s| s.into_iter().collect()),
 	}
 }
 
