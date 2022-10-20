@@ -55,51 +55,55 @@ In a toml config file, specify keybindings like so:
 <details>
 <summary>All supported KEY values</summary>
 
-- "esc"
-- "enter"
-- "left"
-- "right"
-- "up"
-- "down"
-- "home"
-- "end"
-- "pageup"
-- "pagedown"
-- "backtab"
-- "backspace"
-- "del"
-- "delete"
-- "insert"
-- "ins"
-- "f1"
-- "f2"
-- "f3"
-- "f4"
-- "f5"
-- "f6"
-- "f7"
-- "f8"
-- "f9"
-- "f10"
-- "f11"
-- "f12"
-- "space"
-- "tab"
-- any single character
+```sh
+esc
+enter
+left
+right
+up
+down
+home
+end
+pageup
+pagedown
+backtab
+backspace
+del
+delete
+insert
+ins
+f1
+f2
+f3
+f4
+f5
+f6
+f7
+f8
+f9
+f10
+f11
+f12
+space
+tab
+[any single character]
+```
 </details>
 
 <details>
 <summary>All supported CMD values</summary>
 
-- "exit"
-- "reload"
-- "unselect"
-- "next"
-- "previous"
-- "first"
-- "last"
-- "COMMAND" (blocks watchbind until finished executing)
-- "COMMAND &" (executed as background process)
+```sh
+exit
+reload
+unselect
+next
+previous
+first
+last
+COMMAND     # blocks watchbind until finished executing
+COMMAND &   # executed as background process
+```
 
 COMMAND will be executed in a subshell that has the environment variable `LINE` set to the currently selected line.
 </details>
