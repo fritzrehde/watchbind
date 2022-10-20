@@ -54,7 +54,6 @@ In a toml config file, specify keybindings like so:
 ```
 <details>
 <summary>All supported KEY values</summary>
-
 ```sh
 esc
 enter
@@ -92,7 +91,6 @@ tab
 
 <details>
 <summary>All supported CMD values</summary>
-
 ```sh
 exit
 reload
@@ -114,23 +112,24 @@ Foreground colors, background colors and boldness of the selected line and all u
 
 <details>
 <summary>All supported COLOR values</summary>
-
-- "white"
-- "black"
-- "red"
-- "green"
-- "yellow"
-- "blue"
-- "magenta"
-- "cyan"
-- "gray"
-- "dark_gray"
-- "light_red"
-- "light_green"
-- "light_yellow"
-- "light_blue"
-- "light_magenta"
-- "light_cyan"
+```
+white
+black
+red
+green
+yellow
+blue
+magenta
+cyan
+gray
+dark_gray
+light_red
+light_green
+light_yellow
+light_blue
+light_magenta
+light_cyan
+```
 </details>
 
 ## Tips
