@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::events::Events;
-use crate::keys::Command;
+use crate::keybindings::Operation;
 use crate::style::Styles;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
@@ -22,7 +22,7 @@ use tui::{
 mod config;
 mod events;
 mod exec;
-mod keys;
+mod keybindings;
 mod style;
 mod toml;
 
@@ -101,9 +101,9 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 		// wait for keyboard input for max time of timeout
 		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
-				match keys::handle_key(key.code, &config.keybindings, &mut events) {
-					Ok(Command::Exit) => return Ok(()),
-					Ok(Command::Reload) => info_send.send(true).unwrap(),
+				match keybindings::handle_key(key.code, &config.keybindings, &mut events) {
+					Ok(Operation::Exit) => return Ok(()),
+					Ok(Operation::Reload) => info_send.send(true).unwrap(),
 					Err(e) => return Err(e),
 					_ => {}
 				};

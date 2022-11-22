@@ -44,13 +44,13 @@ There are several ways to customize the settings:
 
 ### Keybindings
 
-On the command line, specify keybindings with the option `watchbind --bind KEY:CMD[,KEY:CMD]*`.
+On the command line, specify keybindings with the option `watchbind --bind KEY:OP[,KEY:OP]*`, where OP is the operation that KEY is bound to.
 
 In a toml config file, specify keybindings like so:
 ```toml
 [keybindings]
-"KEY" = "CMD"
-"KEY" = "CMD"
+"KEY" = "OP"
+"KEY" = "OP"
 ```
 <details>
 <summary>All supported KEY values</summary>
@@ -91,7 +91,7 @@ tab
 </details>
 
 <details>
-<summary>All supported CMD values</summary>
+<summary>All supported OP values</summary>
 
 ```sh
 exit

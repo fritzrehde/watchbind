@@ -1,6 +1,5 @@
 use crate::events::Events;
 use crate::exec;
-use crate::keys::Command::*;
 use crossterm::event::KeyCode::{self, *};
 use std::{
 	collections::HashMap,
@@ -8,11 +7,11 @@ use std::{
 	str::FromStr,
 };
 
-pub type Keybindings = HashMap<KeyCode, Command>;
+pub type Keybindings = HashMap<KeyCode, Operation>;
 pub type KeybindingsRaw = HashMap<String, String>;
 
 #[derive(Clone)]
-pub enum Command {
+pub enum Operation {
 	Exit,
 	Reload,
 	Unselect,
@@ -21,7 +20,7 @@ pub enum Command {
 	First,
 	Last,
 	Nop,
-	// execute as background process or wait for output
+	// execute as background process or wait for termination
 	Execute { background: bool, command: String },
 }
 
@@ -38,7 +37,7 @@ pub fn parse_str(s: &str) -> Result<(String, String), Error> {
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
 	raw
 		.into_iter()
-		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, Command::from_str(&cmd)?)))
+		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, Operation::from_str(&cmd)?)))
 		.collect()
 }
 
@@ -53,17 +52,17 @@ pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	events: &mut Events,
-) -> Result<Command, Error> {
+) -> Result<Operation, Error> {
 	let key = keybindings.get(&key);
 	match key {
 		Some(cmd) => {
 			match cmd {
-				Unselect => events.unselect(),
-				Next => events.next(),
-				Previous => events.previous(),
-				First => events.first(),
-				Last => events.last(),
-				Execute {
+				Operation::Unselect => events.unselect(),
+				Operation::Next => events.next(),
+				Operation::Previous => events.previous(),
+				Operation::First => events.first(),
+				Operation::Last => events.last(),
+				Operation::Execute {
 					background,
 					command,
 				} => {
@@ -76,13 +75,14 @@ pub fn handle_key(
 		// do nothing, since key has no binding
 		None => {}
 	};
+	// TODO: ugly code
 	Ok(match key {
 		Some(cmd) => match cmd {
-			Exit => Exit,
-			Reload => Reload,
-			_ => Nop,
+			Operation::Exit => Operation::Exit,
+			Operation::Reload => Operation::Reload,
+			_ => Operation::Nop,
 		},
-		_ => Nop,
+		_ => Operation::Nop,
 	})
 }
 
@@ -147,19 +147,19 @@ fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
 	Ok(key)
 }
 
-impl FromStr for Command {
+impl FromStr for Operation {
 	type Err = Error;
-	fn from_str(src: &str) -> Result<Command, Self::Err> {
+	fn from_str(src: &str) -> Result<Operation, Self::Err> {
 		Ok(match src {
-			"exit" => Exit,
-			"reload" => Reload,
-			"unselect" => Unselect,
-			"next" => Next,
-			"previous" => Previous,
-			"first" => First,
-			"last" => Last,
+			"exit" => Operation::Exit,
+			"reload" => Operation::Reload,
+			"unselect" => Operation::Unselect,
+			"next" => Operation::Next,
+			"previous" => Operation::Previous,
+			"first" => Operation::First,
+			"last" => Operation::Last,
 			// TODO: remove " &" from cmd
-			cmd => Execute {
+			cmd => Operation::Execute {
 				background: cmd.contains(" &"),
 				command: cmd.to_string(),
 			},

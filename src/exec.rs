@@ -23,6 +23,7 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	}
 }
 
+// TODO: group cmd and background into one struct
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
 pub fn run_line(cmd: &str, line: &str, background: bool) -> Result<(), Error> {
 	// execute command

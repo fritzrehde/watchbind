@@ -2,7 +2,7 @@ use std::io::{Error, ErrorKind};
 use std::{collections::HashMap, time::Duration};
 // use clap::error::{Error, ErrorKind};
 use crate::{
-	keys::{self, Keybindings, KeybindingsRaw},
+	keybindings::{self, Keybindings, KeybindingsRaw},
 	style, toml,
 };
 use clap::Parser;
@@ -59,8 +59,8 @@ pub struct ConfigRawArgs {
 	/// Selected line is bold
 	#[arg(long = "bold+")]
 	bold_plus: bool,
-	/// Comma-seperated list of keybindings in the format KEY:CMD[,KEY:CMD]*
-	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keys::parse_str)]
+	/// Comma-seperated list of keybindings in the format KEY:OP[,KEY:OP]*
+	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
 	keybindings: Option<Vec<(String, String)>>,
 }
 
@@ -123,7 +123,7 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_plus.unwrap_or(default.bold_plus),
 		),
-		keybindings: keys::parse_raw(keys::merge_raw(opt.keybindings, default.keybindings))?,
+		keybindings: keybindings::parse_raw(keybindings::merge_raw(opt.keybindings, default.keybindings))?,
 	})
 }
 
@@ -138,7 +138,7 @@ fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptio
 		bg_plus: opt1.bg_plus.or(opt2.bg_plus),
 		bold: opt1.bold.or(opt2.bold),
 		bold_plus: opt1.bold_plus.or(opt2.bold_plus),
-		keybindings: keys::merge_raw(opt1.keybindings, opt2.keybindings),
+		keybindings: keybindings::merge_raw(opt1.keybindings, opt2.keybindings),
 	}
 }
 
@@ -183,7 +183,7 @@ impl Default for ConfigRaw {
 			bg_plus: Some("blue".to_string()),
 			bold: false,
 			bold_plus: true,
-			keybindings: keys::default_raw(),
+			keybindings: keybindings::default_raw(),
 		}
 	}
 }
