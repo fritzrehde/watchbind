@@ -59,7 +59,7 @@ pub struct ConfigRawArgs {
 	/// Selected line is bold
 	#[arg(long = "bold+")]
 	bold_plus: bool,
-	/// Comma-seperated list of keybindings in the format KEY:OP[,KEY:OP]*
+	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
 	keybindings: Option<Vec<(String, String)>>,
 }

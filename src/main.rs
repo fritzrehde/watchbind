@@ -1,6 +1,5 @@
 use crate::config::Config;
 use crate::events::Events;
-use crate::keybindings::Operation;
 use crate::style::Styles;
 use crossterm::{
 	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
@@ -63,12 +62,12 @@ fn main() -> Result<(), Error> {
 
 fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io::Error> {
 	let mut last_tick = Instant::now();
-	let (data_send, data_rcv) = mpsc::channel();
-	let (info_send, info_rcv) = mpsc::channel();
+	let (data_send_channel, data_rcv_channel) = mpsc::channel();
+	let (info_send_channel, info_rcv_channel) = mpsc::channel();
 	thread::spawn(move || {
 		// only execute command once
 		if config.watch_rate == Duration::ZERO {
-			data_send.send(exec::output_lines(&config.command)).unwrap();
+			data_send_channel.send(exec::output_lines(&config.command)).unwrap();
 		} else {
 			// worker thread that executes command in loop
 			loop {
@@ -77,17 +76,17 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 				let exec_time = Instant::now().duration_since(before);
 				let sleep = config.watch_rate.saturating_sub(exec_time);
 				// ignore error that occurs when main thread (and channels) close
-				data_send.send(lines).ok();
-				info_rcv.recv_timeout(sleep).ok();
+				data_send_channel.send(lines).ok();
+				info_rcv_channel.recv_timeout(sleep).ok();
 			}
 		}
 	});
-	let mut events = Events::new(data_rcv.recv().unwrap()?);
+	let mut events = Events::new(data_rcv_channel.recv().unwrap()?);
 
 	// main thread loop
 	// TODO: create keyboard input worker thread
 	loop {
-		match data_rcv.try_recv() {
+		match data_rcv_channel.try_recv() {
 			Ok(recv) => events.set_items(recv?),
 			_ => {}
 		};
@@ -98,15 +97,14 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 			.tick_rate
 			.checked_sub(last_tick.elapsed())
 			.unwrap_or_else(|| Duration::ZERO);
+
 		// wait for keyboard input for max time of timeout
 		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
-				match keybindings::handle_key(key.code, &config.keybindings, &mut events) {
-					Ok(Operation::Exit) => return Ok(()),
-					Ok(Operation::Reload) => info_send.send(true).unwrap(),
-					Err(e) => return Err(e),
-					_ => {}
-				};
+				if let false = keybindings::handle_key(key.code, &config.keybindings, &mut events, &info_send_channel)? {
+					// exit program
+					return Ok(());
+				}
 			}
 		}
 		if last_tick.elapsed() >= config.tick_rate {

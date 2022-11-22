@@ -10,8 +10,8 @@ bold_plus = true
 [keybindings]
 "q" = "exit"
 "j" = "next"
+"J" = "next+next+next"
 "k" = "previous"
 "l" = "dunstify \"Printing $LINE\""
-"x" = "kitty &"
 "s" = "sleep 3"
 "S" = "sleep 3 &"

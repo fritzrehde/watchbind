@@ -5,10 +5,12 @@ use std::{
 	collections::HashMap,
 	io::{Error, ErrorKind},
 	str::FromStr,
+	sync::mpsc,
 };
 
-pub type Keybindings = HashMap<KeyCode, Operation>;
+pub type Keybindings = HashMap<KeyCode, Operations>;
 pub type KeybindingsRaw = HashMap<String, String>;
+pub type Operations = Vec<Operation>;
 
 #[derive(Clone)]
 pub enum Operation {
@@ -19,7 +21,6 @@ pub enum Operation {
 	Previous,
 	First,
 	Last,
-	Nop,
 	// execute as background process or wait for termination
 	Execute { background: bool, command: String },
 }
@@ -37,7 +38,7 @@ pub fn parse_str(s: &str) -> Result<(String, String), Error> {
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
 	raw
 		.into_iter()
-		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, Operation::from_str(&cmd)?)))
+		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, operations_from_str(&cmd)?)))
 		.collect()
 }
 
@@ -48,59 +49,72 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged
 }
 
+fn exec_operation(
+	operation: &Operation,
+	events: &mut Events,
+	thread_channel: &mpsc::Sender<bool>,
+) -> Result<bool, Error> {
+	match operation {
+		Operation::Unselect => events.unselect(),
+		Operation::Next => events.next(),
+		Operation::Previous => events.previous(),
+		Operation::First => events.first(),
+		Operation::Last => events.last(),
+		// reload input by waking up thread
+		Operation::Execute {
+			background,
+			command,
+		} => {
+			let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
+			exec::run_line(&command, line, *background)?
+		}
+		Operation::Reload => thread_channel.send(true).unwrap(),
+		Operation::Exit => return Ok(false),
+	};
+	Ok(true)
+}
+
 pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	events: &mut Events,
-) -> Result<Operation, Error> {
-	let key = keybindings.get(&key);
-	match key {
-		Some(cmd) => {
-			match cmd {
-				Operation::Unselect => events.unselect(),
-				Operation::Next => events.next(),
-				Operation::Previous => events.previous(),
-				Operation::First => events.first(),
-				Operation::Last => events.last(),
-				Operation::Execute {
-					background,
-					command,
-				} => {
-					let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
-					exec::run_line(&command, line, *background)?
-				}
-				_ => {}
-			};
+	// TODO: convert to Sender<()>
+	thread_channel: &mpsc::Sender<bool>,
+) -> Result<bool, Error> {
+	if let Some(operations) = keybindings.get(&key) {
+		for op in operations {
+			if let false = exec_operation(op, events, thread_channel)? {
+				// exit was called => program should be stopped
+				return Ok(false);
+			}
 		}
-		// do nothing, since key has no binding
-		None => {}
-	};
-	// TODO: ugly code
-	Ok(match key {
-		Some(cmd) => match cmd {
-			Operation::Exit => Operation::Exit,
-			Operation::Reload => Operation::Reload,
-			_ => Operation::Nop,
-		},
-		_ => Operation::Nop,
-	})
+	}
+	Ok(true)
 }
 
-pub fn default_raw() -> KeybindingsRaw {
-	[
-		("q", "exit"),
-		("r", "reload"),
-		("esc", "unselect"),
-		("down", "next"),
-		("up", "previous"),
-		("j", "next"),
-		("k", "previous"),
-		("g", "first"),
-		("G", "last"),
-	]
-	.into_iter()
-	.map(|(k, v)| (k.to_string(), v.to_string()))
-	.collect()
+
+impl FromStr for Operation {
+	type Err = Error;
+	fn from_str(src: &str) -> Result<Operation, Self::Err> {
+		Ok(match src {
+			"exit" => Operation::Exit,
+			"reload" => Operation::Reload,
+			"unselect" => Operation::Unselect,
+			"next" => Operation::Next,
+			"previous" => Operation::Previous,
+			"first" => Operation::First,
+			"last" => Operation::Last,
+			// TODO: remove " &" from cmd
+			cmd => Operation::Execute {
+				background: cmd.contains(" &"),
+				command: cmd.to_string(),
+			},
+		})
+	}
+}
+
+fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
+	s.split('+').map(|s| Ok(Operation::from_str(s)?)).collect()
 }
 
 // TODO: add modifiers
@@ -147,22 +161,20 @@ fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
 	Ok(key)
 }
 
-impl FromStr for Operation {
-	type Err = Error;
-	fn from_str(src: &str) -> Result<Operation, Self::Err> {
-		Ok(match src {
-			"exit" => Operation::Exit,
-			"reload" => Operation::Reload,
-			"unselect" => Operation::Unselect,
-			"next" => Operation::Next,
-			"previous" => Operation::Previous,
-			"first" => Operation::First,
-			"last" => Operation::Last,
-			// TODO: remove " &" from cmd
-			cmd => Operation::Execute {
-				background: cmd.contains(" &"),
-				command: cmd.to_string(),
-			},
-		})
-	}
+// TODO: idea: parse from file instead of hardcoded
+pub fn default_raw() -> KeybindingsRaw {
+	[
+		("q", "exit"),
+		("r", "reload"),
+		("esc", "unselect"),
+		("down", "next"),
+		("up", "previous"),
+		("j", "next"),
+		("k", "previous"),
+		("g", "first"),
+		("G", "last"),
+	]
+	.into_iter()
+	.map(|(k, v)| (k.to_string(), v.to_string()))
+	.collect()
 }
