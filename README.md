@@ -44,8 +44,8 @@ There are several ways to customize the settings:
 
 ### Keybindings
 
-On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` are the operations that `KEY` is bound to.
-One `KEY` can be bound to multiple operations, therefore the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
+On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` is a list of operations `OP` that are bound to `KEY`.
+One `KEY` can be bound to multiple operations, therefore, the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
 The operations are seperated by `+` and executed in succession (one after the other).
 
 **TLDR**: operations are seperated by `+`, keybindings are seperated by `,`
@@ -57,7 +57,7 @@ In a toml config file, specify keybindings like so:
 "KEY" = "OPS"
 ```
 
-You can find some keybinding examples in (`test-config.toml`)[examples/test-config.toml].
+You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 
 <details>
 <summary>All supported KEY values</summary>
