@@ -6,7 +6,7 @@
 ## Table of Contents
 
 - [Features](#features)
-- [Install](#install)
+- [Installation](#installation)
 - [Customizations](#customizations)
 - [Tips](#tips)
 
@@ -16,7 +16,7 @@
 - **Flexible**: specify settings using cli options, a toml config file or both
 - **Speed**: written completely in rust with minimal dependencies
 
-## Install
+## Installation
 
 ### Build from source
 
