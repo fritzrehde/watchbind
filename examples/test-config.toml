@@ -13,3 +13,5 @@ bold_plus = true
 "k" = "previous"
 "l" = "dunstify \"Printing $LINE\""
 "x" = "kitty &"
+"s" = "sleep 3"
+"S" = "sleep 3 &"

@@ -55,7 +55,7 @@ In a toml config file, specify keybindings like so:
 <details>
 <summary>All supported KEY values</summary>
 
-```sh
+```
 esc
 enter
 left

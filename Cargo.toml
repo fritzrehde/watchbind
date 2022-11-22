@@ -1,13 +1,13 @@
 [package]
 name = "watchbind"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Fritz Rehde <fritzrehde.work@gmail.com>"]
 edition = "2021"
 license-file = "LICENSE.md"
 description = "A cli menu for periodically watching a program's output and executing commands on its lines through keybindings"
 
 [dependencies]
-clap = { version = "4.0.8", default-features = false, features = ["std", "cargo", "derive"] }
+clap = { version = "4.0.8", default-features = false, features = ["std", "help", "cargo", "derive"] }
 tui = "0.19"
 crossterm = "0.25"
 itertools = "0.10.3"
