@@ -114,7 +114,7 @@ impl FromStr for Operation {
 }
 
 fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
-	s.split('+').map(|s| Ok(Operation::from_str(s)?)).collect()
+	s.split('+').map(|s| Ok(Operation::from_str(str::trim(s))?)).collect()
 }
 
 // TODO: add modifiers
