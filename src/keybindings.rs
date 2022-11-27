@@ -52,7 +52,7 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 fn exec_operation(
 	operation: &Operation,
 	events: &mut Events,
-	thread_channel: &mpsc::Sender<bool>,
+	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
 		Operation::Unselect => events.unselect(),
@@ -68,7 +68,7 @@ fn exec_operation(
 			let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
 			exec::run_line(&command, line, *background)?
 		}
-		Operation::Reload => thread_channel.send(true).unwrap(),
+		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
 	};
 	Ok(true)
@@ -79,7 +79,7 @@ pub fn handle_key(
 	keybindings: &Keybindings,
 	events: &mut Events,
 	// TODO: convert to Sender<()>
-	thread_channel: &mpsc::Sender<bool>,
+	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	if let Some(operations) = keybindings.get(&key) {
 		for op in operations {
