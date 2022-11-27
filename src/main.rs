@@ -65,18 +65,22 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 	let (data_send_channel, data_rcv_channel) = mpsc::channel();
 	let (info_send_channel, info_rcv_channel) = mpsc::channel();
 	thread::spawn(move || {
-		// only execute command once
-		if config.watch_rate == Duration::ZERO {
-			data_send_channel.send(exec::output_lines(&config.command)).unwrap();
-		} else {
-			// worker thread that executes command in loop
-			loop {
-				let before = Instant::now();
-				let lines = exec::output_lines(&config.command);
-				let exec_time = Instant::now().duration_since(before);
-				let sleep = config.watch_rate.saturating_sub(exec_time);
-				// ignore error that occurs when main thread (and channels) close
-				data_send_channel.send(lines).ok();
+		// worker thread that executes command in loop
+		loop {
+			// execute command and time execution
+			let before = Instant::now();
+			let lines = exec::output_lines(&config.command);
+			let exec_time = Instant::now().duration_since(before);
+			let sleep = config.watch_rate.saturating_sub(exec_time);
+
+			// ignore error that occurs when main thread (and channels) close
+			data_send_channel.send(lines).ok();
+
+			// sleep until notified
+			if config.watch_rate == Duration::ZERO {
+				info_rcv_channel.recv().ok();
+			} else {
+				// wake up at latest after watch_rate time
 				info_rcv_channel.recv_timeout(sleep).ok();
 			}
 		}

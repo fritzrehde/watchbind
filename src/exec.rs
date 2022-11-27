@@ -3,7 +3,7 @@ use std::process::Command;
 
 pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	// execute command
-	let command: Vec<&str> = vec!["sh", "-c", cmd];
+	let command = vec!["sh", "-c", cmd];
 	let output = Command::new(command[0]).args(&command[1..]).output()?;
 
 	// get stdout
@@ -27,7 +27,7 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
 pub fn run_line(cmd: &str, line: &str, background: bool) -> Result<(), Error> {
 	// execute command
-	let sh: Vec<&str> = vec!["sh", "-c", cmd];
+	let sh = vec!["sh", "-c", cmd];
 	let mut cmd = Command::new(sh[0]);
 	let cmd = cmd
 		.env("LINE", line) // provide selected line as environment variable
