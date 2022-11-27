@@ -64,10 +64,7 @@ fn exec_operation(
 		Operation::Execute {
 			background,
 			command,
-		} => {
-			let line = events.get_selected_line().unwrap_or(""); // no line selected => LINE=""
-			exec::run_line(&command, line, *background)?
-		}
+		} => exec::run_line(&command, events.get_selected_line(), *background)?,
 		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
 	};

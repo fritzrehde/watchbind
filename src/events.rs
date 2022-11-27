@@ -18,12 +18,14 @@ impl Events {
 		self.calibrate(); // TODO: optimize through earlier if statements
 	}
 
-	pub fn get_selected_line(&mut self) -> Option<&str> {
-		match self.state.selected() {
-			// index of selected line
-			Some(i) => Some(&self.items[i]),
-			None => None, // no selected line
+	pub fn get_selected_line(&mut self) -> &str {
+		if let Some(i) = self.state.selected() {
+			if let Some(line) = self.items.get(i) {
+				return line;
+			}
 		}
+		// no line selected => LINE=""
+		""
 	}
 
 	// if selected line no longer exists, select last line
