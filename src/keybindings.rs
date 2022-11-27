@@ -75,7 +75,6 @@ pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	events: &mut Events,
-	// TODO: convert to Sender<()>
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	if let Some(operations) = keybindings.get(&key) {
@@ -88,7 +87,6 @@ pub fn handle_key(
 	}
 	Ok(true)
 }
-
 
 impl FromStr for Operation {
 	type Err = Error;
@@ -111,7 +109,9 @@ impl FromStr for Operation {
 }
 
 fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
-	s.split('+').map(|s| Ok(Operation::from_str(str::trim(s))?)).collect()
+	s.split('+')
+		.map(|s| Ok(Operation::from_str(str::trim(s))?))
+		.collect()
 }
 
 // TODO: add modifiers

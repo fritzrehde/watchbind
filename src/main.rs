@@ -105,7 +105,12 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 		// wait for keyboard input for max time of timeout
 		if event::poll(timeout)? {
 			if let Event::Key(key) = event::read()? {
-				if let false = keybindings::handle_key(key.code, &config.keybindings, &mut events, &info_send_channel)? {
+				if let false = keybindings::handle_key(
+					key.code,
+					&config.keybindings,
+					&mut events,
+					&info_send_channel,
+				)? {
 					// exit program
 					return Ok(());
 				}

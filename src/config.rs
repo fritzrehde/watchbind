@@ -123,7 +123,10 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_plus.unwrap_or(default.bold_plus),
 		),
-		keybindings: keybindings::parse_raw(keybindings::merge_raw(opt.keybindings, default.keybindings))?,
+		keybindings: keybindings::parse_raw(keybindings::merge_raw(
+			opt.keybindings,
+			default.keybindings,
+		))?,
 	})
 }
 
