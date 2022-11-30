@@ -11,5 +11,5 @@ clap = { version = "4.0.8", default-features = false, features = ["std", "help",
 tui = "0.19"
 crossterm = "0.25"
 itertools = "0.10.3"
-config = { version = "0.13.1", features = ["toml"] }
+config = { version = "0.13.2", features = ["toml"] }
 serde = "1.0"

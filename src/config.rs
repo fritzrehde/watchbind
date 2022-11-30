@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Duration};
 // use clap::error::{Error, ErrorKind};
 use crate::{
 	keybindings::{self, Keybindings, KeybindingsRaw},
-	style, toml,
+	style,
 };
 use clap::Parser;
 use serde::Deserialize;
@@ -96,11 +96,20 @@ pub fn parse_config() -> Result<Config, Error> {
 	match &config_file {
 		Some(path) => {
 			// TODO: can go wrong
-			let file = file2optional(toml::parse_toml(path));
+			let file = file2optional(parse_toml(path));
 			merge_default(merge_opt(args, file))
 		}
 		None => merge_default(args),
 	}
+}
+
+fn parse_toml(config_file: &str) -> ConfigRawFile {
+	config::Config::builder()
+		.add_source(config::File::with_name(config_file))
+		.build()
+		.unwrap()
+		.try_deserialize()
+		.expect("Error occured while parsing toml config file")
 }
 
 // Merge a ConfigRawOptional config with the default config

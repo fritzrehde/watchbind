@@ -23,7 +23,6 @@ mod events;
 mod exec;
 mod keybindings;
 mod style;
-mod toml;
 
 fn main() -> Result<(), Error> {
 	match config::parse_config() {
