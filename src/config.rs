@@ -1,4 +1,4 @@
-use std::io::{Error, ErrorKind};
+use std::io;
 use std::{collections::HashMap, time::Duration};
 // use clap::error::{Error, ErrorKind};
 use crate::{
@@ -89,36 +89,35 @@ pub struct ConfigRawOptional {
 	keybindings: KeybindingsRaw,
 }
 
-pub fn parse_config() -> Result<Config, Error> {
+pub fn parse_config() -> Result<Config, io::Error> {
 	let cli = ConfigRawArgs::parse();
 	let config_file = cli.config_file.clone();
 	let args = args2optional(cli);
 	match &config_file {
 		Some(path) => {
-			// TODO: can go wrong
-			let file = file2optional(parse_toml(path));
-			merge_default(merge_opt(args, file))
+			match parse_toml(path) {
+				Ok(file) => merge_default(merge_opt(args, file2optional(file))),
+				Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+			}
 		}
 		None => merge_default(args),
 	}
 }
 
-fn parse_toml(config_file: &str) -> ConfigRawFile {
+fn parse_toml(config_file: &str) -> Result<ConfigRawFile, config::ConfigError> {
 	config::Config::builder()
 		.add_source(config::File::with_name(config_file))
-		.build()
-		.unwrap()
+		.build()?
 		.try_deserialize()
-		.expect("Error occured while parsing toml config file")
 }
 
 // Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional) -> Result<Config, Error> {
+fn merge_default(opt: ConfigRawOptional) -> Result<Config, io::Error> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
 		command: opt.command.ok_or_else(|| {
-			Error::new(
-				ErrorKind::Other,
+			io::Error::new(
+				io::ErrorKind::Other,
 				"Command must be provided via command line or config file",
 			)
 		})?,
