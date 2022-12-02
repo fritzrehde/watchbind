@@ -1,6 +1,6 @@
 [package]
 name = "watchbind"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Fritz Rehde <fritzrehde.work@gmail.com>"]
 edition = "2021"
 license-file = "LICENSE.md"
