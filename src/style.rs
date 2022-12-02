@@ -1,5 +1,5 @@
-use tui::style::{Color, Modifier, Style};
 use std::io::{self, Error};
+use tui::style::{Color, Modifier, Style};
 
 #[derive(Debug)]
 pub struct Styles {
@@ -59,7 +59,7 @@ fn parse_color(src: Option<String>) -> Result<Color, Error> {
 					io::ErrorKind::Other,
 					format!("Invalid color provided: {}", invalid),
 				))
-			},
+			}
 		},
 		_ => Color::Reset,
 	})

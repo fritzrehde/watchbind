@@ -1,57 +1,34 @@
+mod config;
+mod events;
+mod exec;
+mod keybindings;
+mod style;
+mod terminal_manager;
+
 use crate::config::Config;
 use crate::events::Events;
 use crate::style::Styles;
-use crossterm::{
-	event::{self, DisableMouseCapture, EnableMouseCapture, Event},
-	execute,
-	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
+use crossterm::event::{self, Event};
 use std::{
 	io::{self, Error},
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
 };
+use terminal_manager::TerminalManager;
 use tui::{
-	backend::{Backend, CrosstermBackend},
+	backend::Backend,
 	widgets::{List, ListItem},
-	Frame, Terminal,
+	Frame,
 };
-
-mod config;
-mod events;
-mod exec;
-mod keybindings;
-mod style;
 
 fn main() -> Result<(), Error> {
 	match config::parse_config() {
 		Ok(config) => {
-			// setup terminal
-			enable_raw_mode()?;
-			let mut stdout = io::stdout();
-			execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-			let backend = CrosstermBackend::new(stdout);
-			let mut terminal = Terminal::new(backend)?;
-			terminal.hide_cursor()?;
-
-			// run tui program
-			let res = run(&mut terminal, config);
-
-			// restore terminal
-			disable_raw_mode()?;
-			execute!(
-				terminal.backend_mut(),
-				LeaveAlternateScreen,
-				DisableMouseCapture
-			)?;
-			terminal.show_cursor()?;
-
 			// print errors to stdout
-			match res {
-				Err(e) => eprint!("error: {}", e),
-				_ => {}
-			};
+			if let Err(e) = run(config) {
+				eprint!("error: {}", e);
+			}
 		}
 		// print config errors
 		Err(e) => eprintln!("error: {}", e),
@@ -59,10 +36,12 @@ fn main() -> Result<(), Error> {
 	Ok(())
 }
 
-fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io::Error> {
+fn run(config: Config) -> Result<(), io::Error> {
+	let mut terminal_manager = TerminalManager::new()?;
 	let mut last_tick = Instant::now();
 	let (data_send_channel, data_rcv_channel) = mpsc::channel();
 	let (info_send_channel, info_rcv_channel) = mpsc::channel();
+
 	thread::spawn(move || {
 		// worker thread that executes command in loop
 		loop {
@@ -94,7 +73,7 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 			_ => {}
 		};
 
-		terminal.draw(|f| ui(f, &mut events, &config.styles))?;
+		terminal_manager.terminal.draw(|f| ui(f, &mut events, &config.styles))?;
 
 		let timeout = config
 			.tick_rate
@@ -111,6 +90,7 @@ fn run<B: Backend>(terminal: &mut Terminal<B>, config: Config) -> Result<(), io:
 					&info_send_channel,
 				)? {
 					// exit program
+					terminal_manager.restore()?;
 					return Ok(());
 				}
 			}
