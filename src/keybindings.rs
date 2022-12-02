@@ -109,6 +109,7 @@ impl FromStr for Operation {
 }
 
 fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
+	// split on "+" and trim leading and trailing whitespace
 	s.split('+')
 		.map(|s| Ok(Operation::from_str(str::trim(s))?))
 		.collect()
@@ -116,7 +117,7 @@ fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
 
 // TODO: add modifiers
 fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
-	let key = match s {
+	Ok(match s {
 		"esc" => Esc,
 		"enter" => Enter,
 		"left" => Left,
@@ -154,8 +155,7 @@ fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
 				format!("Invalid key provided in keybinding: {}", invalid),
 			))
 		}
-	};
-	Ok(key)
+	})
 }
 
 // TODO: idea: parse from file instead of hardcoded

@@ -94,12 +94,10 @@ pub fn parse_config() -> Result<Config, io::Error> {
 	let config_file = cli.config_file.clone();
 	let args = args2optional(cli);
 	match &config_file {
-		Some(path) => {
-			match parse_toml(path) {
-				Ok(file) => merge_default(merge_opt(args, file2optional(file))),
-				Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
-			}
-		}
+		Some(path) => match parse_toml(path) {
+			Ok(file) => merge_default(merge_opt(args, file2optional(file))),
+			Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+		},
 		None => merge_default(args),
 	}
 }
@@ -130,7 +128,7 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config, io::Error> {
 			opt.bg_plus.or(default.bg_plus),
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_plus.unwrap_or(default.bold_plus),
-		),
+		)?,
 		keybindings: keybindings::parse_raw(keybindings::merge_raw(
 			opt.keybindings,
 			default.keybindings,

@@ -1,4 +1,5 @@
 use tui::style::{Color, Modifier, Style};
+use std::io::{self, Error};
 
 #[derive(Debug)]
 pub struct Styles {
@@ -13,17 +14,17 @@ pub fn parse_style(
 	bg_plus: Option<String>,
 	bold: bool,
 	bold_sel: bool,
-) -> Styles {
-	Styles {
+) -> Result<Styles, Error> {
+	Ok(Styles {
 		style: Style::reset()
-			.fg(parse_color(fg))
-			.bg(parse_color(bg))
+			.fg(parse_color(fg)?)
+			.bg(parse_color(bg)?)
 			.add_modifier(parse_bold(bold)),
 		highlight_style: Style::reset()
-			.fg(parse_color(fg_plus))
-			.bg(parse_color(bg_plus))
+			.fg(parse_color(fg_plus)?)
+			.bg(parse_color(bg_plus)?)
 			.add_modifier(parse_bold(bold_sel)),
-	}
+	})
 }
 
 fn parse_bold(bold: bool) -> Modifier {
@@ -34,8 +35,8 @@ fn parse_bold(bold: bool) -> Modifier {
 	}
 }
 
-fn parse_color(src: Option<String>) -> Color {
-	match src {
+fn parse_color(src: Option<String>) -> Result<Color, Error> {
+	Ok(match src {
 		Some(color) => match color.to_lowercase().as_str() {
 			"white" => Color::White,
 			"black" => Color::Black,
@@ -53,9 +54,13 @@ fn parse_color(src: Option<String>) -> Color {
 			"light_blue" => Color::LightBlue,
 			"light_magenta" => Color::LightMagenta,
 			"light_cyan" => Color::LightCyan,
-			// TODO: throw error on incorrect color
-			_ => Color::Reset,
+			invalid => {
+				return Err(io::Error::new(
+					io::ErrorKind::Other,
+					format!("Invalid color provided: {}", invalid),
+				))
+			},
 		},
 		_ => Color::Reset,
-	}
+	})
 }
