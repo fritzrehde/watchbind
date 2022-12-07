@@ -35,7 +35,7 @@ pub struct ConfigRawArgs {
 	/// Command to execute periodically
 	#[arg(trailing_var_arg(true))]
 	command: Option<Vec<String>>,
-	/// YAML config file path
+	/// TOML config file path
 	#[arg(short, long, value_name = "FILE")]
 	config_file: Option<String>,
 	/// Seconds to wait between updates, 0 only executes once

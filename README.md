@@ -14,7 +14,7 @@
 
 - **Customizable**: all keybindings and styles (colors and boldness) are customizable
 - **Flexible**: specify settings using cli options, a toml config file or both
-- **Speed**: written completely in rust with minimal dependencies
+- **Speed**: written completely in rust with speed in mind
 
 ## Installation
 
@@ -39,8 +39,12 @@ To be added.
 ## Customizations
 
 There are several ways to customize the settings:
-1. The command line options override all other settings (i.e. all toml and default settings).
-2. A toml config file, specified with `watchbind --config-file <FILE>`, overrides all default settings (Example: [test-config.toml](examples/test-config.toml)).
+1. A toml config file, specified with `watchbind --config-file <FILE>`, overrides all default settings (Example: [test-config.toml](examples/test-config.toml)).
+2. The command-line options override all other settings (i.e. all toml and default settings).
+
+All ways of configuring `watchbind` (toml and cli options) can be used at the same time, and `watchbind` will automatically figure out which settings to use according to the above hierarchy.
+
+Personally, I recommend using the cli options for small one liners and a toml config file for more complex scripts.
 
 ### Keybindings
 
