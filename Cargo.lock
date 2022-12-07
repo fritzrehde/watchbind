@@ -689,12 +689,13 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "watchbind"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "clap",
  "config",
  "crossterm",
  "itertools",
+ "nom",
  "serde",
  "tui",
 ]

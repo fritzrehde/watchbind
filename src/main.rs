@@ -73,7 +73,9 @@ fn run(config: Config) -> Result<(), io::Error> {
 			_ => {}
 		};
 
-		terminal_manager.terminal.draw(|f| ui(f, &mut events, &config.styles))?;
+		terminal_manager
+			.terminal
+			.draw(|f| ui(f, &mut events, &config.styles))?;
 
 		let timeout = config
 			.tick_rate

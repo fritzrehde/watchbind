@@ -44,18 +44,29 @@ There are several ways to customize the settings:
 
 ### Keybindings
 
+#### Via command-line arguments
+
 On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` is a list of operations `OP` that are bound to `KEY`.
 One `KEY` can be bound to multiple operations, therefore, the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
 The operations are seperated by `+` and executed in succession (one after the other).
 
 **TLDR**: operations are seperated by `+`, keybindings are seperated by `,`
 
+#### Via toml config file
+
 In a toml config file, specify keybindings like so:
 ```toml
 [keybindings]
-"KEY" = "OPS"
-"KEY" = "OPS"
+"KEY" = [ "OP" ]
+"KEY" = [ "OP", "OP", "OP" ]
+"KEY" = [ 
+  "OP",
+  "OP"
+]
 ```
+
+This syntax differs from the command-line syntax because using the toml array feature is more expressive and more native to the toml file format.
+Furthermore, this allows you to use the `+` character in your commands.
 
 You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 

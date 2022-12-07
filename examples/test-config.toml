@@ -1,17 +1,20 @@
 command = "ls -la"
 interval = 1.0
-fg = "none"
-bg = "none"
 fg_plus = "black"
 bg_plus = "blue"
 bold = false
 bold_plus = true
 
 [keybindings]
-"q" = "exit"
-"j" = "next"
-"J" = "next+next+next"
-"k" = "previous"
-"l" = "dunstify \"Printing $LINE\""
-"s" = "sleep 3"
-"S" = "sleep 3 &"
+"q" = [ "exit" ]
+"j" = [ "next" ]
+"J" = [ "next", "next", "next" ]
+"K" = [ 
+  "previous",
+  "previous",
+  "previous"
+]
+"k" = [ "previous" ]
+"l" = [ "dunstify \"Printing $LINE\"" ]
+"s" = [ "sleep 3" ]
+"S" = [ "sleep 3 &" ]

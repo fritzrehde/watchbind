@@ -8,10 +8,6 @@ use std::{
 	sync::mpsc,
 };
 
-pub type Keybindings = HashMap<KeyCode, Operations>;
-pub type KeybindingsRaw = HashMap<String, String>;
-pub type Operations = Vec<Operation>;
-
 #[derive(Clone)]
 pub enum Operation {
 	Exit,
@@ -25,21 +21,38 @@ pub enum Operation {
 	Execute { background: bool, command: String },
 }
 
-pub fn parse_str(s: &str) -> Result<(String, String), Error> {
-	let pos = s.find(':').ok_or_else(|| {
+pub type Operations = Vec<Operation>;
+pub type KeybindingsRaw = HashMap<String, Vec<String>>;
+pub type Keybindings = HashMap<KeyCode, Operations>;
+
+// TODO: return (&str, &str), deal with lifetime
+pub fn parse_str(s: &str) -> Result<(String, Vec<String>), Error> {
+	// TODO: replace with nom
+	let (key, operations) = s.split_once(':').ok_or_else(|| {
 		Error::new(
 			ErrorKind::Other,
-			format!("invalid KEY:value: no \":\" found in \"{}\"", s),
+			format!("invalid format: expected \"KEY:OP[+OP]*\", found \"{}\"", s),
 		)
 	})?;
-	Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+	Ok((
+		key.to_string(),
+		// split on "+" and trim leading and trailing whitespace
+		operations
+			.split('+')
+			.map(|op| op.trim().to_string())
+			.collect(),
+	))
 }
 
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
 	raw
 		.into_iter()
-		.map(|(key, cmd)| Ok((keycode_from_str(&key)?, operations_from_str(&cmd)?)))
+		.map(|(key, ops)| Ok((keycode_from_str(&key)?, operations_from_str(ops)?)))
 		.collect()
+}
+
+fn operations_from_str(ops: Vec<String>) -> Result<Vec<Operation>, Error> {
+	ops.iter().map(|op| Ok(Operation::from_str(op)?)).collect()
 }
 
 // new and old have same key => keep new value
@@ -79,7 +92,7 @@ pub fn handle_key(
 ) -> Result<bool, Error> {
 	if let Some(operations) = keybindings.get(&key) {
 		for op in operations {
-			if let false = exec_operation(op, events, thread_channel)? {
+			if !exec_operation(op, events, thread_channel)? {
 				// exit was called => program should be stopped
 				return Ok(false);
 			}
@@ -106,13 +119,6 @@ impl FromStr for Operation {
 			},
 		})
 	}
-}
-
-fn operations_from_str(s: &str) -> Result<Vec<Operation>, Error> {
-	// split on "+" and trim leading and trailing whitespace
-	s.split('+')
-		.map(|s| Ok(Operation::from_str(str::trim(s))?))
-		.collect()
 }
 
 // TODO: add modifiers
@@ -172,6 +178,6 @@ pub fn default_raw() -> KeybindingsRaw {
 		("G", "last"),
 	]
 	.into_iter()
-	.map(|(k, v)| (k.to_string(), v.to_string()))
+	.map(|(k, v)| (k.to_string(), vec![v.to_string()]))
 	.collect()
 }

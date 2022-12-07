@@ -61,7 +61,7 @@ pub struct ConfigRawArgs {
 	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
-	keybindings: Option<Vec<(String, String)>>,
+	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
 #[derive(Deserialize)]
@@ -161,6 +161,7 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		bg_plus: args.bg_plus,
 		bold: args.bold.then_some(args.bold),
 		bold_plus: args.bold_plus.then_some(args.bold_plus),
+		// TODO: simplify
 		keybindings: args
 			.keybindings
 			.map_or_else(|| HashMap::new(), |s| s.into_iter().collect()),
