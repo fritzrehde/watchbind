@@ -115,17 +115,17 @@ tab
 <details>
 <summary>All supported OP values</summary>
 
-```sh
-exit
-reload
-unselect
-next
-previous
-first
-last
-COMMAND     # blocks watchbind until finished executing
-COMMAND &   # executed as background process
-```
+Operation | Action
+:-- | :--
+exit | Quit watchbind
+reload | Reload the input command manually, resets interval timer
+unselect | Unselect the currently selected line
+next | Select the next line
+prev | Select the previous line
+first | Select the first line
+last | Select the last line
+COMMAND | Execute shell command and block until command terminates
+COMMAND & | Execute shell command as background process, i.e. don't block until command terminates
 
 COMMAND will be executed in a subshell that has the environment variable `LINE` set to the currently selected line.
 </details>

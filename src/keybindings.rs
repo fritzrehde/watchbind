@@ -8,17 +8,29 @@ use std::{
 	sync::mpsc,
 };
 
+// TODO: add support for select nth line
 #[derive(Clone)]
-pub enum Operation {
-	Exit,
-	Reload,
-	Unselect,
+pub enum Line {
 	Next,
 	Previous,
 	First,
 	Last,
+	None_,
+}
+
+#[derive(Clone)]
+pub struct Command {
+	pub command: String,
 	// execute as background process or wait for termination
-	Execute { background: bool, command: String },
+	pub background: bool,
+}
+
+#[derive(Clone)]
+pub enum Operation {
+	Exit,
+	Reload,
+	SelectLine(Line),
+	Execute(Command),
 }
 
 pub type Operations = Vec<Operation>;
@@ -68,16 +80,13 @@ fn exec_operation(
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::Unselect => events.unselect(),
-		Operation::Next => events.next(),
-		Operation::Previous => events.previous(),
-		Operation::First => events.first(),
-		Operation::Last => events.last(),
+		Operation::SelectLine(Line::Next) => events.next(),
+		Operation::SelectLine(Line::Previous) => events.previous(),
+		Operation::SelectLine(Line::First) => events.first(),
+		Operation::SelectLine(Line::Last) => events.last(),
+		Operation::SelectLine(Line::None_) => events.unselect(),
+		Operation::Execute(command) => exec::run_line(command, events.get_selected_line())?,
 		// reload input by waking up thread
-		Operation::Execute {
-			background,
-			command,
-		} => exec::run_line(&command, events.get_selected_line(), *background)?,
 		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
 	};
@@ -107,16 +116,16 @@ impl FromStr for Operation {
 		Ok(match src {
 			"exit" => Operation::Exit,
 			"reload" => Operation::Reload,
-			"unselect" => Operation::Unselect,
-			"next" => Operation::Next,
-			"previous" => Operation::Previous,
-			"first" => Operation::First,
-			"last" => Operation::Last,
+			"next" => Operation::SelectLine(Line::Next),
+			"prev" => Operation::SelectLine(Line::Previous),
+			"first" => Operation::SelectLine(Line::First),
+			"last" => Operation::SelectLine(Line::Last),
+			"unselect" => Operation::SelectLine(Line::None_),
 			// TODO: remove " &" from cmd
-			cmd => Operation::Execute {
-				background: cmd.contains(" &"),
+			cmd => Operation::Execute(Command {
 				command: cmd.to_string(),
-			},
+				background: cmd.contains(" &"),
+			}),
 		})
 	}
 }
@@ -171,9 +180,9 @@ pub fn default_raw() -> KeybindingsRaw {
 		("r", "reload"),
 		("esc", "unselect"),
 		("down", "next"),
-		("up", "previous"),
+		("up", "prev"),
 		("j", "next"),
-		("k", "previous"),
+		("k", "prev"),
 		("g", "first"),
 		("G", "last"),
 	]

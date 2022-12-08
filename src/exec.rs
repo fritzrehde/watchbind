@@ -1,3 +1,4 @@
+use crate::keybindings::Command as CCommand;
 use std::io::{Error, ErrorKind};
 use std::process::Command;
 
@@ -23,20 +24,19 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 	}
 }
 
-// TODO: group cmd and background into one struct
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn run_line(cmd: &str, line: &str, background: bool) -> Result<(), Error> {
+pub fn run_line(cmd: &CCommand, line: &str) -> Result<(), Error> {
 	// execute command
-	let sh = vec!["sh", "-c", cmd];
-	let mut cmd = Command::new(sh[0]);
-	let cmd = cmd
-		.env("LINE", line) // provide selected line as environment variable
-		.args(&sh[1..]);
+	let sh = vec!["sh", "-c", &cmd.command];
+	let mut command = Command::new(sh[0]);
 
-	if background {
-		cmd.spawn()?;
+	// provide selected line as environment variable
+	command.env("LINE", line).args(&sh[1..]);
+
+	if cmd.background {
+		command.spawn()?;
 	} else {
-		let output = cmd.output()?;
+		let output = command.output()?;
 		// handle command error
 		if !output.status.success() {
 			let stderr = String::from_utf8(output.stderr).unwrap();
