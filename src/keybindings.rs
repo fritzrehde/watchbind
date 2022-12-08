@@ -11,8 +11,8 @@ use std::{
 // TODO: add support for select nth line
 #[derive(Clone)]
 pub enum Line {
-	Next,
-	Previous,
+	Next(usize),
+	Previous(usize),
 	First,
 	Last,
 	None_,
@@ -80,8 +80,8 @@ fn exec_operation(
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::SelectLine(Line::Next) => events.next(),
-		Operation::SelectLine(Line::Previous) => events.previous(),
+		Operation::SelectLine(Line::Next(steps)) => events.next(*steps),
+		Operation::SelectLine(Line::Previous(steps)) => events.previous(*steps),
 		Operation::SelectLine(Line::First) => events.first(),
 		Operation::SelectLine(Line::Last) => events.last(),
 		Operation::SelectLine(Line::None_) => events.unselect(),
@@ -113,20 +113,51 @@ pub fn handle_key(
 impl FromStr for Operation {
 	type Err = Error;
 	fn from_str(src: &str) -> Result<Operation, Self::Err> {
-		Ok(match src {
-			"exit" => Operation::Exit,
-			"reload" => Operation::Reload,
-			"next" => Operation::SelectLine(Line::Next),
-			"prev" => Operation::SelectLine(Line::Previous),
-			"first" => Operation::SelectLine(Line::First),
-			"last" => Operation::SelectLine(Line::Last),
-			"unselect" => Operation::SelectLine(Line::None_),
-			// TODO: remove " &" from cmd
-			cmd => Operation::Execute(Command {
-				command: cmd.to_string(),
-				background: cmd.contains(" &"),
-			}),
-		})
+		Ok(
+			// TODO: make more efficient by removing collect
+			match src.split_whitespace().collect::<Vec<&str>>()[..] {
+				["exit"] => Operation::Exit,
+				["reload"] => Operation::Reload,
+				["next"] => Operation::SelectLine(Line::Next(1)),
+				["prev"] => Operation::SelectLine(Line::Previous(1)),
+				// TODO: add custom error type with error handling to make less ugly
+				["next", steps] => match steps.parse() {
+					Ok(steps) => return Ok(Operation::SelectLine(Line::Next(steps))),
+					Err(_) => {
+						return Err(Error::new(
+							ErrorKind::Other,
+							format!(
+								"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
+								steps, src
+							),
+						))
+					}
+				},
+				["prev", steps] => match steps.parse() {
+					Ok(steps) => return Ok(Operation::SelectLine(Line::Previous(steps))),
+					Err(_) => {
+						return Err(Error::new(
+							ErrorKind::Other,
+							format!(
+								"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
+								steps, src
+							),
+						))
+					}
+				},
+				["first"] => Operation::SelectLine(Line::First),
+				["last"] => Operation::SelectLine(Line::Last),
+				["unselect"] => Operation::SelectLine(Line::None_),
+				// cmd => Operation::Execute(Command {
+				// 	command: cmd.to_vec(),
+				// 	background: *cmd.last().unwrap() == "&",
+				// }),
+				_ => Operation::Execute(Command {
+					command: src.to_string(),
+					background: src.contains("&"),
+				}),
+			},
+		)
 	}
 }
 

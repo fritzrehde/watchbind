@@ -8,7 +8,8 @@ bold_plus = true
 [keybindings]
 "q" = [ "exit" ]
 "j" = [ "next" ]
-"J" = [ "next", "next", "next" ]
+"down" = [ "next", "next", "next" ]
+"J" = [ "next 3" ]
 "K" = [ 
   "prev",
   "prev",

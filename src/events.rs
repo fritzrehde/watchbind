@@ -1,9 +1,12 @@
+use std::cmp::min;
 use tui::widgets::ListState;
 
 pub struct Events {
 	pub items: Vec<String>,
 	pub state: ListState,
 }
+
+const FIRST_INDEX: usize = 0;
 
 impl Events {
 	pub fn new(items: Vec<String>) -> Events {
@@ -44,34 +47,28 @@ impl Events {
 		self.state.select(i);
 	}
 
-	pub fn next(&mut self) {
-		let last = self.last_index();
-		let i = match self.state.selected() {
-			Some(i) => {
-				if i >= last {
-					last
-				} else {
-					i + 1
-				}
-			}
-			None => 0,
-		};
-		self.state.select(Some(i));
+	pub fn next(&mut self, steps: usize) {
+		if steps != 0 {
+			let new_i = match self.state.selected() {
+				Some(i) => i + steps,
+				None => FIRST_INDEX + steps - 1,
+			};
+			// check if in bounds
+			let i = min(new_i, self.last_index());
+			self.state.select(Some(i));
+		}
 	}
 
-	pub fn previous(&mut self) {
-		let first = self.first_index();
-		let i = match self.state.selected() {
-			Some(i) => {
-				if i == first {
-					first
-				} else {
-					i - 1
-				}
-			}
-			None => self.last_index(),
-		};
-		self.state.select(Some(i));
+	pub fn previous(&mut self, steps: usize) {
+		if steps != 0 {
+			let new_i = match self.state.selected() {
+				Some(i) => i,
+				None => self.last_index() + 1,
+			};
+			// check if in bounds
+			let i = new_i.checked_sub(steps).unwrap_or(FIRST_INDEX);
+			self.state.select(Some(i));
+		}
 	}
 
 	pub fn unselect(&mut self) {

@@ -121,7 +121,9 @@ exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
 unselect | Unselect the currently selected line
 next | Select the next line
+next <STEPS> | Go down STEPS number of lines
 prev | Select the previous line
+prev <STEPS> | Go up STEPS number of lines
 first | Select the first line
 last | Select the last line
 COMMAND | Execute shell command and block until command terminates
