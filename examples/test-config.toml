@@ -7,7 +7,7 @@ bold_plus = true
 
 [keybindings]
 "q" = [ "exit" ]
-"j" = [ "next" ]
+"j" = [ "down" ]
 "down" = [ "down", "down", "down" ]
 "J" = [ "down 3" ]
 "K" = [ 
