@@ -3,11 +3,13 @@ use crossterm::{
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io::{self, Error};
-use tui::{backend::CrosstermBackend, Terminal};
+use std::io::{self, Error, Stdout};
+use tui::backend::CrosstermBackend;
+
+pub type Terminal = tui::Terminal<CrosstermBackend<Stdout>>;
 
 pub struct TerminalManager {
-	pub terminal: tui::Terminal<tui::backend::CrosstermBackend<std::io::Stdout>>,
+	pub terminal: Terminal,
 }
 
 impl TerminalManager {

@@ -47,7 +47,7 @@ impl Events {
 		self.state.select(i);
 	}
 
-	pub fn next(&mut self, steps: usize) {
+	pub fn down(&mut self, steps: usize) {
 		if steps != 0 {
 			let new_i = match self.state.selected() {
 				Some(i) => i + steps,
@@ -59,7 +59,7 @@ impl Events {
 		}
 	}
 
-	pub fn previous(&mut self, steps: usize) {
+	pub fn up(&mut self, steps: usize) {
 		if steps != 0 {
 			let new_i = match self.state.selected() {
 				Some(i) => i,

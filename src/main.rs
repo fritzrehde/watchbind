@@ -15,7 +15,7 @@ use std::{
 	thread,
 	time::{Duration, Instant},
 };
-use terminal_manager::TerminalManager;
+use terminal_manager::{TerminalManager, Terminal};
 use tui::{
 	backend::Backend,
 	widgets::{List, ListItem},
@@ -24,20 +24,22 @@ use tui::{
 
 fn main() -> Result<(), Error> {
 	match config::parse_config() {
+		// print config errors
+		Err(e) => eprintln!("error: {}", e),
 		Ok(config) => {
+			let mut terminal_manager = TerminalManager::new()?;
+			let exit = run(config, &mut terminal_manager.terminal);
+			terminal_manager.restore()?;
 			// print errors to stdout
-			if let Err(e) = run(config) {
+			if let Err(e) = exit {
 				eprint!("error: {}", e);
 			}
 		}
-		// print config errors
-		Err(e) => eprintln!("error: {}", e),
 	};
 	Ok(())
 }
 
-fn run(config: Config) -> Result<(), io::Error> {
-	let mut terminal_manager = TerminalManager::new()?;
+fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
 	let mut last_tick = Instant::now();
 	let (data_send_channel, data_rcv_channel) = mpsc::channel();
 	let (info_send_channel, info_rcv_channel) = mpsc::channel();
@@ -73,9 +75,7 @@ fn run(config: Config) -> Result<(), io::Error> {
 			_ => {}
 		};
 
-		terminal_manager
-			.terminal
-			.draw(|f| ui(f, &mut events, &config.styles))?;
+		terminal.draw(|f| ui(f, &mut events, &config.styles))?;
 
 		let timeout = config
 			.tick_rate
@@ -92,7 +92,6 @@ fn run(config: Config) -> Result<(), io::Error> {
 					&info_send_channel,
 				)? {
 					// exit program
-					terminal_manager.restore()?;
 					return Ok(());
 				}
 			}

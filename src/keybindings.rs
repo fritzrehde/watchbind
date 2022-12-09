@@ -11,8 +11,8 @@ use std::{
 // TODO: add support for select nth line
 #[derive(Clone)]
 pub enum Line {
-	Next(usize),
-	Previous(usize),
+	Down(usize),
+	Up(usize),
 	First,
 	Last,
 	None_,
@@ -80,8 +80,8 @@ fn exec_operation(
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::SelectLine(Line::Next(steps)) => events.next(*steps),
-		Operation::SelectLine(Line::Previous(steps)) => events.previous(*steps),
+		Operation::SelectLine(Line::Down(steps)) => events.down(*steps),
+		Operation::SelectLine(Line::Up(steps)) => events.up(*steps),
 		Operation::SelectLine(Line::First) => events.first(),
 		Operation::SelectLine(Line::Last) => events.last(),
 		Operation::SelectLine(Line::None_) => events.unselect(),
@@ -118,11 +118,11 @@ impl FromStr for Operation {
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
 				["exit"] => Operation::Exit,
 				["reload"] => Operation::Reload,
-				["next"] => Operation::SelectLine(Line::Next(1)),
-				["prev"] => Operation::SelectLine(Line::Previous(1)),
+				["down"] => Operation::SelectLine(Line::Down(1)),
+				["up"] => Operation::SelectLine(Line::Up(1)),
 				// TODO: add custom error type with error handling to make less ugly
-				["next", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::SelectLine(Line::Next(steps))),
+				["down", steps] => match steps.parse() {
+					Ok(steps) => return Ok(Operation::SelectLine(Line::Down(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -133,8 +133,8 @@ impl FromStr for Operation {
 						))
 					}
 				},
-				["prev", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::SelectLine(Line::Previous(steps))),
+				["up", steps] => match steps.parse() {
+					Ok(steps) => return Ok(Operation::SelectLine(Line::Up(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -210,10 +210,10 @@ pub fn default_raw() -> KeybindingsRaw {
 		("q", "exit"),
 		("r", "reload"),
 		("esc", "unselect"),
-		("down", "next"),
-		("up", "prev"),
-		("j", "next"),
-		("k", "prev"),
+		("down", "down"),
+		("up", "up"),
+		("j", "down"),
+		("k", "up"),
 		("g", "first"),
 		("G", "last"),
 	]
