@@ -1,9 +1,9 @@
 use std::cmp::min;
-// use tui::widgets::ListState;
 use crate::style::Styles;
 use tui::{
 	backend::Backend,
 	widgets::{Cell, Row, Table, TableState},
+	layout::Constraint,
 	Frame,
 };
 
@@ -18,7 +18,6 @@ pub struct StatefulList<'a> {
 	styles: Styles,
 }
 
-
 impl StatefulList<'_> {
 	pub fn new(lines: Vec<String>, styles: &Styles) -> StatefulList {
 		StatefulList {
@@ -32,23 +31,28 @@ impl StatefulList<'_> {
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
 		let table = Table::new(self.rows.clone())
 			.style(self.styles.style)
-			.highlight_style(self.styles.highlight_style);
+			.highlight_style(self.styles.highlight_style)
+			// TODO: still very hacky
+			.widths(&[Constraint::Percentage(100)])
+			.column_spacing(0);
+
 		frame.render_stateful_widget(table, frame.size(), &mut self.state);
 	}
 
 	fn create_rows(lines: Vec<String>) -> Vec<Row<'static>> {
-		// let rows: Vec<Row> = lines.iter().map(|line| Row::new(vec![Cell::from(" "), Cell::from(*line)])).collect();
 		lines
 			.iter()
 			// TODO: remove clone()
-			.map(|line| Row::new(vec![Cell::from(" "), Cell::from(line.clone())]))
+			// .map(|line| Row::new(vec![Cell::from(" "), Cell::from(line.clone())]))
+			.map(|line| Row::new(vec![Cell::from(line.clone())]))
 			.collect()
 	}
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
 		self.lines = lines.clone();
 		self.rows = Self::create_rows(lines);
-		self.calibrate_selected_line(); // TODO: optimize through earlier if statements
+		// TODO: optimize through earlier if statements
+		self.calibrate_selected_line();
 	}
 
 	pub fn get_selected_line(&mut self) -> &str {

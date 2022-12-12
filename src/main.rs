@@ -70,7 +70,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
 			_ => {}
 		};
 
-		// TODO: state shouldn't draw itself, others should "draw state to frame"
+		// TODO: state shouldn't draw itself, others should "draw state on/and frame"
 		terminal.draw(|frame| state.draw(frame))?;
 
 		let timeout = config
