@@ -1,4 +1,4 @@
-use crate::events::Events;
+use crate::stateful_list::StatefulList;
 use crate::exec;
 use crossterm::event::KeyCode::{self, *};
 use std::{
@@ -76,16 +76,16 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 
 fn exec_operation(
 	operation: &Operation,
-	events: &mut Events,
+	state: &mut StatefulList,
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::SelectLine(Line::Down(steps)) => events.down(*steps),
-		Operation::SelectLine(Line::Up(steps)) => events.up(*steps),
-		Operation::SelectLine(Line::First) => events.first(),
-		Operation::SelectLine(Line::Last) => events.last(),
-		Operation::SelectLine(Line::None_) => events.unselect(),
-		Operation::Execute(command) => exec::run_line(command, events.get_selected_line())?,
+		Operation::SelectLine(Line::Down(steps)) => state.down(*steps),
+		Operation::SelectLine(Line::Up(steps)) => state.up(*steps),
+		Operation::SelectLine(Line::First) => state.first(),
+		Operation::SelectLine(Line::Last) => state.last(),
+		Operation::SelectLine(Line::None_) => state.unselect(),
+		Operation::Execute(command) => exec::run_line(command, state.get_selected_line())?,
 		// reload input by waking up thread
 		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
@@ -96,12 +96,12 @@ fn exec_operation(
 pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
-	events: &mut Events,
+	state: &mut StatefulList,
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	if let Some(operations) = keybindings.get(&key) {
 		for op in operations {
-			if !exec_operation(op, events, thread_channel)? {
+			if !exec_operation(op, state, thread_channel)? {
 				// exit was called => program should be stopped
 				return Ok(false);
 			}
