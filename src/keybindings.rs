@@ -1,5 +1,5 @@
-use crate::stateful_list::StatefulList;
 use crate::exec;
+use crate::stateful_list::StatefulList;
 use crossterm::event::KeyCode::{self, *};
 use std::{
 	collections::HashMap,

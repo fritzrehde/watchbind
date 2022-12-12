@@ -1,7 +1,7 @@
 mod config;
-mod stateful_list;
 mod exec;
 mod keybindings;
+mod stateful_list;
 mod style;
 mod terminal_manager;
 
@@ -14,7 +14,7 @@ use std::{
 	thread,
 	time::{Duration, Instant},
 };
-use terminal_manager::{TerminalManager, Terminal};
+use terminal_manager::{Terminal, TerminalManager};
 
 fn main() -> Result<(), Error> {
 	match config::parse_config() {

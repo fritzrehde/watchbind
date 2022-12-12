@@ -1,68 +1,53 @@
 use std::cmp::min;
 // use tui::widgets::ListState;
+use crate::style::Styles;
 use tui::{
-	widgets::{Table, TableState, Row, Cell},
-  backend::Backend,
+	backend::Backend,
+	widgets::{Cell, Row, Table, TableState},
 	Frame,
 };
-use crate::style::Styles;
+
+const FIRST_INDEX: usize = 0;
 
 // TODO: remove lines by read only access to nth item of iterator
 // TODO: learn why lifetime is needed here
 pub struct StatefulList<'a> {
-	pub table: Table<'a>,
-	// pub lines: Vec<String>,
+	pub rows: Vec<Row<'a>>,
 	pub state: TableState,
-	// pub state: ListState,
 	lines: Vec<String>,
 	styles: Styles,
 }
 
-const FIRST_INDEX: usize = 0;
 
-// TODO: just apply styles once in new()
 impl StatefulList<'_> {
 	pub fn new(lines: Vec<String>, styles: &Styles) -> StatefulList {
 		StatefulList {
 			lines: lines.clone(),
-			table: Self::create_table(lines, styles),
+			rows: Self::create_rows(lines),
 			state: TableState::default(),
 			styles: *styles,
-			// state: ListState::default(),
 		}
 	}
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
-		// TODO: maybe remove clone to make more efficient
-		frame.render_stateful_widget(self.table.clone(), frame.size(), &mut self.state);
+		let table = Table::new(self.rows.clone())
+			.style(self.styles.style)
+			.highlight_style(self.styles.highlight_style);
+		frame.render_stateful_widget(table, frame.size(), &mut self.state);
 	}
 
-	fn create_table(lines: Vec<String>, styles: &Styles) -> Table {
+	fn create_rows(lines: Vec<String>) -> Vec<Row<'static>> {
 		// let rows: Vec<Row> = lines.iter().map(|line| Row::new(vec![Cell::from(" "), Cell::from(*line)])).collect();
-		let rows: Vec<Row> = lines.iter().map(|line| Row::new(vec![Cell::from(" "), Cell::from(line.as_ref())])).collect();
-		Table::new(rows)
-			.style(styles.style)
-			.highlight_style(styles.highlight_style)
-
-		// let lines: Vec<ListItem> = state
-		// 	.lines
-		// 	.iter()
-		// 	.map(|i| ListItem::new(i.as_ref()))
-		// 	.collect();
-		// // let lines = vec![
-		// // 	ListItem::new("line one"),
-		// // 	ListItem::new(""),
-		// // 	ListItem::new("line four"),
-		// // ];
-		// let list = List::new(lines)
-		// 	.style(styles.style)
-		// 	.highlight_style(styles.highlight_style);
-
+		lines
+			.iter()
+			// TODO: remove clone()
+			.map(|line| Row::new(vec![Cell::from(" "), Cell::from(line.clone())]))
+			.collect()
 	}
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
 		self.lines = lines.clone();
-		self.table = Self::create_table(lines, &self.styles);
+		self.rows = Self::create_rows(lines);
 		self.calibrate_selected_line(); // TODO: optimize through earlier if statements
 	}
 
