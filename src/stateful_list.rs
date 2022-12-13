@@ -12,39 +12,8 @@ use tui::{
 const FIRST_INDEX: usize = 0;
 
 // TODO: replace vectors with slices
-
-pub struct Line {
-	line: String,
-	selected: bool,
-}
-
-impl Line {
-	fn new(line: &str, selected: bool) -> Line {
-		Line {
-			// TODO consider to_owned()
-			line: line.to_string(),
-			selected,
-		}
-	}
-
-	fn format(&mut self) -> Row {
-		Row::new(vec![
-			Cell::from(" ").style(Style::reset().bg(Color::Magenta)),
-			Cell::from(self.line.clone()),
-		])
-	}
-
-	fn cells(&mut self) -> Vec<Cell> {
-		vec![
-			Cell::from(" ").style(Style::reset().bg(Color::Magenta)),
-			Cell::from(self.line.clone()),
-		]
-	}
-}
-
 pub struct StatefulList {
 	lines: Vec<String>,
-	// TODO: rename to selected_lines
 	selected: Vec<bool>,
 	state: TableState,
 	styles: Styles,
@@ -52,36 +21,32 @@ pub struct StatefulList {
 
 impl StatefulList {
 	pub fn new(lines: Vec<String>, styles: &Styles) -> StatefulList {
-		StatefulList {
-			// TODO: construct vec of length lines.len() containing only false
-			selected: (0..lines.len()).map(|_| false).collect(),
+		let mut state = StatefulList {
+			selected: vec![false; lines.len()],
 			lines,
 			state: TableState::default(),
 			styles: *styles,
-		}
+		};
+		state.first();
+		state
 	}
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
-		// TODO: remove clone()
 		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
-			// .map(|(line, selected)| Row::new(vec![line.clone()]))
-			// .map(|(line, selected)| Row::new(Line::new(line, *selected).cells().to_owned()))
 			.map(|(line, &selected)| {
 				Row::new(vec![
 					Cell::from(" ").style(if selected {
-						// TODO: allow customize color
+						// TODO: allow customize color magenta
 						Style::reset().bg(Color::Magenta)
 					} else {
 						Style::reset()
 					}),
+					// TODO: remove clone()
 					Cell::from(line.clone()),
 				])
-				// Row::new(Line::new(line, *selected).cells().to_owned())
 			})
-			// .map(|(line, selected)| Line::new(line, *selected).format())
 			.collect();
 
-		// TODO: still very hacky
 		let table = Table::new(rows)
 			.style(self.styles.style)
 			.highlight_style(self.styles.highlight_style)
@@ -93,13 +58,22 @@ impl StatefulList {
 	}
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
+		self.selected.resize(lines.len(), false);
 		self.lines = lines;
 		// TODO: optimize through earlier if statements
 		self.calibrate_selected_line();
 	}
 
+	fn cursor_position(&mut self) -> Option<usize> {
+		self.state.selected()
+	}
+
+	fn cursor_move(&mut self, index: usize) {
+		self.state.select(Some(index));
+	}
+
 	pub fn get_selected_line(&mut self) -> &str {
-		if let Some(i) = self.state.selected() {
+		if let Some(i) = self.cursor_position() {
 			if let Some(line) = self.lines.get(i) {
 				return line;
 			}
@@ -111,28 +85,30 @@ impl StatefulList {
 	// if selected line no longer exists, select last line
 	pub fn calibrate_selected_line(&mut self) {
 		let last = self.last_index();
-		let i = match self.state.selected() {
+		let i = match self.cursor_position() {
 			Some(i) => Some(min(i, last)),
 			None => None,
 		};
 		self.state.select(i);
 	}
 
+	// TODO: implement using cursor
 	pub fn down(&mut self, steps: usize) {
+		// self.cursor_move(self.cursor_position() + steps);
 		if steps != 0 {
-			let new_i = match self.state.selected() {
+			let new_i = match self.cursor_position() {
 				Some(i) => i + steps,
 				None => FIRST_INDEX + steps - 1,
 			};
 			// check if in bounds
 			let i = min(new_i, self.last_index());
-			self.state.select(Some(i));
+			self.cursor_move(i);
 		}
 	}
 
 	pub fn up(&mut self, steps: usize) {
 		if steps != 0 {
-			let new_i = match self.state.selected() {
+			let new_i = match self.cursor_position() {
 				Some(i) => i,
 				None => self.last_index() + 1,
 			};
@@ -142,8 +118,20 @@ impl StatefulList {
 		}
 	}
 
+	pub fn select(&mut self) {
+		if let Some(i) = self.cursor_position() {
+			self.selected[i] = true;
+		}
+	}
+
+	pub fn select_toggle(&mut self) {
+		if let Some(i) = self.cursor_position() {
+			self.selected[i] = !self.selected[i];
+		}
+	}
+
 	pub fn unselect(&mut self) {
-		self.state.select(None);
+		self.selected = vec![false; self.lines.len()];
 	}
 
 	pub fn first(&mut self) {

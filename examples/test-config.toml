@@ -19,3 +19,4 @@ bold_plus = true
 "l" = [ "dunstify \"Printing $LINE\"" ]
 "s" = [ "sleep 3" ]
 "S" = [ "sleep 3 &" ]
+"space" = [ "select-toggle", "down" ]

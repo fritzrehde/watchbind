@@ -8,7 +8,7 @@ use std::{
 	sync::mpsc,
 };
 
-// TODO: add support for select nth line
+// TODO: add support for goto nth line
 #[derive(Clone)]
 pub enum Line {
 	Down(usize),
@@ -25,11 +25,14 @@ pub struct Command {
 	pub background: bool,
 }
 
+// TODO: extract select and toggle into one type
 #[derive(Clone)]
 pub enum Operation {
 	Exit,
 	Reload,
-	SelectLine(Line),
+	GotoLine(Line),
+	SelectLine,
+	SelectToggleLine,
 	Execute(Command),
 }
 
@@ -80,11 +83,13 @@ fn exec_operation(
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::SelectLine(Line::Down(steps)) => state.down(*steps),
-		Operation::SelectLine(Line::Up(steps)) => state.up(*steps),
-		Operation::SelectLine(Line::First) => state.first(),
-		Operation::SelectLine(Line::Last) => state.last(),
-		Operation::SelectLine(Line::None_) => state.unselect(),
+		Operation::GotoLine(Line::Down(steps)) => state.down(*steps),
+		Operation::GotoLine(Line::Up(steps)) => state.up(*steps),
+		Operation::GotoLine(Line::First) => state.first(),
+		Operation::GotoLine(Line::Last) => state.last(),
+		Operation::GotoLine(Line::None_) => state.unselect(),
+		Operation::SelectLine => state.select(),
+		Operation::SelectToggleLine => state.select_toggle(),
 		Operation::Execute(command) => exec::run_line(command, state.get_selected_line())?,
 		// reload input by waking up thread
 		Operation::Reload => thread_channel.send(()).unwrap(),
@@ -118,11 +123,11 @@ impl FromStr for Operation {
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
 				["exit"] => Operation::Exit,
 				["reload"] => Operation::Reload,
-				["down"] => Operation::SelectLine(Line::Down(1)),
-				["up"] => Operation::SelectLine(Line::Up(1)),
+				["down"] => Operation::GotoLine(Line::Down(1)),
+				["up"] => Operation::GotoLine(Line::Up(1)),
 				// TODO: add custom error type with error handling to make less ugly
 				["down", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::SelectLine(Line::Down(steps))),
+					Ok(steps) => return Ok(Operation::GotoLine(Line::Down(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -134,7 +139,7 @@ impl FromStr for Operation {
 					}
 				},
 				["up", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::SelectLine(Line::Up(steps))),
+					Ok(steps) => return Ok(Operation::GotoLine(Line::Up(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -145,9 +150,11 @@ impl FromStr for Operation {
 						))
 					}
 				},
-				["first"] => Operation::SelectLine(Line::First),
-				["last"] => Operation::SelectLine(Line::Last),
-				["unselect"] => Operation::SelectLine(Line::None_),
+				["select"] => Operation::SelectLine,
+				["select-toggle"] => Operation::SelectToggleLine,
+				["first"] => Operation::GotoLine(Line::First),
+				["last"] => Operation::GotoLine(Line::Last),
+				["unselect"] => Operation::GotoLine(Line::None_),
 				// cmd => Operation::Execute(Command {
 				// 	command: cmd.to_vec(),
 				// 	background: *cmd.last().unwrap() == "&",

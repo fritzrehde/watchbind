@@ -119,17 +119,18 @@ Operation | Action
 :-- | :--
 exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
-unselect | Unselect the currently selected line
-down | Go down one line (i.e. select the next line)
+down | Go down one line (i.e. move cursor to the next line)
 down \<STEPS\> | Go down STEPS number of lines
-up | Go up one line (i.e. select the previous line)
+up | Go up one line (i.e. move cursor to the previous line)
 up \<STEPS\> | Go up STEPS number of lines
-first | Select the first line
-last | Select the last line
+first | Go to the first line
+last | Go to the last line
+select | Add line that cursor is currently on to selected line
+unselect | Unselect all currently selected lines
 COMMAND | Execute shell command and block until command terminates
 COMMAND & | Execute shell command as background process, i.e. don't block until command terminates
 
-COMMAND will be executed in a subshell that has the environment variable `LINE` set to the currently selected line.
+COMMAND will be executed in a subshell that has the environment variable `LINE` set to either all selected line or, if none are selected, the line the cursor is currently on.
 </details>
 
 ### Style
