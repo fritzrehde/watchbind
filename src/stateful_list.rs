@@ -92,7 +92,7 @@ impl StatefulList {
 	}
 
 	// if selected line no longer exists, select last line
-	pub fn calibrate_selected_line(&mut self) {
+	fn calibrate_selected_line(&mut self) {
 		let last = self.last_index();
 		let i = match self.cursor_position() {
 			Some(i) => Some(min(i, last)),
@@ -113,9 +113,23 @@ impl StatefulList {
 		}
 	}
 
+	pub fn first(&mut self) {
+		self.state.select(Some(FIRST_INDEX));
+	}
+
+	pub fn last(&mut self) {
+		self.state.select(Some(self.last_index()));
+	}
+
 	pub fn select(&mut self) {
 		if let Some(i) = self.cursor_position() {
 			self.selected[i] = true;
+		}
+	}
+
+	pub fn unselect(&mut self) {
+		if let Some(i) = self.cursor_position() {
+			self.selected[i] = false;
 		}
 	}
 
@@ -125,16 +139,12 @@ impl StatefulList {
 		}
 	}
 
-	pub fn unselect(&mut self) {
+	pub fn select_all(&mut self) {
+		self.selected = vec![true; self.lines.len()];
+	}
+
+	pub fn unselect_all(&mut self) {
 		self.selected = vec![false; self.lines.len()];
-	}
-
-	pub fn first(&mut self) {
-		self.state.select(Some(FIRST_INDEX));
-	}
-
-	pub fn last(&mut self) {
-		self.state.select(Some(self.last_index()));
 	}
 
 	fn last_index(&self) -> usize {

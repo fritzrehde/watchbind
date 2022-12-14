@@ -8,14 +8,26 @@ use std::{
 	sync::mpsc,
 };
 
+pub type Operations = Vec<Operation>;
+pub type KeybindingsRaw = HashMap<String, Vec<String>>;
+pub type Keybindings = HashMap<KeyCode, Operations>;
+
 // TODO: add support for goto nth line
 #[derive(Clone)]
-pub enum Line {
+pub enum MoveCursor {
 	Down(usize),
 	Up(usize),
 	First,
 	Last,
-	None_,
+}
+
+#[derive(Clone)]
+pub enum SelectOperation {
+	Select,
+	Unselect,
+	Toggle,
+	SelectAll,
+	UnselectAll,
 }
 
 #[derive(Clone)]
@@ -30,15 +42,10 @@ pub struct Command {
 pub enum Operation {
 	Exit,
 	Reload,
-	GotoLine(Line),
-	SelectLine,
-	SelectToggleLine,
+	MoveCursor(MoveCursor),
+	SelectLine(SelectOperation),
 	Execute(Command),
 }
-
-pub type Operations = Vec<Operation>;
-pub type KeybindingsRaw = HashMap<String, Vec<String>>;
-pub type Keybindings = HashMap<KeyCode, Operations>;
 
 // TODO: return (&str, &str), deal with lifetime
 pub fn parse_str(s: &str) -> Result<(String, Vec<String>), Error> {
@@ -83,13 +90,15 @@ fn exec_operation(
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool, Error> {
 	match operation {
-		Operation::GotoLine(Line::Down(steps)) => state.down(*steps),
-		Operation::GotoLine(Line::Up(steps)) => state.up(*steps),
-		Operation::GotoLine(Line::First) => state.first(),
-		Operation::GotoLine(Line::Last) => state.last(),
-		Operation::GotoLine(Line::None_) => state.unselect(),
-		Operation::SelectLine => state.select(),
-		Operation::SelectToggleLine => state.select_toggle(),
+		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
+		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
+		Operation::MoveCursor(MoveCursor::First) => state.first(),
+		Operation::MoveCursor(MoveCursor::Last) => state.last(),
+		Operation::SelectLine(SelectOperation::Select) => state.select(),
+		Operation::SelectLine(SelectOperation::Unselect) => state.unselect(),
+		Operation::SelectLine(SelectOperation::Toggle) => state.select_toggle(),
+		Operation::SelectLine(SelectOperation::SelectAll) => state.select_all(),
+		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
 		Operation::Execute(command) => exec::run_line(command, state.get_selected_line())?,
 		// reload input by waking up thread
 		Operation::Reload => thread_channel.send(()).unwrap(),
@@ -123,11 +132,11 @@ impl FromStr for Operation {
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
 				["exit"] => Operation::Exit,
 				["reload"] => Operation::Reload,
-				["down"] => Operation::GotoLine(Line::Down(1)),
-				["up"] => Operation::GotoLine(Line::Up(1)),
+				["down"] => Operation::MoveCursor(MoveCursor::Down(1)),
+				["up"] => Operation::MoveCursor(MoveCursor::Up(1)),
 				// TODO: add custom error type with error handling to make less ugly
 				["down", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::GotoLine(Line::Down(steps))),
+					Ok(steps) => return Ok(Operation::MoveCursor(MoveCursor::Down(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -139,7 +148,7 @@ impl FromStr for Operation {
 					}
 				},
 				["up", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::GotoLine(Line::Up(steps))),
+					Ok(steps) => return Ok(Operation::MoveCursor(MoveCursor::Up(steps))),
 					Err(_) => {
 						return Err(Error::new(
 							ErrorKind::Other,
@@ -150,15 +159,13 @@ impl FromStr for Operation {
 						))
 					}
 				},
-				["select"] => Operation::SelectLine,
-				["select-toggle"] => Operation::SelectToggleLine,
-				["first"] => Operation::GotoLine(Line::First),
-				["last"] => Operation::GotoLine(Line::Last),
-				["unselect"] => Operation::GotoLine(Line::None_),
-				// cmd => Operation::Execute(Command {
-				// 	command: cmd.to_vec(),
-				// 	background: *cmd.last().unwrap() == "&",
-				// }),
+				["first"] => Operation::MoveCursor(MoveCursor::First),
+				["last"] => Operation::MoveCursor(MoveCursor::Last),
+				["select"] => Operation::SelectLine(SelectOperation::Select),
+				["unselect"] => Operation::SelectLine(SelectOperation::Unselect),
+				["select-toggle"] => Operation::SelectLine(SelectOperation::Toggle),
+				["select-all"] => Operation::SelectLine(SelectOperation::SelectAll),
+				["unselect-all"] => Operation::SelectLine(SelectOperation::UnselectAll),
 				_ => Operation::Execute(Command {
 					command: src.to_string(),
 					background: src.contains("&"),
@@ -214,17 +221,24 @@ fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
 // TODO: idea: parse from file instead of hardcoded
 pub fn default_raw() -> KeybindingsRaw {
 	[
-		("q", "exit"),
-		("r", "reload"),
-		("esc", "unselect"),
-		("down", "down"),
-		("up", "up"),
-		("j", "down"),
-		("k", "up"),
-		("g", "first"),
-		("G", "last"),
+		("q", vec!["exit"]),
+		("r", vec!["reload"]),
+		("space", vec!["select-toggle", "down"]),
+		("v", vec!["select-toggle"]),
+		("esc", vec!["unselect-all"]),
+		("down", vec!["down"]),
+		("up", vec!["up"]),
+		("j", vec!["down"]),
+		("k", vec!["up"]),
+		("g", vec!["first"]),
+		("G", vec!["last"]),
 	]
-	.into_iter()
-	.map(|(k, v)| (k.to_string(), vec![v.to_string()]))
+	.iter()
+	.map(|(key, commands)| {
+		(
+			key.to_string(),
+			commands.iter().map(|cmd| cmd.to_string()).collect(),
+		)
+	})
 	.collect()
 }

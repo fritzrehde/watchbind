@@ -1,5 +1,7 @@
 # Watchbind
 
+Turn the output of any command into a powerful TUI with custom keybindings.
+
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-dark.png#gh-dark-mode-only)
 
@@ -125,17 +127,20 @@ up | Go up one line (i.e. move cursor to the previous line)
 up \<STEPS\> | Go up STEPS number of lines
 first | Go to the first line
 last | Go to the last line
-select | Add line that cursor is currently on to selected line
-unselect | Unselect all currently selected lines
+select | Select line that cursor is currenly on (i.e. add line that cursor is currently on to selected lines)
+unselect | Unselect line that cursor is currently on
+select-toggle | Toggle selection of line that cursor is currently on
+select-all | Select all lines
+unselect-all | Unselect all currently selected lines
 COMMAND | Execute shell command and block until command terminates
 COMMAND & | Execute shell command as background process, i.e. don't block until command terminates
 
-COMMAND will be executed in a subshell that has the environment variable `LINE` set to either all selected line or, if none are selected, the line the cursor is currently on.
+COMMAND will be executed in a subshell that has the environment variable `LINE` set to either all selected lines, seperated by newlines, or, if none are selected, the line the cursor is currently on.
 </details>
 
 ### Style
 
-Foreground colors, background colors and boldness of the selected line and all unselected lines can be customized.
+Foreground colors, background colors and boldness of the line the cursor is on and all other lines can be customized.
 
 <details>
 <summary>All supported COLOR values</summary>
@@ -182,7 +187,7 @@ This means you can run a command like
 ```
 watchbind --bind "enter:notify-send \$LINE" ls
 ```
-and the environment variable `$LINE` will contain the selected line.
+and the environment variable `$LINE` will contain the line the cursor is currently on.
 
 But note that 
 ```
