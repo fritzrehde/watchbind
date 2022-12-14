@@ -73,6 +73,7 @@ In a toml config file, specify keybindings like so:
 
 This syntax differs from the command-line syntax because using the toml array feature is more expressive and more native to the toml file format.
 Furthermore, this allows you to use the `+` character in your commands.
+It also doesn't require escaping shell specific characters like `$` in  (read more [in this section](#subshell)).
 
 You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 
@@ -167,6 +168,31 @@ light_cyan
 </details>
 
 ## Tips
+
+### Keybindings on selected lines that delete some of the input lines
+
+I define "deleting input lines" as executing a keybinding that changes the length of the output of the input command.
+In other words:
+If, after executing a keybinding, the input command generates an output longer or shorter than before the keybinding, then that keybinding deletes input lines.
+
+Why is this definition important?
+Because the selected lines are only stored as indices and, therefore, have no association to the actual lines displayed in watchbind.
+
+Here's an example that demonstrates what problems this can cause:
+You select five lines and then, through a keybinding, execute a command that deletes these five lines.
+After the keybinding, the next time your input command is called, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
+The problem is that the indices of the deleted lines will still be marked as selected.
+Therefore, five different lines, at the same indices as the deleted five lines, will now be selected, which is probably unwanted.
+
+To solve this problem, the following keybinding format is recommended for keybindings that transform the input:
+```toml
+[keybindings]
+"KEY" = [ "DELETE-OP", "reload", "unselect-all" ]
+```
+
+First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).
+Then, we instantly want to see the new output of the input command that doesn't contain the deleted lines anymore, so we `reload`.
+Finally, we want to remove our previous selection of lines, as the previously selected lines are gone now, so we call `unselect-all`.
 
 ### Piping
 
