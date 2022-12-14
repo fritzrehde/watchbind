@@ -68,8 +68,17 @@ impl StatefulList {
 		self.state.selected()
 	}
 
-	fn cursor_move(&mut self, index: usize) {
-		self.state.select(Some(index));
+	fn cursor_move(&mut self, index: isize) {
+		let first = FIRST_INDEX as isize;
+		let last = self.last_index() as isize;
+		let i = if index < first {
+			first
+		} else if index > last {
+			last
+		} else {
+			index
+		} as usize;
+		self.state.select(Some(i));
 	}
 
 	pub fn get_selected_line(&mut self) -> &str {
@@ -92,29 +101,15 @@ impl StatefulList {
 		self.state.select(i);
 	}
 
-	// TODO: implement using cursor
 	pub fn down(&mut self, steps: usize) {
-		// self.cursor_move(self.cursor_position() + steps);
-		if steps != 0 {
-			let new_i = match self.cursor_position() {
-				Some(i) => i + steps,
-				None => FIRST_INDEX + steps - 1,
-			};
-			// check if in bounds
-			let i = min(new_i, self.last_index());
-			self.cursor_move(i);
+		if let Some(i) = self.cursor_position() {
+			self.cursor_move(i as isize + steps as isize);
 		}
 	}
 
 	pub fn up(&mut self, steps: usize) {
-		if steps != 0 {
-			let new_i = match self.cursor_position() {
-				Some(i) => i,
-				None => self.last_index() + 1,
-			};
-			// check if in bounds
-			let i = new_i.checked_sub(steps).unwrap_or(FIRST_INDEX);
-			self.state.select(Some(i));
+		if let Some(i) = self.cursor_position() {
+			self.cursor_move(i as isize - steps as isize);
 		}
 	}
 
@@ -135,15 +130,11 @@ impl StatefulList {
 	}
 
 	pub fn first(&mut self) {
-		self.state.select(Some(self.first_index()));
+		self.state.select(Some(FIRST_INDEX));
 	}
 
 	pub fn last(&mut self) {
 		self.state.select(Some(self.last_index()));
-	}
-
-	fn first_index(&self) -> usize {
-		0
 	}
 
 	fn last_index(&self) -> usize {
