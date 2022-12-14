@@ -1,6 +1,6 @@
 # Watchbind
 
-Turn the output of any command into a powerful TUI with custom keybindings.
+*Turn the output of any command into a powerful TUI with custom keybindings.*
 
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-dark.png#gh-dark-mode-only)
