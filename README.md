@@ -135,7 +135,8 @@ unselect-all | Unselect all currently selected lines
 COMMAND | Execute shell command and block until command terminates
 COMMAND & | Execute shell command as background process, i.e. don't block until command terminates
 
-COMMAND will be executed in a subshell that has the environment variable `LINE` set to either all selected lines, seperated by newlines, or, if none are selected, the line the cursor is currently on.
+COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
+If multiple lines are selected, they will be seperated by a newline in `LINES`.
 </details>
 
 ### Style
@@ -185,12 +186,12 @@ The commands you bind to keys will be executed in a subshell using `sh -c`.
 
 This means you can run a command like 
 ```
-watchbind --bind "enter:notify-send \$LINE" ls
+watchbind --bind "enter:notify-send \$LINES" ls
 ```
 and the environment variable `$LINE` will contain the line the cursor is currently on.
 
 But note that 
 ```
-watchbind --bind "enter:notify-send $LINE" ls
+watchbind --bind "enter:notify-send $LINES" ls
 ```
-will not work as expected, because `$LINE` will be replaced in the shell you are running the `watchbind` command from.
+will not work as expected, because `$LINES` will be replaced in the shell you are running the `watchbind` command from.

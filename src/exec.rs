@@ -25,13 +25,13 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn run_line(cmd: &CCommand, line: &str) -> Result<(), Error> {
+pub fn run_lines(cmd: &CCommand, lines: &str) -> Result<(), Error> {
 	// execute command
 	let sh = vec!["sh", "-c", &cmd.command];
 	let mut command = Command::new(sh[0]);
 
 	// provide selected line as environment variable
-	command.env("LINE", line).args(&sh[1..]);
+	command.env("LINES", lines).args(&sh[1..]);
 
 	if cmd.background {
 		command.spawn()?;

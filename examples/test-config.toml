@@ -16,6 +16,6 @@ bold_plus = true
   "up"
 ]
 "k" = [ "up" ]
-"l" = [ "dunstify \"Printing $LINE\"" ]
+"l" = [ "dunstify \"Printing $LINES\"" ]
 "s" = [ "sleep 3" ]
 "S" = [ "sleep 3 &" ]

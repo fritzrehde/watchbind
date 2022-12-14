@@ -60,8 +60,7 @@ impl StatefulList {
 	pub fn set_lines(&mut self, lines: Vec<String>) {
 		self.selected.resize(lines.len(), false);
 		self.lines = lines;
-		// TODO: optimize through earlier if statements
-		self.calibrate_selected_line();
+		self.calibrate_cursor();
 	}
 
 	fn cursor_position(&mut self) -> Option<usize> {
@@ -81,18 +80,40 @@ impl StatefulList {
 		self.state.select(Some(i));
 	}
 
-	pub fn get_selected_line(&mut self) -> &str {
+	fn get_cursor_line(&mut self) -> String {
 		if let Some(i) = self.cursor_position() {
 			if let Some(line) = self.lines.get(i) {
-				return line;
+				return line.clone();
 			}
 		}
 		// no line selected => LINE=""
-		""
+		"".to_string()
+	}
+
+	// pub fn get_selected_lines(&mut self) -> &str {
+	pub fn get_selected_lines(&mut self) -> String {
+		let lines: String = izip!(self.lines.iter(), self.selected.iter())
+			.filter_map(
+				|(line, &selected)| {
+					if selected {
+						Some(line.clone())
+					} else {
+						None
+					}
+				},
+			)
+			.collect::<Vec<String>>()
+			.join("\n");
+
+		if lines.is_empty() {
+			self.get_cursor_line()
+		} else {
+			lines
+		}
 	}
 
 	// if selected line no longer exists, select last line
-	fn calibrate_selected_line(&mut self) {
+	fn calibrate_cursor(&mut self) {
 		let last = self.last_index();
 		let i = match self.cursor_position() {
 			Some(i) => Some(min(i, last)),

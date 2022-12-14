@@ -99,7 +99,7 @@ fn exec_operation(
 		Operation::SelectLine(SelectOperation::Toggle) => state.select_toggle(),
 		Operation::SelectLine(SelectOperation::SelectAll) => state.select_all(),
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-		Operation::Execute(command) => exec::run_line(command, state.get_selected_line())?,
+		Operation::Execute(command) => exec::run_lines(command, &state.get_selected_lines())?,
 		// reload input by waking up thread
 		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
