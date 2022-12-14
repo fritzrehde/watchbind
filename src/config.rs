@@ -1,6 +1,5 @@
 use std::io;
 use std::{collections::HashMap, time::Duration};
-// use clap::error::{Error, ErrorKind};
 use crate::{
 	keybindings::{self, Keybindings, KeybindingsRaw},
 	style,

@@ -171,7 +171,7 @@ light_cyan
 
 ### Keybindings on selected lines that delete some of the input lines
 
-I define "deleting input lines" as executing a keybinding that changes the length of the output of the input command.
+I define "deleting input lines" as executing a keybinding that changes the length of the input command's output.
 In other words:
 If, after executing a keybinding, the input command generates an output longer or shorter than before the keybinding, then that keybinding deletes input lines.
 
@@ -180,7 +180,7 @@ Because the selected lines are only stored as indices and, therefore, have no as
 
 Here's an example that demonstrates what problems this can cause:
 You select five lines and then, through a keybinding, execute a command that deletes these five lines.
-After the keybinding, the next time your input command is called, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
+The next time your input command is called, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
 The problem is that the indices of the deleted lines will still be marked as selected.
 Therefore, five different lines, at the same indices as the deleted five lines, will now be selected, which is probably unwanted.
 
@@ -191,8 +191,8 @@ To solve this problem, the following keybinding format is recommended for keybin
 ```
 
 First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).
-Then, we instantly want to see the new output of the input command that doesn't contain the deleted lines anymore, so we `reload`.
-Finally, we want to remove our previous selection of lines, as the previously selected lines are gone now, so we call `unselect-all`.
+Then, we want to see the updated output of the input command that doesn't contain the deleted lines anymore, so we `reload`.
+Finally, we want to remove our the selection of the now removed lines, so we call `unselect-all`.
 
 ### Piping
 

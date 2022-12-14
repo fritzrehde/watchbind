@@ -1,6 +1,5 @@
 use crate::style::Styles;
 use itertools::izip;
-use std::cmp::min;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
@@ -31,9 +30,16 @@ impl StatefulList {
 		state
 	}
 
+	// TODO: very messy formatting
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
+		let cursor_index = match self.cursor_position() {
+			Some(i) => i as isize,
+			None => -1,
+		};
+
 		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
-			.map(|(line, &selected)| {
+			.enumerate()
+			.map(|(i, (line, &selected))| {
 				Row::new(vec![
 					Cell::from(" ").style(if selected {
 						// TODO: allow customize color magenta
@@ -41,18 +47,18 @@ impl StatefulList {
 					} else {
 						Style::reset()
 					}),
-					// TODO: remove clone()
-					Cell::from(line.clone()),
+					Cell::from(" ".to_owned() + &line).style(if i as isize == cursor_index {
+						self.styles.highlight_style
+					} else {
+						self.styles.style
+					}),
 				])
 			})
 			.collect();
 
 		let table = Table::new(rows)
-			.style(self.styles.style)
-			.highlight_style(self.styles.highlight_style)
-			// .widths(&[Constraint::Percentage(100)])
 			.widths(&[Constraint::Length(1), Constraint::Percentage(100)])
-			.column_spacing(1);
+			.column_spacing(0);
 
 		frame.render_stateful_widget(table, frame.size(), &mut self.state);
 	}
@@ -90,6 +96,13 @@ impl StatefulList {
 		"".to_string()
 	}
 
+	// if selected line no longer exists, select last line
+	fn calibrate_cursor(&mut self) {
+		if let Some(i) = self.cursor_position() {
+			self.cursor_move(i as isize);
+		}
+	}
+
 	// pub fn get_selected_lines(&mut self) -> &str {
 	pub fn get_selected_lines(&mut self) -> String {
 		let lines: String = izip!(self.lines.iter(), self.selected.iter())
@@ -110,16 +123,6 @@ impl StatefulList {
 		} else {
 			lines
 		}
-	}
-
-	// if selected line no longer exists, select last line
-	fn calibrate_cursor(&mut self) {
-		let last = self.last_index();
-		let i = match self.cursor_position() {
-			Some(i) => Some(min(i, last)),
-			None => None,
-		};
-		self.state.select(i);
 	}
 
 	pub fn down(&mut self, steps: usize) {
