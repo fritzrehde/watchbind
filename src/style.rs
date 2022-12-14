@@ -1,7 +1,7 @@
 use std::io::{self, Error};
 use tui::style::{Color, Modifier, Style};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Styles {
 	pub style: Style,
 	pub highlight_style: Style,

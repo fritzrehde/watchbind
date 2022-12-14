@@ -1,6 +1,5 @@
 use std::io;
 use std::{collections::HashMap, time::Duration};
-// use clap::error::{Error, ErrorKind};
 use crate::{
 	keybindings::{self, Keybindings, KeybindingsRaw},
 	style,
@@ -41,22 +40,22 @@ pub struct ConfigRawArgs {
 	/// Seconds to wait between updates, 0 only executes once
 	#[arg(short, long, value_name = "SECS")]
 	interval: Option<f64>,
-	/// Foreground color of unselected lines
+	/// Foreground color of all lines except cursor
 	#[arg(long, value_name = "COLOR")]
 	fg: Option<String>,
-	/// Background color of unselected lines
+	/// Background color of all lines except cursor
 	#[arg(long, value_name = "COLOR")]
 	bg: Option<String>,
-	/// Foreground color of selected lines
+	/// Foreground color of cursor
 	#[arg(long = "fg+", value_name = "COLOR")]
 	fg_plus: Option<String>,
-	/// Foreground color of selected lines
+	/// Foreground color of cursor
 	#[arg(long = "bg+", value_name = "COLOR")]
 	bg_plus: Option<String>,
-	/// All lines except selected line are bold
+	/// Text on all lines except cursor are bold
 	#[arg(long)]
 	bold: bool,
-	/// Selected line is bold
+	/// Text on cursor's line is bold
 	#[arg(long = "bold+")]
 	bold_plus: bool,
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*

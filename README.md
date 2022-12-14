@@ -1,5 +1,7 @@
 # Watchbind
 
+Turn the output of any command into a powerful TUI with custom keybindings.
+
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-dark.png#gh-dark-mode-only)
 
@@ -71,6 +73,7 @@ In a toml config file, specify keybindings like so:
 
 This syntax differs from the command-line syntax because using the toml array feature is more expressive and more native to the toml file format.
 Furthermore, this allows you to use the `+` character in your commands.
+It also doesn't require escaping shell specific characters like `$` in  (read more [in this section](#subshell)).
 
 You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 
@@ -119,22 +122,27 @@ Operation | Action
 :-- | :--
 exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
-unselect | Unselect the currently selected line
-down | Go down one line (i.e. select the next line)
+down | Go down one line (i.e. move cursor to the next line)
 down \<STEPS\> | Go down STEPS number of lines
-up | Go up one line (i.e. select the previous line)
+up | Go up one line (i.e. move cursor to the previous line)
 up \<STEPS\> | Go up STEPS number of lines
-first | Select the first line
-last | Select the last line
+first | Go to the first line
+last | Go to the last line
+select | Select line that cursor is currenly on (i.e. add line that cursor is currently on to selected lines)
+unselect | Unselect line that cursor is currently on
+select-toggle | Toggle selection of line that cursor is currently on
+select-all | Select all lines
+unselect-all | Unselect all currently selected lines
 COMMAND | Execute shell command and block until command terminates
 COMMAND & | Execute shell command as background process, i.e. don't block until command terminates
 
-COMMAND will be executed in a subshell that has the environment variable `LINE` set to the currently selected line.
+COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
+If multiple lines are selected, they will be seperated by a newline in `LINES`.
 </details>
 
 ### Style
 
-Foreground colors, background colors and boldness of the selected line and all unselected lines can be customized.
+Foreground colors, background colors and boldness of the line the cursor is on and all other lines can be customized.
 
 <details>
 <summary>All supported COLOR values</summary>
@@ -161,6 +169,31 @@ light_cyan
 
 ## Tips
 
+### Keybindings on selected lines that delete some of the input lines
+
+I define "deleting input lines" as executing a keybinding that changes the length of the input command's output.
+In other words:
+If, after executing a keybinding, the input command generates an output longer or shorter than before the keybinding, then that keybinding deletes input lines.
+
+Why is this definition important?
+Because the selected lines are only stored as indices and, therefore, have no association to the actual lines displayed in watchbind.
+
+Here's an example that demonstrates what problems this can cause:
+You select five lines and then, through a keybinding, execute a command that deletes these five lines.
+The next time your input command is called, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
+The problem is that the indices of the deleted lines will still be marked as selected.
+Therefore, five different lines, at the same indices as the deleted five lines, will now be selected, which is probably unwanted.
+
+To solve this problem, the following keybinding format is recommended for keybindings that transform the input:
+```toml
+[keybindings]
+"KEY" = [ "DELETE-OP", "reload", "unselect-all" ]
+```
+
+First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).
+Then, we want to see the updated output of the input command that doesn't contain the deleted lines anymore, so we `reload`.
+Finally, we want to remove our the selection of the now removed lines, so we call `unselect-all`.
+
 ### Piping
 
 If you want to use pipes in your command on the command line, make sure to escape the pipe symbol like so:
@@ -179,12 +212,12 @@ The commands you bind to keys will be executed in a subshell using `sh -c`.
 
 This means you can run a command like 
 ```
-watchbind --bind "enter:notify-send \$LINE" ls
+watchbind --bind "enter:notify-send \$LINES" ls
 ```
-and the environment variable `$LINE` will contain the selected line.
+and the environment variable `$LINE` will contain the line the cursor is currently on.
 
 But note that 
 ```
-watchbind --bind "enter:notify-send $LINE" ls
+watchbind --bind "enter:notify-send $LINES" ls
 ```
-will not work as expected, because `$LINE` will be replaced in the shell you are running the `watchbind` command from.
+will not work as expected, because `$LINES` will be replaced in the shell you are running the `watchbind` command from.

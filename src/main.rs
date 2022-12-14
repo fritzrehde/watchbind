@@ -1,13 +1,12 @@
 mod config;
-mod events;
 mod exec;
 mod keybindings;
+mod stateful_list;
 mod style;
 mod terminal_manager;
 
 use crate::config::Config;
-use crate::events::Events;
-use crate::style::Styles;
+use crate::stateful_list::StatefulList;
 use crossterm::event::{self, Event};
 use std::{
 	io::{self, Error},
@@ -15,12 +14,7 @@ use std::{
 	thread,
 	time::{Duration, Instant},
 };
-use terminal_manager::{TerminalManager, Terminal};
-use tui::{
-	backend::Backend,
-	widgets::{List, ListItem},
-	Frame,
-};
+use terminal_manager::{Terminal, TerminalManager};
 
 fn main() -> Result<(), Error> {
 	match config::parse_config() {
@@ -65,17 +59,19 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
 			}
 		}
 	});
-	let mut events = Events::new(data_rcv_channel.recv().unwrap()?);
+	let lines = data_rcv_channel.recv().unwrap()?;
+	let mut state = StatefulList::new(lines, &config.styles);
 
 	// main thread loop
 	// TODO: create keyboard input worker thread
 	loop {
 		match data_rcv_channel.try_recv() {
-			Ok(recv) => events.set_items(recv?),
+			Ok(lines) => state.set_lines(lines?),
 			_ => {}
 		};
 
-		terminal.draw(|f| ui(f, &mut events, &config.styles))?;
+		// TODO: state shouldn't draw itself, others should "draw state on/and frame"
+		terminal.draw(|frame| state.draw(frame))?;
 
 		let timeout = config
 			.tick_rate
@@ -88,7 +84,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
 				if let false = keybindings::handle_key(
 					key.code,
 					&config.keybindings,
-					&mut events,
+					&mut state,
 					&info_send_channel,
 				)? {
 					// exit program
@@ -100,22 +96,4 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
 			last_tick = Instant::now();
 		}
 	}
-}
-
-// TODO: simplify
-fn ui<B: Backend>(f: &mut Frame<B>, events: &mut Events, styles: &Styles) {
-	let items: Vec<ListItem> = events
-		.items
-		.iter()
-		.map(|i| ListItem::new(i.as_ref()))
-		.collect();
-	// let items = vec![
-	// 	ListItem::new("line one"),
-	// 	ListItem::new(""),
-	// 	ListItem::new("line four"),
-	// ];
-	let list = List::new(items)
-		.style(styles.style)
-		.highlight_style(styles.highlight_style);
-	f.render_stateful_widget(list, f.size(), &mut events.state);
 }
