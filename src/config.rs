@@ -21,10 +21,11 @@ struct ConfigRaw {
 	tick_rate: u64,
 	fg: Option<String>,
 	bg: Option<String>,
-	fg_plus: Option<String>,
-	bg_plus: Option<String>,
+	fg_cursor: Option<String>,
+	bg_cursor: Option<String>,
+	bg_selected: Option<String>,
 	bold: bool,
-	bold_plus: bool,
+	bold_cursor: bool,
 	keybindings: KeybindingsRaw,
 }
 
@@ -34,30 +35,43 @@ pub struct ConfigRawArgs {
 	/// Command to execute periodically
 	#[arg(trailing_var_arg(true))]
 	command: Option<Vec<String>>,
+
 	/// TOML config file path
 	#[arg(short, long, value_name = "FILE")]
 	config_file: Option<String>,
+
 	/// Seconds to wait between updates, 0 only executes once
 	#[arg(short, long, value_name = "SECS")]
 	interval: Option<f64>,
+
 	/// Foreground color of all lines except cursor
 	#[arg(long, value_name = "COLOR")]
 	fg: Option<String>,
+
 	/// Background color of all lines except cursor
 	#[arg(long, value_name = "COLOR")]
 	bg: Option<String>,
+
 	/// Foreground color of cursor
 	#[arg(long = "fg+", value_name = "COLOR")]
-	fg_plus: Option<String>,
-	/// Foreground color of cursor
+	fg_cursor: Option<String>,
+
+	/// Background color of cursor
 	#[arg(long = "bg+", value_name = "COLOR")]
-	bg_plus: Option<String>,
+	bg_cursor: Option<String>,
+
+	/// Background color of cursor
+	#[arg(long = "bg-", value_name = "COLOR")]
+	bg_selected: Option<String>,
+
 	/// Text on all lines except cursor are bold
 	#[arg(long)]
 	bold: bool,
+
 	/// Text on cursor's line is bold
 	#[arg(long = "bold+")]
-	bold_plus: bool,
+	bold_cursor: bool,
+
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
 	keybindings: Option<Vec<(String, Vec<String>)>>,
@@ -69,10 +83,11 @@ pub struct ConfigRawFile {
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
-	fg_plus: Option<String>,
-	bg_plus: Option<String>,
+	fg_cursor: Option<String>,
+	bg_cursor: Option<String>,
+	bg_selected: Option<String>,
 	bold: Option<bool>,
-	bold_plus: Option<bool>,
+	bold_cursor: Option<bool>,
 	keybindings: Option<KeybindingsRaw>,
 }
 
@@ -81,10 +96,11 @@ pub struct ConfigRawOptional {
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
-	fg_plus: Option<String>,
-	bg_plus: Option<String>,
+	fg_cursor: Option<String>,
+	bg_cursor: Option<String>,
+	bg_selected: Option<String>,
 	bold: Option<bool>,
-	bold_plus: Option<bool>,
+	bold_cursor: Option<bool>,
 	keybindings: KeybindingsRaw,
 }
 
@@ -123,10 +139,11 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config, io::Error> {
 		styles: style::parse_style(
 			opt.fg.or(default.fg),
 			opt.bg.or(default.bg),
-			opt.fg_plus.or(default.fg_plus),
-			opt.bg_plus.or(default.bg_plus),
+			opt.fg_cursor.or(default.fg_cursor),
+			opt.bg_cursor.or(default.bg_cursor),
+			opt.bg_selected.or(default.bg_selected),
 			opt.bold.unwrap_or(default.bold),
-			opt.bold_plus.unwrap_or(default.bold_plus),
+			opt.bold_cursor.unwrap_or(default.bold_cursor),
 		)?,
 		keybindings: keybindings::parse_raw(keybindings::merge_raw(
 			opt.keybindings,
@@ -142,10 +159,11 @@ fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptio
 		interval: opt1.interval.or(opt2.interval),
 		fg: opt1.fg.or(opt2.fg),
 		bg: opt1.bg.or(opt2.bg),
-		fg_plus: opt1.fg_plus.or(opt2.fg_plus),
-		bg_plus: opt1.bg_plus.or(opt2.bg_plus),
+		fg_cursor: opt1.fg_cursor.or(opt2.fg_cursor),
+		bg_cursor: opt1.bg_cursor.or(opt2.bg_cursor),
+		bg_selected: opt1.bg_selected.or(opt2.bg_selected),
 		bold: opt1.bold.or(opt2.bold),
-		bold_plus: opt1.bold_plus.or(opt2.bold_plus),
+		bold_cursor: opt1.bold_cursor.or(opt2.bold_cursor),
 		keybindings: keybindings::merge_raw(opt1.keybindings, opt2.keybindings),
 	}
 }
@@ -156,10 +174,11 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 		interval: args.interval,
 		fg: args.fg,
 		bg: args.bg,
-		fg_plus: args.fg_plus,
-		bg_plus: args.bg_plus,
+		fg_cursor: args.fg_cursor,
+		bg_cursor: args.bg_cursor,
+		bg_selected: args.bg_selected,
 		bold: args.bold.then_some(args.bold),
-		bold_plus: args.bold_plus.then_some(args.bold_plus),
+		bold_cursor: args.bold_cursor.then_some(args.bold_cursor),
 		// TODO: simplify
 		keybindings: args
 			.keybindings
@@ -167,16 +186,18 @@ fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
 	}
 }
 
+// TODO: optimize away
 fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
 	ConfigRawOptional {
 		command: file.command,
 		interval: file.interval,
 		fg: file.fg,
 		bg: file.bg,
-		fg_plus: file.fg_plus,
-		bg_plus: file.bg_plus,
+		fg_cursor: file.fg_cursor,
+		bg_cursor: file.bg_cursor,
+		bg_selected: file.bg_selected,
 		bold: file.bold,
-		bold_plus: file.bold_plus,
+		bold_cursor: file.bold_cursor,
 		keybindings: file.keybindings.unwrap_or(HashMap::new()),
 	}
 }
@@ -188,10 +209,11 @@ impl Default for ConfigRaw {
 			tick_rate: 250,
 			fg: None,
 			bg: None,
-			fg_plus: Some("black".to_string()),
-			bg_plus: Some("blue".to_string()),
+			fg_cursor: Some("black".to_string()),
+			bg_cursor: Some("blue".to_string()),
+			bg_selected: Some("magenta".to_string()),
 			bold: false,
-			bold_plus: true,
+			bold_cursor: true,
 			keybindings: keybindings::default_raw(),
 		}
 	}

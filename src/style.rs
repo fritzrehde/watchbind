@@ -3,27 +3,31 @@ use tui::style::{Color, Modifier, Style};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Styles {
-	pub style: Style,
-	pub highlight_style: Style,
+	pub line: Style,
+	pub cursor: Style,
+	pub selected: Style,
 }
 
 pub fn parse_style(
 	fg: Option<String>,
 	bg: Option<String>,
-	fg_plus: Option<String>,
-	bg_plus: Option<String>,
+	fg_cursor: Option<String>,
+	bg_cursor: Option<String>,
+	bg_selected: Option<String>,
 	bold: bool,
-	bold_sel: bool,
+	bold_cursor: bool,
 ) -> Result<Styles, Error> {
 	Ok(Styles {
-		style: Style::reset()
+		line: Style::reset()
 			.fg(parse_color(fg)?)
 			.bg(parse_color(bg)?)
 			.add_modifier(parse_bold(bold)),
-		highlight_style: Style::reset()
-			.fg(parse_color(fg_plus)?)
-			.bg(parse_color(bg_plus)?)
-			.add_modifier(parse_bold(bold_sel)),
+		cursor: Style::reset()
+			.fg(parse_color(fg_cursor)?)
+			.bg(parse_color(bg_cursor)?)
+			.add_modifier(parse_bold(bold_cursor)),
+		selected: Style::reset()
+			.bg(parse_color(bg_selected)?),
 	})
 }
 

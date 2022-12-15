@@ -3,7 +3,6 @@ use itertools::izip;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
-	style::{Color, Style},
 	widgets::{Cell, Row, Table, TableState},
 	Frame,
 };
@@ -32,6 +31,7 @@ impl StatefulList {
 
 	// TODO: very messy formatting
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
+		// TODO: hacky
 		let cursor_index = match self.cursor_position() {
 			Some(i) => i as isize,
 			None => -1,
@@ -42,15 +42,15 @@ impl StatefulList {
 			.map(|(i, (line, &selected))| {
 				Row::new(vec![
 					Cell::from(" ").style(if selected {
-						// TODO: allow customize color magenta
-						Style::reset().bg(Color::Magenta)
+						self.styles.selected
 					} else {
-						Style::reset()
+						// Style::reset()
+						self.styles.line
 					}),
 					Cell::from(" ".to_owned() + &line).style(if i as isize == cursor_index {
-						self.styles.highlight_style
+						self.styles.cursor
 					} else {
-						self.styles.style
+						self.styles.line
 					}),
 				])
 			})
