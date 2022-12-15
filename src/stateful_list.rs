@@ -4,6 +4,7 @@ use tui::{
 	backend::Backend,
 	layout::Constraint,
 	widgets::{Cell, Row, Table, TableState},
+	style::Style,
 	Frame,
 };
 
@@ -13,17 +14,19 @@ const FIRST_INDEX: usize = 0;
 pub struct StatefulList {
 	lines: Vec<String>,
 	selected: Vec<bool>,
+	styles: Vec<Style>,
 	state: TableState,
-	styles: Styles,
+	style: Styles,
 }
 
 impl StatefulList {
-	pub fn new(lines: Vec<String>, styles: &Styles) -> StatefulList {
+	pub fn new(lines: Vec<String>, style: &Styles) -> StatefulList {
 		let mut state = StatefulList {
 			selected: vec![false; lines.len()],
+			styles: vec![style.line; lines.len()],
 			lines,
 			state: TableState::default(),
-			styles: *styles,
+			style: *style,
 		};
 		state.first();
 		state
@@ -42,15 +45,15 @@ impl StatefulList {
 			.map(|(i, (line, &selected))| {
 				Row::new(vec![
 					Cell::from(" ").style(if selected {
-						self.styles.selected
+						self.style.selected
 					} else {
 						// Style::reset()
-						self.styles.line
+						self.style.line
 					}),
 					Cell::from(" ".to_owned() + &line).style(if i as isize == cursor_index {
-						self.styles.cursor
+						self.style.cursor
 					} else {
-						self.styles.line
+						self.style.line
 					}),
 				])
 			})
