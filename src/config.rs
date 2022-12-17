@@ -11,7 +11,6 @@ use std::{collections::HashMap, time::Duration};
 pub struct Config {
 	pub command: String,
 	pub watch_rate: Duration,
-	pub tick_rate: Duration,
 	pub styles: style::Styles,
 	pub keybindings: Keybindings,
 }
@@ -31,7 +30,6 @@ impl Config {
 
 struct ConfigRaw {
 	interval: f64,
-	tick_rate: u64,
 	fg: Option<String>,
 	bg: Option<String>,
 	fg_cursor: Option<String>,
@@ -135,7 +133,6 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
 			None => bail!("A command must be provided via command line or config file"),
 		},
 		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
-		tick_rate: Duration::from_millis(default.tick_rate),
 		styles: style::parse_style(
 			opt.fg.or(default.fg),
 			opt.bg.or(default.bg),
@@ -206,7 +203,6 @@ impl Default for ConfigRaw {
 	fn default() -> ConfigRaw {
 		ConfigRaw {
 			interval: 5.0,
-			tick_rate: 250,
 			fg: None,
 			bg: None,
 			fg_cursor: Some("black".to_string()),
