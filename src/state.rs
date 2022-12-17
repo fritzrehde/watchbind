@@ -11,7 +11,7 @@ use tui::{
 const FIRST_INDEX: usize = 0;
 
 // TODO: replace vectors with slices
-pub struct StatefulList {
+pub struct State {
 	lines: Vec<String>,
 	selected: Vec<bool>,
 	styles: Vec<Style>,
@@ -19,9 +19,9 @@ pub struct StatefulList {
 	style: Styles,
 }
 
-impl StatefulList {
-	pub fn new(lines: Vec<String>, style: &Styles) -> StatefulList {
-		let mut state = StatefulList {
+impl State {
+	pub fn new(lines: Vec<String>, style: &Styles) -> State {
+		let mut state = State {
 			selected: vec![false; lines.len()],
 			styles: vec![style.line; lines.len()],
 			lines,

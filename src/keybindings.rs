@@ -1,6 +1,6 @@
-use crate::exec;
-use crate::stateful_list::StatefulList;
-use anyhow::{bail, Result};
+use crate::exec::execute_with_lines;
+use crate::state::State;
+use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
 use std::{collections::HashMap, str::FromStr, sync::mpsc};
 
@@ -80,7 +80,7 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 
 fn exec_operation(
 	operation: &Operation,
-	state: &mut StatefulList,
+	state: &mut State,
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool> {
 	match operation {
@@ -93,7 +93,7 @@ fn exec_operation(
 		Operation::SelectLine(SelectOperation::Toggle) => state.select_toggle(),
 		Operation::SelectLine(SelectOperation::SelectAll) => state.select_all(),
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-		Operation::Execute(command) => exec::run_lines(command, &state.get_selected_lines())?,
+		Operation::Execute(command) => execute_with_lines(command, &state.get_selected_lines())?,
 		// reload input by waking up thread
 		Operation::Reload => thread_channel.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
@@ -104,7 +104,7 @@ fn exec_operation(
 pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
-	state: &mut StatefulList,
+	state: &mut State,
 	thread_channel: &mpsc::Sender<()>,
 ) -> Result<bool> {
 	if let Some(operations) = keybindings.get(&key) {
@@ -121,6 +121,12 @@ pub fn handle_key(
 impl FromStr for Operation {
 	type Err = anyhow::Error;
 	fn from_str(src: &str) -> Result<Operation> {
+		// TODO: consider creating type "StepSize"
+		let parse_steps = |steps: &str, src| {
+			steps
+				.parse()
+				.with_context(|| format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\""))
+		};
 		Ok(
 			// TODO: make more efficient by removing collect
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
@@ -128,23 +134,8 @@ impl FromStr for Operation {
 				["reload"] => Operation::Reload,
 				["down"] => Operation::MoveCursor(MoveCursor::Down(1)),
 				["up"] => Operation::MoveCursor(MoveCursor::Up(1)),
-				// TODO: add custom error type with error handling to make less ugly
-				["down", steps] => match steps.parse() {
-					Ok(steps) => Operation::MoveCursor(MoveCursor::Down(steps)),
-					Err(_) => bail!(
-						"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
-						steps,
-						src
-					),
-				},
-				["up", steps] => match steps.parse() {
-					Ok(steps) => Operation::MoveCursor(MoveCursor::Up(steps)),
-					Err(_) => bail!(
-						"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
-						steps,
-						src
-					),
-				},
+				["down", steps] => Operation::MoveCursor(MoveCursor::Down(parse_steps(steps, src)?)),
+				["up", steps] => Operation::MoveCursor(MoveCursor::Up(parse_steps(steps, src)?)),
 				["first"] => Operation::MoveCursor(MoveCursor::First),
 				["last"] => Operation::MoveCursor(MoveCursor::Last),
 				["select"] => Operation::SelectLine(SelectOperation::Select),

@@ -16,6 +16,19 @@ pub struct Config {
 	pub keybindings: Keybindings,
 }
 
+impl Config {
+	pub fn parse() -> Result<Config> {
+		let cli = ConfigRawArgs::parse();
+		let config_file = cli.config_file.clone();
+		let args = args2optional(cli);
+		merge_default(match &config_file {
+			// TODO: parse toml directly into optional
+			Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
+			None => args,
+		})
+	}
+}
+
 struct ConfigRaw {
 	interval: f64,
 	tick_rate: u64,
@@ -102,17 +115,6 @@ pub struct ConfigRawOptional {
 	bold: Option<bool>,
 	bold_cursor: Option<bool>,
 	keybindings: KeybindingsRaw,
-}
-
-pub fn parse_config() -> Result<Config> {
-	let cli = ConfigRawArgs::parse();
-	let config_file = cli.config_file.clone();
-	let args = args2optional(cli);
-	merge_default(match &config_file {
-		// TODO: parse toml directly into optional
-		Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
-		None => args,
-	})
 }
 
 fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {

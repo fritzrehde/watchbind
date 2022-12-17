@@ -23,7 +23,7 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn run_lines(cmd: &CCommand, lines: &str) -> Result<()> {
+pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<()> {
 	// execute command
 	let sh = vec!["sh", "-c", &cmd.command];
 	let mut command = Command::new(sh[0]);
