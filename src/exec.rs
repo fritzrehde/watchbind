@@ -1,8 +1,8 @@
 use crate::keybindings::Command as CCommand;
-use std::io::{Error, ErrorKind};
+use anyhow::{bail, Result};
 use std::process::Command;
 
-pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
+pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 	// execute command
 	let command = vec!["sh", "-c", cmd];
 	let output = Command::new(command[0]).args(&command[1..]).output()?;
@@ -15,17 +15,15 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>, Error> {
 		.collect();
 
 	// handle command error
-	match output.status.success() {
-		true => Ok(lines),
-		false => {
-			let stderr = String::from_utf8(output.stderr).unwrap();
-			Err(Error::new(ErrorKind::Other, stderr))
-		}
+	if output.status.success() {
+		Ok(lines)
+	} else {
+		bail!(String::from_utf8(output.stderr).unwrap())
 	}
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn run_lines(cmd: &CCommand, lines: &str) -> Result<(), Error> {
+pub fn run_lines(cmd: &CCommand, lines: &str) -> Result<()> {
 	// execute command
 	let sh = vec!["sh", "-c", &cmd.command];
 	let mut command = Command::new(sh[0]);
@@ -39,8 +37,7 @@ pub fn run_lines(cmd: &CCommand, lines: &str) -> Result<(), Error> {
 		let output = command.output()?;
 		// handle command error
 		if !output.status.success() {
-			let stderr = String::from_utf8(output.stderr).unwrap();
-			return Err(Error::new(ErrorKind::Other, stderr));
+			bail!(String::from_utf8(output.stderr).unwrap());
 		}
 	}
 	Ok(())

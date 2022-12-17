@@ -1,11 +1,11 @@
-use std::io;
-use std::{collections::HashMap, time::Duration};
 use crate::{
 	keybindings::{self, Keybindings, KeybindingsRaw},
 	style,
 };
+use anyhow::{bail, Result};
 use clap::Parser;
 use serde::Deserialize;
+use std::{collections::HashMap, time::Duration};
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
@@ -104,36 +104,34 @@ pub struct ConfigRawOptional {
 	keybindings: KeybindingsRaw,
 }
 
-pub fn parse_config() -> Result<Config, io::Error> {
+pub fn parse_config() -> Result<Config> {
 	let cli = ConfigRawArgs::parse();
 	let config_file = cli.config_file.clone();
 	let args = args2optional(cli);
-	match &config_file {
-		Some(path) => match parse_toml(path) {
-			Ok(file) => merge_default(merge_opt(args, file2optional(file))),
-			Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
-		},
-		None => merge_default(args),
-	}
+	merge_default(match &config_file {
+		// TODO: parse toml directly into optional
+		Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
+		None => args,
+	})
 }
 
-fn parse_toml(config_file: &str) -> Result<ConfigRawFile, config::ConfigError> {
-	config::Config::builder()
+fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {
+	// TODO: add to anyhow error that error came from parsing file in here
+	let config = config::Config::builder()
 		.add_source(config::File::with_name(config_file))
 		.build()?
-		.try_deserialize()
+		.try_deserialize()?;
+	Ok(config)
 }
 
 // Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional) -> Result<Config, io::Error> {
+fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
-		command: opt.command.ok_or_else(|| {
-			io::Error::new(
-				io::ErrorKind::Other,
-				"Command must be provided via command line or config file",
-			)
-		})?,
+		command: match opt.command {
+			Some(command) => command,
+			None => bail!("A command must be provided via command line or config file"),
+		},
 		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
 		tick_rate: Duration::from_millis(default.tick_rate),
 		styles: style::parse_style(

@@ -3,8 +3,8 @@ use itertools::izip;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
-	widgets::{Cell, Row, Table, TableState},
 	style::Style,
+	widgets::{Cell, Row, Table, TableState},
 	Frame,
 };
 

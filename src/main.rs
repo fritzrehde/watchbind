@@ -7,16 +7,16 @@ mod terminal_manager;
 
 use crate::config::Config;
 use crate::stateful_list::StatefulList;
+use anyhow::Result;
 use crossterm::event::{self, Event};
 use std::{
-	io::{self, Error},
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
 };
 use terminal_manager::{Terminal, TerminalManager};
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
 	match config::parse_config() {
 		// print config errors
 		Err(e) => eprintln!("error: {}", e),
@@ -33,7 +33,7 @@ fn main() -> Result<(), Error> {
 	Ok(())
 }
 
-fn run(config: Config, terminal: &mut Terminal) -> Result<(), io::Error> {
+fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 	let mut last_tick = Instant::now();
 	let (data_send_channel, data_rcv_channel) = mpsc::channel();
 	let (info_send_channel, info_rcv_channel) = mpsc::channel();

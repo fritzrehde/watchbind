@@ -1,12 +1,8 @@
 use crate::exec;
 use crate::stateful_list::StatefulList;
+use anyhow::{bail, Result};
 use crossterm::event::KeyCode::{self, *};
-use std::{
-	collections::HashMap,
-	io::{Error, ErrorKind},
-	str::FromStr,
-	sync::mpsc,
-};
+use std::{collections::HashMap, str::FromStr, sync::mpsc};
 
 pub type Operations = Vec<Operation>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
@@ -48,14 +44,12 @@ pub enum Operation {
 }
 
 // TODO: return (&str, &str), deal with lifetime
-pub fn parse_str(s: &str) -> Result<(String, Vec<String>), Error> {
-	// TODO: replace with nom
-	let (key, operations) = s.split_once(':').ok_or_else(|| {
-		Error::new(
-			ErrorKind::Other,
-			format!("invalid format: expected \"KEY:OP[+OP]*\", found \"{}\"", s),
-		)
-	})?;
+// TODO: replace with nom
+pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
+	let Some((key, operations)) = s.split_once(':') else {
+		bail!("invalid format: expected \"KEY:OP[+OP]*\", found \"{}\"", s);
+	};
+
 	Ok((
 		key.to_string(),
 		// split on "+" and trim leading and trailing whitespace
@@ -66,14 +60,14 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>), Error> {
 	))
 }
 
-pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings, Error> {
+pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 	raw
 		.into_iter()
 		.map(|(key, ops)| Ok((keycode_from_str(&key)?, operations_from_str(ops)?)))
 		.collect()
 }
 
-fn operations_from_str(ops: Vec<String>) -> Result<Vec<Operation>, Error> {
+fn operations_from_str(ops: Vec<String>) -> Result<Vec<Operation>> {
 	ops.iter().map(|op| Ok(Operation::from_str(op)?)).collect()
 }
 
@@ -88,7 +82,7 @@ fn exec_operation(
 	operation: &Operation,
 	state: &mut StatefulList,
 	thread_channel: &mpsc::Sender<()>,
-) -> Result<bool, Error> {
+) -> Result<bool> {
 	match operation {
 		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -112,7 +106,7 @@ pub fn handle_key(
 	keybindings: &Keybindings,
 	state: &mut StatefulList,
 	thread_channel: &mpsc::Sender<()>,
-) -> Result<bool, Error> {
+) -> Result<bool> {
 	if let Some(operations) = keybindings.get(&key) {
 		for op in operations {
 			if !exec_operation(op, state, thread_channel)? {
@@ -125,8 +119,8 @@ pub fn handle_key(
 }
 
 impl FromStr for Operation {
-	type Err = Error;
-	fn from_str(src: &str) -> Result<Operation, Self::Err> {
+	type Err = anyhow::Error;
+	fn from_str(src: &str) -> Result<Operation> {
 		Ok(
 			// TODO: make more efficient by removing collect
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
@@ -136,28 +130,20 @@ impl FromStr for Operation {
 				["up"] => Operation::MoveCursor(MoveCursor::Up(1)),
 				// TODO: add custom error type with error handling to make less ugly
 				["down", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::MoveCursor(MoveCursor::Down(steps))),
-					Err(_) => {
-						return Err(Error::new(
-							ErrorKind::Other,
-							format!(
-								"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
-								steps, src
-							),
-						))
-					}
+					Ok(steps) => Operation::MoveCursor(MoveCursor::Down(steps)),
+					Err(_) => bail!(
+						"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
+						steps,
+						src
+					),
 				},
 				["up", steps] => match steps.parse() {
-					Ok(steps) => return Ok(Operation::MoveCursor(MoveCursor::Up(steps))),
-					Err(_) => {
-						return Err(Error::new(
-							ErrorKind::Other,
-							format!(
-								"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
-								steps, src
-							),
-						))
-					}
+					Ok(steps) => Operation::MoveCursor(MoveCursor::Up(steps)),
+					Err(_) => bail!(
+						"Invalid integer step size \"{}\" provided in keybinding: \"{}\"",
+						steps,
+						src
+					),
 				},
 				["first"] => Operation::MoveCursor(MoveCursor::First),
 				["last"] => Operation::MoveCursor(MoveCursor::Last),
@@ -176,7 +162,7 @@ impl FromStr for Operation {
 }
 
 // TODO: add modifiers
-fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
+fn keycode_from_str(s: &str) -> Result<KeyCode> {
 	Ok(match s {
 		"esc" => Esc,
 		"enter" => Enter,
@@ -209,12 +195,7 @@ fn keycode_from_str(s: &str) -> Result<KeyCode, Error> {
 		"space" => Char(' '),
 		"tab" => Tab,
 		c if c.len() == 1 => Char(c.chars().next().unwrap()),
-		invalid => {
-			return Err(Error::new(
-				ErrorKind::Other,
-				format!("Invalid key provided in keybinding: {}", invalid),
-			))
-		}
+		invalid => bail!("Invalid key provided in keybinding: {}", invalid),
 	})
 }
 

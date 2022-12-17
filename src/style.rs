@@ -1,4 +1,4 @@
-use std::io::{self, Error};
+use anyhow::{bail, Result};
 use tui::style::{Color, Modifier, Style};
 
 #[derive(Debug, Clone, Copy)]
@@ -16,7 +16,7 @@ pub fn parse_style(
 	bg_selected: Option<String>,
 	bold: bool,
 	bold_cursor: bool,
-) -> Result<Styles, Error> {
+) -> Result<Styles> {
 	Ok(Styles {
 		line: Style::reset()
 			.fg(parse_color(fg)?)
@@ -26,8 +26,7 @@ pub fn parse_style(
 			.fg(parse_color(fg_cursor)?)
 			.bg(parse_color(bg_cursor)?)
 			.add_modifier(parse_bold(bold_cursor)),
-		selected: Style::reset()
-			.bg(parse_color(bg_selected)?),
+		selected: Style::reset().bg(parse_color(bg_selected)?),
 	})
 }
 
@@ -39,7 +38,7 @@ fn parse_bold(bold: bool) -> Modifier {
 	}
 }
 
-fn parse_color(src: Option<String>) -> Result<Color, Error> {
+fn parse_color(src: Option<String>) -> Result<Color> {
 	Ok(match src {
 		Some(color) => match color.to_lowercase().as_str() {
 			"white" => Color::White,
@@ -58,12 +57,7 @@ fn parse_color(src: Option<String>) -> Result<Color, Error> {
 			"light_blue" => Color::LightBlue,
 			"light_magenta" => Color::LightMagenta,
 			"light_cyan" => Color::LightCyan,
-			invalid => {
-				return Err(io::Error::new(
-					io::ErrorKind::Other,
-					format!("Invalid color provided: {}", invalid),
-				))
-			}
+			invalid => bail!("Invalid color provided: \"{}\"", invalid),
 		},
 		_ => Color::Reset,
 	})
