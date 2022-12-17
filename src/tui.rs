@@ -1,86 +1,96 @@
 use crate::config::Config;
+use crate::exec::output_lines;
+use crate::keybindings::handle_key;
 use crate::state::State;
 use crate::terminal_manager::{Terminal, TerminalManager};
-use crate::exec::output_lines;
-use crate::keybindings;
-use crossterm::event::{self, Event};
+use anyhow::Result;
+use crossterm::event::{self, Event::Key, KeyCode};
+use mpsc::{Receiver, Sender};
 use std::{
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
 };
-use anyhow::Result;
+
+enum Event {
+	KeyPressed(KeyCode),
+	CommandOutput(Result<Vec<String>>),
+}
 
 pub fn start(config: Config) -> Result<()> {
 	let mut terminal_manager = TerminalManager::new()?;
-	let tmp_err = run(config, &mut terminal_manager.terminal);
+	let err = run(config, &mut terminal_manager.terminal);
 	terminal_manager.restore()?;
-	tmp_err
+	err
 }
 
 fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
-	let mut last_tick = Instant::now();
-	let (data_send_channel, data_rcv_channel) = mpsc::channel();
-	let (info_send_channel, info_rcv_channel) = mpsc::channel();
+	let (event_tx, event_rx) = mpsc::channel();
+	let (wake_tx, wake_rx) = mpsc::channel();
+	let mut state = State::new(Vec::new(), &config.styles);
 
-	// TODO move to own function
-	thread::spawn(move || {
-		// worker thread that executes command in loop
-		loop {
-			// execute command and time execution
-			let before = Instant::now();
-			let lines = output_lines(&config.command);
-			let exec_time = Instant::now().duration_since(before);
-			let sleep = config.watch_rate.saturating_sub(exec_time);
+	poll_execute_command(
+		config.watch_rate.clone(),
+		config.command.clone(),
+		&event_tx,
+		wake_rx,
+	);
+	poll_key_events(&event_tx);
 
-			// ignore error that occurs when main thread (and channels) close
-			data_send_channel.send(lines).ok();
-
-			// sleep until notified
-			if config.watch_rate == Duration::ZERO {
-				info_rcv_channel.recv().ok();
-			} else {
-				// wake up at latest after watch_rate time
-				info_rcv_channel.recv_timeout(sleep).ok();
-			}
-		}
-	});
-	let lines = data_rcv_channel.recv().unwrap()?;
-	let mut state = State::new(lines, &config.styles);
-
-	// TODO: move to own function
-	// main thread loop
-	// TODO: create keyboard input worker thread
 	loop {
-		match data_rcv_channel.try_recv() {
-			Ok(lines) => state.set_lines(lines?),
-			_ => {}
-		};
-
-		// TODO: state shouldn't draw itself, others should "draw state on/and frame"
 		terminal.draw(|frame| state.draw(frame))?;
-
-		let timeout = config
-			.tick_rate
-			.checked_sub(last_tick.elapsed())
-			.unwrap_or_else(|| Duration::ZERO);
-
-		// wait for keyboard input for max time of timeout
-		if event::poll(timeout)? {
-			if let Event::Key(key) = event::read()? {
-				if let false = keybindings::handle_key(
-					key.code,
-					&config.keybindings,
-					&mut state,
-					&info_send_channel,
-				)? {
+		match event_rx.try_recv() {
+			Ok(Event::KeyPressed(key)) => {
+				if !handle_key(key, &config.keybindings, &mut state, &wake_tx)? {
 					// exit program
 					return Ok(());
 				}
 			}
-		}
-		if last_tick.elapsed() >= config.tick_rate {
-			last_tick = Instant::now();
-		}
+			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
+			_ => {},
+		};
 	}
+}
+
+fn poll_execute_command(
+	watch_rate: Duration,
+	command: String,
+	event_tx: &Sender<Event>,
+	wake_rx: Receiver<()>,
+) {
+	let event_tx = event_tx.clone();
+
+	thread::spawn(move || {
+		loop {
+			// execute command and time execution
+			let before = Instant::now();
+			let lines = output_lines(&command);
+			let exec_time = Instant::now().duration_since(before);
+			let sleep = watch_rate.saturating_sub(exec_time);
+
+			// ignore error that occurs when main thread (and channels) close
+			event_tx.send(Event::CommandOutput(lines)).ok();
+
+			// sleep until notified
+			if watch_rate == Duration::ZERO {
+				wake_rx.recv().ok();
+			} else {
+				// wake up at latest after watch_rate time
+				wake_rx.recv_timeout(sleep).ok();
+			}
+		}
+	});
+}
+
+fn poll_key_events(tx: &Sender<Event>) {
+	let tx = tx.clone();
+
+	thread::spawn(move || {
+		loop {
+			// TODO: remove unwraps
+			if let Key(key) = event::read().unwrap() {
+				tx.send(Event::KeyPressed(key.code)).unwrap();
+			}
+		}
+	});
 }

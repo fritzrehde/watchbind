@@ -2,6 +2,7 @@ use crate::exec::execute_with_lines;
 use crate::state::State;
 use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
+use mpsc::Sender;
 use std::{collections::HashMap, str::FromStr, sync::mpsc};
 
 pub type Operations = Vec<Operation>;
@@ -78,11 +79,7 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged
 }
 
-fn exec_operation(
-	operation: &Operation,
-	state: &mut State,
-	thread_channel: &mpsc::Sender<()>,
-) -> Result<bool> {
+fn exec_operation(operation: &Operation, state: &mut State, wake_tx: &Sender<()>) -> Result<bool> {
 	match operation {
 		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -95,7 +92,7 @@ fn exec_operation(
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
 		Operation::Execute(command) => execute_with_lines(command, &state.get_selected_lines())?,
 		// reload input by waking up thread
-		Operation::Reload => thread_channel.send(()).unwrap(),
+		Operation::Reload => wake_tx.send(()).unwrap(),
 		Operation::Exit => return Ok(false),
 	};
 	Ok(true)
@@ -105,7 +102,7 @@ pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	state: &mut State,
-	thread_channel: &mpsc::Sender<()>,
+	thread_channel: &Sender<()>,
 ) -> Result<bool> {
 	if let Some(operations) = keybindings.get(&key) {
 		for op in operations {
