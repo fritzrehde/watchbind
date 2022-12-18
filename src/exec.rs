@@ -1,8 +1,8 @@
 use crate::keybindings::Command as CCommand;
 use anyhow::{bail, Result};
 use std::process::Command;
-use crate::tui::RequestedAction;
-use std::{thread, sync::mpsc};
+use crate::tui::{RequestedAction, Event};
+use std::{thread, sync::mpsc::Sender};
 
 pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 	// execute command
@@ -25,7 +25,7 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<RequestedAction> {
+pub fn execute_with_lines(cmd: &CCommand, lines: &str, event_tx: Sender<Event>) -> Result<RequestedAction> {
 	// execute command
 	let sh = vec!["sh", "-c", &cmd.command];
 	let mut command = Command::new(sh[0]);
@@ -34,10 +34,11 @@ pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<RequestedAction
 	command.env("LINES", lines).args(&sh[1..]);
 
 	if cmd.blocking {
-		let (block_tx, block_rx) = mpsc::channel();
+		// let (block_tx, block_rx) = mpsc::channel();
 		// TODO: use tokio here to not constantly create new threads
 		thread::spawn(move || {
 			// TODO: unwrap
+			// blocks until finished executing
 			let output = command.output().unwrap();
 			// handle command error
 			let msg = if !output.status.success() {
@@ -45,10 +46,10 @@ pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<RequestedAction
 			} else {
 				Ok(())
 			};
-			block_tx.send(msg).unwrap();
+			event_tx.send(Event::Unblock(msg)).unwrap();
 			Ok(())
 		});
-		Ok(RequestedAction::Block(block_rx))
+		Ok(RequestedAction::Block)
 	} else {
 		command.spawn()?;
 		Ok(RequestedAction::Continue)

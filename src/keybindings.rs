@@ -1,9 +1,9 @@
 use crate::exec::execute_with_lines;
 use crate::state::State;
-use crate::tui::RequestedAction;
+use crate::tui::{RequestedAction, Event};
 use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::mpsc::Sender};
 
 pub type Operations = Vec<Operation>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
@@ -79,7 +79,7 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged
 }
 
-fn exec_operation(operation: &Operation, state: &mut State) -> Result<RequestedAction> {
+pub fn exec_operation(operation: &Operation, state: &mut State, event_tx: &Sender<Event>) -> Result<RequestedAction> {
 	match operation {
 		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -92,24 +92,35 @@ fn exec_operation(operation: &Operation, state: &mut State) -> Result<RequestedA
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
 		Operation::Reload => return Ok(RequestedAction::Reload),
 		Operation::Exit => return Ok(RequestedAction::Exit),
-		Operation::Execute(command) => return execute_with_lines(command, &state.get_selected_lines()),
+		Operation::Execute(command) => return execute_with_lines(command, &state.get_selected_lines(), event_tx.clone()),
 	};
 	Ok(RequestedAction::Continue)
 }
 
-pub fn handle_key(
+pub fn get_key_operations(
 	key: KeyCode,
 	keybindings: &Keybindings,
-	state: &mut State,
-) -> Result<Vec<RequestedAction>> {
+) -> Vec<Operation> {
+	// TODO: simplify
 	match keybindings.get(&key) {
-		Some(operations) => operations
-			.iter()
-			.map(|op| exec_operation(op, state))
-			.collect(),
-		None => Ok(vec![]),
+		Some(ops) => ops.clone(),
+		None => vec![],
 	}
 }
+
+// pub fn handle_key(
+// 	key: KeyCode,
+// 	keybindings: &Keybindings,
+// 	state: &mut State,
+// ) -> Result<Vec<RequestedAction>> {
+// 	match keybindings.get(&key) {
+// 		Some(operations) => operations
+// 			.iter()
+// 			.map(|op| exec_operation(op, state))
+// 			.collect(),
+// 		None => Ok(vec![]),
+// 	}
+// }
 
 impl FromStr for Operation {
 	type Err = anyhow::Error;
