@@ -39,17 +39,17 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 	poll_execute_command(
 		config.watch_rate.clone(),
 		config.command.clone(),
-		&event_tx,
+		event_tx.clone(),
 		wake_rx,
 	);
-	poll_key_events(&event_tx);
+	poll_key_events(event_tx.clone());
 
 	loop {
 		terminal.draw(|frame| state.draw(frame))?;
 
 		match event_rx.try_recv() {
 			Ok(Event::KeyPressed(key)) => {
-				for requested_state in handle_key(key, &config.keybindings, &mut state)?.iter() {
+				for requested_state in handle_key(key, &config.keybindings, &mut state)? {
 					match requested_state {
 						RequestedAction::Exit => return Ok(()),
 						// reload input by waking up thread
@@ -70,11 +70,9 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 fn poll_execute_command(
 	watch_rate: Duration,
 	command: String,
-	event_tx: &Sender<Event>,
+	event_tx: Sender<Event>,
 	wake_rx: Receiver<()>,
 ) {
-	let event_tx = event_tx.clone();
-
 	thread::spawn(move || {
 		loop {
 			// execute command and time execution
@@ -97,9 +95,7 @@ fn poll_execute_command(
 	});
 }
 
-fn poll_key_events(tx: &Sender<Event>) {
-	let tx = tx.clone();
-
+fn poll_key_events(tx: Sender<Event>) {
 	thread::spawn(move || {
 		loop {
 			// TODO: remove unwraps
