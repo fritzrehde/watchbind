@@ -20,11 +20,11 @@ pub struct State {
 }
 
 impl State {
-	pub fn new(lines: Vec<String>, style: &Styles) -> State {
+	pub fn new(style: &Styles) -> State {
 		let mut state = State {
-			selected: vec![false; lines.len()],
-			styles: vec![style.line; lines.len()],
-			lines,
+			selected: vec![],
+			styles: vec![],
+			lines: vec![],
 			state: TableState::default(),
 			style: *style,
 		};

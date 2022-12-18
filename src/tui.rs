@@ -12,6 +12,13 @@ use std::{
 	time::{Duration, Instant},
 };
 
+pub enum RequestedAction {
+	Continue,
+	Reload,
+	Block,
+	Exit,
+}
+
 enum Event {
 	KeyPressed(KeyCode),
 	CommandOutput(Result<Vec<String>>),
@@ -27,7 +34,7 @@ pub fn start(config: Config) -> Result<()> {
 fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 	let (event_tx, event_rx) = mpsc::channel();
 	let (wake_tx, wake_rx) = mpsc::channel();
-	let mut state = State::new(Vec::new(), &config.styles);
+	let mut state = State::new(&config.styles);
 
 	poll_execute_command(
 		config.watch_rate.clone(),
@@ -39,15 +46,23 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 
 	loop {
 		terminal.draw(|frame| state.draw(frame))?;
+
 		match event_rx.try_recv() {
 			Ok(Event::KeyPressed(key)) => {
-				if !handle_key(key, &config.keybindings, &mut state, &wake_tx)? {
-					// exit program
-					return Ok(());
+				for requested_state in handle_key(key, &config.keybindings, &mut state)?.iter() {
+					match requested_state {
+						RequestedAction::Exit => return Ok(()),
+						// reload input by waking up thread
+						RequestedAction::Reload => wake_tx.send(()).unwrap(),
+						RequestedAction::Block => {}
+						RequestedAction::Continue => {}
+					}
 				}
 			}
+			// TODO: possible inefficiency: blocks (due to blocking subshell command), but continues executing and sending CommandOutputs => old set_lines will be called even though new ones are available
+			// TODO: solution: enter blocking state where all key events are ignored but command output is still handled (implement with another channel?)
 			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
-			_ => {},
+			_ => {}
 		};
 	}
 }

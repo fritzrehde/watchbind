@@ -1,9 +1,9 @@
 use crate::exec::execute_with_lines;
 use crate::state::State;
+use crate::tui::RequestedAction;
 use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
-use mpsc::Sender;
-use std::{collections::HashMap, str::FromStr, sync::mpsc};
+use std::{collections::HashMap, str::FromStr};
 
 pub type Operations = Vec<Operation>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
@@ -79,7 +79,7 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged
 }
 
-fn exec_operation(operation: &Operation, state: &mut State, wake_tx: &Sender<()>) -> Result<bool> {
+fn exec_operation(operation: &Operation, state: &mut State) -> Result<RequestedAction> {
 	match operation {
 		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -91,28 +91,24 @@ fn exec_operation(operation: &Operation, state: &mut State, wake_tx: &Sender<()>
 		Operation::SelectLine(SelectOperation::SelectAll) => state.select_all(),
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
 		Operation::Execute(command) => execute_with_lines(command, &state.get_selected_lines())?,
-		// reload input by waking up thread
-		Operation::Reload => wake_tx.send(()).unwrap(),
-		Operation::Exit => return Ok(false),
+		Operation::Reload => return Ok(RequestedAction::Reload),
+		Operation::Exit => return Ok(RequestedAction::Exit),
 	};
-	Ok(true)
+	Ok(RequestedAction::Continue)
 }
 
 pub fn handle_key(
 	key: KeyCode,
 	keybindings: &Keybindings,
 	state: &mut State,
-	thread_channel: &Sender<()>,
-) -> Result<bool> {
-	if let Some(operations) = keybindings.get(&key) {
-		for op in operations {
-			if !exec_operation(op, state, thread_channel)? {
-				// exit was called => program should be stopped
-				return Ok(false);
-			}
-		}
+) -> Result<Vec<RequestedAction>> {
+	match keybindings.get(&key) {
+		Some(operations) => operations
+			.iter()
+			.map(|op| exec_operation(op, state))
+			.collect(),
+		None => Ok(vec![]),
 	}
-	Ok(true)
 }
 
 impl FromStr for Operation {
