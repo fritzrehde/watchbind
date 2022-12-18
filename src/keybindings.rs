@@ -1,6 +1,6 @@
 use crate::exec::execute_with_lines;
 use crate::state::State;
-use crate::tui::{RequestedAction, Event};
+use crate::tui::{Event, RequestedAction};
 use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
 use std::{collections::HashMap, str::FromStr, sync::mpsc::Sender};
@@ -79,7 +79,11 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged
 }
 
-pub fn exec_operation(operation: &Operation, state: &mut State, event_tx: &Sender<Event>) -> Result<RequestedAction> {
+pub fn exec_operation(
+	operation: &Operation,
+	state: &mut State,
+	event_tx: &Sender<Event>,
+) -> Result<RequestedAction> {
 	match operation {
 		Operation::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 		Operation::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -92,35 +96,19 @@ pub fn exec_operation(operation: &Operation, state: &mut State, event_tx: &Sende
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
 		Operation::Reload => return Ok(RequestedAction::Reload),
 		Operation::Exit => return Ok(RequestedAction::Exit),
-		Operation::Execute(command) => return execute_with_lines(command, &state.get_selected_lines(), event_tx.clone()),
+		Operation::Execute(command) => {
+			return execute_with_lines(command, &state.get_selected_lines(), event_tx.clone())
+		}
 	};
 	Ok(RequestedAction::Continue)
 }
 
-pub fn get_key_operations(
-	key: KeyCode,
-	keybindings: &Keybindings,
-) -> Vec<Operation> {
-	// TODO: simplify
+pub fn get_key_operations(key: KeyCode, keybindings: &Keybindings) -> Vec<Operation> {
 	match keybindings.get(&key) {
 		Some(ops) => ops.clone(),
 		None => vec![],
 	}
 }
-
-// pub fn handle_key(
-// 	key: KeyCode,
-// 	keybindings: &Keybindings,
-// 	state: &mut State,
-// ) -> Result<Vec<RequestedAction>> {
-// 	match keybindings.get(&key) {
-// 		Some(operations) => operations
-// 			.iter()
-// 			.map(|op| exec_operation(op, state))
-// 			.collect(),
-// 		None => Ok(vec![]),
-// 	}
-// }
 
 impl FromStr for Operation {
 	type Err = anyhow::Error;

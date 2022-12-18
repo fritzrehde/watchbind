@@ -1,16 +1,16 @@
 use crate::config::Config;
 use crate::exec::output_lines;
-use crate::keybindings::{get_key_operations, exec_operation, Operation};
+use crate::keybindings::{exec_operation, get_key_operations, Operation};
 use crate::state::State;
 use crate::terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key, KeyCode};
 use mpsc::{Receiver, Sender};
 use std::{
+	collections::VecDeque,
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
-	collections::VecDeque,
 };
 
 pub enum RequestedAction {
@@ -56,7 +56,11 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
-					operations.append(&mut VecDeque::from(get_key_operations(key, &config.keybindings)));
+					// TODO: make operations natively vecdeque
+					operations.append(&mut VecDeque::from(get_key_operations(
+						key,
+						&config.keybindings,
+					)));
 					event_tx.send(Event::ExecuteNextCommand).unwrap();
 				}
 			}
@@ -64,16 +68,15 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 				msg?;
 				blocked = false;
 				event_tx.send(Event::ExecuteNextCommand).unwrap();
-			},
+			}
 			Ok(Event::ExecuteNextCommand) => {
 				while !blocked {
 					match operations.pop_front() {
 						Some(op) => match exec_operation(&op, &mut state, &event_tx)? {
 							RequestedAction::Exit => return Ok(()),
-							// reload input by waking up thread
 							RequestedAction::Reload => wake_tx.send(()).unwrap(),
 							RequestedAction::Block => blocked = true,
-							RequestedAction::Continue => {},
+							RequestedAction::Continue => {}
 						},
 						None => break,
 					}
