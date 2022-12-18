@@ -30,8 +30,8 @@ pub enum SelectOperation {
 #[derive(Clone)]
 pub struct Command {
 	pub command: String,
-	// execute as background process or wait for termination
-	pub background: bool,
+	// execute as background process or block until termination
+	pub blocking: bool,
 }
 
 // TODO: extract select and toggle into one type
@@ -90,9 +90,9 @@ fn exec_operation(operation: &Operation, state: &mut State) -> Result<RequestedA
 		Operation::SelectLine(SelectOperation::Toggle) => state.select_toggle(),
 		Operation::SelectLine(SelectOperation::SelectAll) => state.select_all(),
 		Operation::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-		Operation::Execute(command) => execute_with_lines(command, &state.get_selected_lines())?,
 		Operation::Reload => return Ok(RequestedAction::Reload),
 		Operation::Exit => return Ok(RequestedAction::Exit),
+		Operation::Execute(command) => return execute_with_lines(command, &state.get_selected_lines()),
 	};
 	Ok(RequestedAction::Continue)
 }
@@ -138,7 +138,7 @@ impl FromStr for Operation {
 				["unselect-all"] => Operation::SelectLine(SelectOperation::UnselectAll),
 				_ => Operation::Execute(Command {
 					command: src.to_string(),
-					background: src.contains("&"),
+					blocking: !src.contains("&"),
 				}),
 			},
 		)

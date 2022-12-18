@@ -1,6 +1,8 @@
 use crate::keybindings::Command as CCommand;
 use anyhow::{bail, Result};
 use std::process::Command;
+use crate::tui::RequestedAction;
+use std::{thread, sync::mpsc};
 
 pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 	// execute command
@@ -23,7 +25,7 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 }
 
 // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<()> {
+pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<RequestedAction> {
 	// execute command
 	let sh = vec!["sh", "-c", &cmd.command];
 	let mut command = Command::new(sh[0]);
@@ -31,14 +33,45 @@ pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<()> {
 	// provide selected line as environment variable
 	command.env("LINES", lines).args(&sh[1..]);
 
-	if cmd.background {
-		command.spawn()?;
+	if cmd.blocking {
+		let (block_tx, block_rx) = mpsc::channel();
+		// TODO: use tokio here to not constantly create new threads
+		thread::spawn(move || {
+			// TODO: unwrap
+			let output = command.output().unwrap();
+			// handle command error
+			let msg = if !output.status.success() {
+				bail!(String::from_utf8(output.stderr).unwrap())
+			} else {
+				Ok(())
+			};
+			block_tx.send(msg).unwrap();
+			Ok(())
+		});
+		Ok(RequestedAction::Block(block_rx))
 	} else {
-		let output = command.output()?;
-		// handle command error
-		if !output.status.success() {
-			bail!(String::from_utf8(output.stderr).unwrap());
-		}
+		command.spawn()?;
+		Ok(RequestedAction::Continue)
 	}
-	Ok(())
 }
+
+// TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
+// pub fn execute_with_lines(cmd: &CCommand, lines: &str) -> Result<()> {
+// 	// execute command
+// 	let sh = vec!["sh", "-c", &cmd.command];
+// 	let mut command = Command::new(sh[0]);
+
+// 	// provide selected line as environment variable
+// 	command.env("LINES", lines).args(&sh[1..]);
+
+// 	if cmd.background {
+// 		command.spawn()?;
+// 	} else {
+// 		let output = command.output()?;
+// 		// handle command error
+// 		if !output.status.success() {
+// 			bail!(String::from_utf8(output.stderr).unwrap());
+// 		}
+// 	}
+// 	Ok(())
+// }

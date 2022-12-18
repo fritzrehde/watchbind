@@ -15,13 +15,51 @@ use std::{
 pub enum RequestedAction {
 	Continue,
 	Reload,
-	Block,
+	Block(Receiver<Result<()>>),
 	Exit,
 }
 
 enum Event {
 	KeyPressed(KeyCode),
 	CommandOutput(Result<Vec<String>>),
+}
+
+struct Blocking {
+	waiting_for: Vec<Receiver<Result<()>>>,
+}
+
+impl Blocking {
+	pub fn new() -> Blocking {
+		Blocking {
+			waiting_for: vec![],
+		}
+	}
+
+	pub fn add(&mut self, rx: Receiver<Result<()>>) {
+		self.waiting_for.push(rx);
+	}
+
+	pub fn ready(&mut self) -> Result<bool> {
+		let mut delete: Vec<usize> = vec![];
+		// TODO: combine into one for loop
+		for (i, rx) in self.waiting_for.iter().enumerate() {
+			if let Ok(err_msg) = rx.try_recv() {
+				err_msg?;
+				delete.push(i);
+			}
+		}
+		for i in delete {
+			self.waiting_for.swap_remove(i);
+		}
+		Ok(self.waiting_for.is_empty())
+
+		// self.waiting_for.retain(|rx| {
+		// 	match rx.try_recv() {
+		// 		Ok(_) => true,
+		// 		Err(_) => false,
+		// 	}
+		// });
+	}
 }
 
 pub fn start(config: Config) -> Result<()> {
@@ -35,6 +73,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 	let (event_tx, event_rx) = mpsc::channel();
 	let (wake_tx, wake_rx) = mpsc::channel();
 	let mut state = State::new(&config.styles);
+	let mut blocking = Blocking::new();
 
 	poll_execute_command(
 		config.watch_rate.clone(),
@@ -47,15 +86,17 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 	loop {
 		terminal.draw(|frame| state.draw(frame))?;
 
-		match event_rx.try_recv() {
+		match event_rx.recv() {
 			Ok(Event::KeyPressed(key)) => {
-				for requested_state in handle_key(key, &config.keybindings, &mut state)? {
-					match requested_state {
-						RequestedAction::Exit => return Ok(()),
-						// reload input by waking up thread
-						RequestedAction::Reload => wake_tx.send(()).unwrap(),
-						RequestedAction::Block => {}
-						RequestedAction::Continue => {}
+				if blocking.ready()? {
+					for requested_state in handle_key(key, &config.keybindings, &mut state)? {
+						match requested_state {
+							RequestedAction::Exit => return Ok(()),
+							// reload input by waking up thread
+							RequestedAction::Reload => wake_tx.send(()).unwrap(),
+							RequestedAction::Block(block_rx) => blocking.add(block_rx),
+							RequestedAction::Continue => {},
+						}
 					}
 				}
 			}
