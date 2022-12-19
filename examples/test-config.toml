@@ -1,9 +1,10 @@
-command = "ls -la"
-interval = 3.0
-fg_cursor = "black"
-bg_cursor = "blue"
-bold = false
-bold_cursor = true
+"command" = "ls -la"
+"interval" = 3.0
+"fg+" = "black"
+"bg+" = "blue"
+"bold" = false
+"bold+" = true
+"bg-" = "red"
 
 [keybindings]
 "q" = [ "exit" ]

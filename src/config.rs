@@ -5,7 +5,7 @@ use crate::{
 use anyhow::{bail, Result};
 use clap::Parser;
 use serde::Deserialize;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, time::Duration, fs::read_to_string};
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
@@ -71,7 +71,7 @@ pub struct ConfigRawArgs {
 	#[arg(long = "bg+", value_name = "COLOR")]
 	bg_cursor: Option<String>,
 
-	/// Background color of cursor
+	/// Color of selected line marker
 	#[arg(long = "bg-", value_name = "COLOR")]
 	bg_selected: Option<String>,
 
@@ -94,11 +94,21 @@ pub struct ConfigRawFile {
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
+
+	#[serde(rename = "fg+")]
 	fg_cursor: Option<String>,
+
+	#[serde(rename = "bg+")]
 	bg_cursor: Option<String>,
+
+	#[serde(rename = "bg-")]
 	bg_selected: Option<String>,
+
 	bold: Option<bool>,
+
+	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
+
 	keybindings: Option<KeybindingsRaw>,
 }
 
@@ -117,10 +127,7 @@ pub struct ConfigRawOptional {
 
 fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {
 	// TODO: add to anyhow error that error came from parsing file in here
-	let config = config::Config::builder()
-		.add_source(config::File::with_name(config_file))
-		.build()?
-		.try_deserialize()?;
+	let config = toml::from_str(&read_to_string(config_file)?)?;
 	Ok(config)
 }
 
