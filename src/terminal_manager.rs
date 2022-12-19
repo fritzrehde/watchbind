@@ -15,7 +15,6 @@ pub struct TerminalManager {
 
 impl TerminalManager {
 	pub fn new() -> Result<TerminalManager> {
-		// setup terminal
 		enable_raw_mode()?;
 		let mut stdout = stdout();
 		execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -27,7 +26,6 @@ impl TerminalManager {
 	}
 
 	pub fn restore(&mut self) -> Result<()> {
-		// restore terminal
 		disable_raw_mode()?;
 		execute!(
 			self.terminal.backend_mut(),

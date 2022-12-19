@@ -122,7 +122,6 @@ impl FromStr for Operation {
 				.with_context(|| format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\""))
 		};
 		Ok(
-			// TODO: make more efficient by removing collect
 			match src.split_whitespace().collect::<Vec<&str>>()[..] {
 				["exit"] => Operation::Exit,
 				["reload"] => Operation::Reload,

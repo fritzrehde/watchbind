@@ -7,8 +7,9 @@ mod terminal_manager;
 mod tui;
 
 use crate::config::Config;
+use crate::tui::start;
 use anyhow::Result;
 
 fn main() -> Result<()> {
-	tui::start(Config::parse()?)
+	start(Config::parse()?)
 }

@@ -1,5 +1,5 @@
 use crate::tui::Event;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use std::process::Command;
 use std::{sync::mpsc::Sender, thread};
 
@@ -11,33 +11,30 @@ fn shell_cmd(cmd: &str) -> Command {
 	command
 }
 
+fn shell_cmd_lines(cmd: &str, lines: &str) -> Command {
+	let mut command = shell_cmd(cmd);
+	command.env("LINES", lines);
+	command
+}
+
 pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 	let output = shell_cmd(cmd).output()?;
 
-	// get stdout
 	let lines = String::from_utf8(output.stdout)
 		.unwrap()
 		.lines()
 		.map(|s| s.to_string())
 		.collect();
 
-	// handle command error
-	if output.status.success() {
-		Ok(lines)
-	} else {
-		bail!(String::from_utf8(output.stderr).unwrap())
+	match output.status.success() {
+		true => Ok(lines),
+		false => Err(anyhow!(String::from_utf8(output.stderr).unwrap())),
 	}
 }
 
 pub fn exec_non_blocking(cmd: &str, lines: &str) -> Result<()> {
 	shell_cmd_lines(cmd, lines).spawn()?;
 	Ok(())
-}
-
-fn shell_cmd_lines(cmd: &str, lines: &str) -> Command {
-	let mut command = shell_cmd(cmd);
-	command.env("LINES", lines);
-	command
 }
 
 fn capture_output(command: &mut Command) -> Result<()> {
