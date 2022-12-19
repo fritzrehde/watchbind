@@ -12,7 +12,6 @@ const FIRST_INDEX: usize = 0;
 
 type Line = (String, Style);
 
-// TODO: replace vectors with slices
 pub struct State {
 	lines: Vec<Line>,
 	selected: Vec<bool>,
@@ -62,9 +61,6 @@ impl State {
 			None => self.first(),
 			Some(i) => self.cursor_move(i as isize),
 		};
-		// if let Some(i) = self.cursor_position() {
-		// 	self.cursor_move(i as isize);
-		// }
 	}
 
 	fn cursor_position(&mut self) -> Option<usize> {
@@ -76,17 +72,9 @@ impl State {
 		let new = match self.lines.is_empty() {
 			true => None,
 			false => {
-				// TODO: solve more easily with ranges
 				let first = FIRST_INDEX as isize;
 				let last = self.last_index() as isize;
-				let new_index = if index < first {
-					first
-				} else if index > last {
-					last
-				} else {
-					index
-				} as usize;
-				Some(new_index)
+				Some(index.clamp(first, last) as usize)
 			}
 		};
 

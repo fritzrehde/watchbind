@@ -28,6 +28,8 @@ cd watchbind
 cargo build
 ```
 
+You can also run `cargo run -- -c examples/test-config.toml` to see a simple demo of `watchbind`.
+
 ### From [crates.io](https://crates.io/crates/watchbind)
 
 ```shell
