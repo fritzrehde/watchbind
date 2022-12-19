@@ -160,7 +160,7 @@ impl Key {
 	}
 }
 
-fn parse_modifiers(s: &str) -> Result<KeyModifiers> {
+fn parse_modifier(s: &str) -> Result<KeyModifiers> {
 	Ok(match s {
 		"alt" => KeyModifiers::ALT,
 		"ctrl" => KeyModifiers::CONTROL,
@@ -212,8 +212,7 @@ impl FromStr for Key {
 		let event = match s.split_once('+') {
 			Some((s1, s2)) => {
 				let mut event = parse_code(s2)?;
-				event.modifiers.insert(parse_modifiers(s1)?);
-				assert!(event.modifiers.contains(KeyModifiers::CONTROL));
+				event.modifiers.insert(parse_modifier(s1)?);
 				event
 			}
 			None => parse_code(s)?,
