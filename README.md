@@ -79,16 +79,20 @@ It also doesn't require escaping shell specific characters like `$` in  (read mo
 
 You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 
-All supported `KEY` values
-Format: `MODIFIER+CODE` or `CODE`
+All supported `KEY` values:
+```
+MODIFIER+CODE
+CODE
 
-MODIFIER:
+```
+
+All supported `MODIFIER` values:
 ```
 alt
 ctrl
 ```
 
-CODE:
+All supported `CODE`:
 ```
 esc
 enter
@@ -123,7 +127,7 @@ tab
 [any single character]
 ```
 
-#### All supported OP values
+All supported `OP` values:
 
 Operation | Action
 :-- | :--
@@ -156,44 +160,24 @@ The names of the customization fields from the command-line options (e.g. `--fg+
 **Note**: Since a field name like `fg+` contains the toml special character `+`, the field name has to be put in quotations marks like `"fg+"`.
 
 All supported `COLOR` values:
-
-|Color|
-|:--|
-|white|
-|black|
-|red|
-|green|
-|yellow|
-|blue|
-|magenta|
-|cyan|
-|gray|
-|dark_gray|
-|light_red|
-|light_green|
-|light_yellow|
-|light_blue|
-|light_magenta|
+```
+white
+black
+red
+green
+yellow
+blue
+magenta
+cyan
+gray
+dark_gray
+light_red
+light_green
+light_yellow
+light_blue
+light_magenta
 light_cyan
-
-<!-- ``` -->
-<!-- white -->
-<!-- black -->
-<!-- red -->
-<!-- green -->
-<!-- yellow -->
-<!-- blue -->
-<!-- magenta -->
-<!-- cyan -->
-<!-- gray -->
-<!-- dark_gray -->
-<!-- light_red -->
-<!-- light_green -->
-<!-- light_yellow -->
-<!-- light_blue -->
-<!-- light_magenta -->
-<!-- light_cyan -->
-<!-- ``` -->
+```
 
 ## Tips
 
