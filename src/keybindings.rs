@@ -2,12 +2,15 @@ use crate::exec::{exec_blocking, exec_non_blocking};
 use crate::state::State;
 use crate::tui::{Event, RequestedAction};
 use anyhow::{bail, Context, Result};
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
 use std::{
 	collections::{HashMap, VecDeque},
 	str::FromStr,
 	sync::mpsc::Sender,
 };
+
+// TODO: split Operations into own file (in hidden sub folder)
+// TODO: split Key into own file (in sub folder)
 
 pub type Operations = VecDeque<Operation>;
 pub type Keybindings = HashMap<Key, Operations>;
@@ -64,7 +67,7 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 		// split on "+" and trim leading and trailing whitespace
 		operations
 			.split('+')
-			.map(|op| op.trim().to_string())
+			.map(|op| op.trim().to_owned())
 			.collect(),
 	))
 }
@@ -158,52 +161,80 @@ impl Key {
 		Key { code, modifiers }
 	}
 }
+fn parse_modifiers(s: &str) -> Result<KeyModifiers> {
+	Ok(match s {
+		"alt" => KeyModifiers::ALT,
+		"ctrl" => KeyModifiers::CONTROL,
+		invalid => bail!("Invalid key modifier provided in keybinding: {}", invalid),
+	})
+}
+
+fn parse_code(s: &str) -> Result<(KeyModifiers, KeyCode)> {
+	Ok(
+		if s.len() == 1 {
+			let c = s.chars().next().unwrap();
+			let modifier = match c.is_uppercase() {
+				true => KeyModifiers::SHIFT,
+				false => KeyModifiers::NONE,
+			};
+			(modifier, KeyCode::Char(c))
+		} else {
+			let code = match s {
+				"esc" => KeyCode::Esc,
+				"enter" => KeyCode::Enter,
+				"left" => KeyCode::Left,
+				"right" => KeyCode::Right,
+				"up" => KeyCode::Up,
+				"down" => KeyCode::Down,
+				"home" => KeyCode::Home,
+				"end" => KeyCode::End,
+				"pageup" => KeyCode::PageUp,
+				"pagedown" => KeyCode::PageDown,
+				"backtab" => KeyCode::BackTab,
+				"backspace" => KeyCode::Backspace,
+				"del" => KeyCode::Delete,
+				"delete" => KeyCode::Delete,
+				"insert" => KeyCode::Insert,
+				"ins" => KeyCode::Insert,
+				"f1" => KeyCode::F(1),
+				"f2" => KeyCode::F(2),
+				"f3" => KeyCode::F(3),
+				"f4" => KeyCode::F(4),
+				"f5" => KeyCode::F(5),
+				"f6" => KeyCode::F(6),
+				"f7" => KeyCode::F(7),
+				"f8" => KeyCode::F(8),
+				"f9" => KeyCode::F(9),
+				"f10" => KeyCode::F(10),
+				"f11" => KeyCode::F(11),
+				"f12" => KeyCode::F(12),
+				"space" => KeyCode::Char(' '),
+				"tab" => KeyCode::Tab,
+				invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
+			};
+			(KeyModifiers::NONE, code)
+	})
+}
 
 impl FromStr for Key {
 	type Err = anyhow::Error;
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let code = match s {
-			"esc" => KeyCode::Esc,
-			"enter" => KeyCode::Enter,
-			"left" => KeyCode::Left,
-			"right" => KeyCode::Right,
-			"up" => KeyCode::Up,
-			"down" => KeyCode::Down,
-			"home" => KeyCode::Home,
-			"end" => KeyCode::End,
-			"pageup" => KeyCode::PageUp,
-			"pagedown" => KeyCode::PageDown,
-			"backtab" => KeyCode::BackTab,
-			"backspace" => KeyCode::Backspace,
-			"del" => KeyCode::Delete,
-			"delete" => KeyCode::Delete,
-			"insert" => KeyCode::Insert,
-			"ins" => KeyCode::Insert,
-			"f1" => KeyCode::F(1),
-			"f2" => KeyCode::F(2),
-			"f3" => KeyCode::F(3),
-			"f4" => KeyCode::F(4),
-			"f5" => KeyCode::F(5),
-			"f6" => KeyCode::F(6),
-			"f7" => KeyCode::F(7),
-			"f8" => KeyCode::F(8),
-			"f9" => KeyCode::F(9),
-			"f10" => KeyCode::F(10),
-			"f11" => KeyCode::F(11),
-			"f12" => KeyCode::F(12),
-			"space" => KeyCode::Char(' '),
-			"tab" => KeyCode::Tab,
-			c if c.len() == 1 => KeyCode::Char(c.chars().next().unwrap()),
-			invalid => bail!("Invalid key provided in keybinding: {}", invalid),
+		let (modifiers, code) = match s.split_once('+') {
+			Some((s1, s2)) => {
+				let mut mod1 = parse_modifiers(s1)?;
+				let (mod2, code) = parse_code(s2)?;
+				mod1.insert(mod2);
+				(mod1, code)
+			}
+			None => parse_code(s)?,
 		};
-
-		let modifiers = KeyModifiers::NONE;
 		Ok(Key { code, modifiers })
 	}
 }
 
 pub fn default_raw() -> KeybindingsRaw {
 	[
+		("ctrl+c", vec!["exit"]),
 		("q", vec!["exit"]),
 		("r", vec!["reload"]),
 		("space", vec!["select-toggle", "down"]),
