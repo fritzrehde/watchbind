@@ -18,8 +18,7 @@ pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct Key {
-	code: KeyCode,
-	modifiers: KeyModifiers,
+	event: KeyEvent,
 }
 
 // TODO: add support for goto nth line
@@ -64,7 +63,6 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 
 	Ok((
 		key.to_string(),
-		// split on "+" and trim leading and trailing whitespace
 		operations
 			.split('+')
 			.map(|op| op.trim().to_owned())
@@ -157,10 +155,11 @@ fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
 }
 
 impl Key {
-	pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Key {
-		Key { code, modifiers }
+	pub fn new(event: KeyEvent) -> Key {
+		Key { event }
 	}
 }
+
 fn parse_modifiers(s: &str) -> Result<KeyModifiers> {
 	Ok(match s {
 		"alt" => KeyModifiers::ALT,
@@ -169,66 +168,57 @@ fn parse_modifiers(s: &str) -> Result<KeyModifiers> {
 	})
 }
 
-fn parse_code(s: &str) -> Result<(KeyModifiers, KeyCode)> {
-	Ok(
-		if s.len() == 1 {
-			let c = s.chars().next().unwrap();
-			let modifier = match c.is_uppercase() {
-				true => KeyModifiers::SHIFT,
-				false => KeyModifiers::NONE,
-			};
-			(modifier, KeyCode::Char(c))
-		} else {
-			let code = match s {
-				"esc" => KeyCode::Esc,
-				"enter" => KeyCode::Enter,
-				"left" => KeyCode::Left,
-				"right" => KeyCode::Right,
-				"up" => KeyCode::Up,
-				"down" => KeyCode::Down,
-				"home" => KeyCode::Home,
-				"end" => KeyCode::End,
-				"pageup" => KeyCode::PageUp,
-				"pagedown" => KeyCode::PageDown,
-				"backtab" => KeyCode::BackTab,
-				"backspace" => KeyCode::Backspace,
-				"del" => KeyCode::Delete,
-				"delete" => KeyCode::Delete,
-				"insert" => KeyCode::Insert,
-				"ins" => KeyCode::Insert,
-				"f1" => KeyCode::F(1),
-				"f2" => KeyCode::F(2),
-				"f3" => KeyCode::F(3),
-				"f4" => KeyCode::F(4),
-				"f5" => KeyCode::F(5),
-				"f6" => KeyCode::F(6),
-				"f7" => KeyCode::F(7),
-				"f8" => KeyCode::F(8),
-				"f9" => KeyCode::F(9),
-				"f10" => KeyCode::F(10),
-				"f11" => KeyCode::F(11),
-				"f12" => KeyCode::F(12),
-				"space" => KeyCode::Char(' '),
-				"tab" => KeyCode::Tab,
-				invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
-			};
-			(KeyModifiers::NONE, code)
-	})
+fn parse_code(s: &str) -> Result<KeyEvent> {
+	let code = match s {
+		"esc" => KeyCode::Esc,
+		"enter" => KeyCode::Enter,
+		"left" => KeyCode::Left,
+		"right" => KeyCode::Right,
+		"up" => KeyCode::Up,
+		"down" => KeyCode::Down,
+		"home" => KeyCode::Home,
+		"end" => KeyCode::End,
+		"pageup" => KeyCode::PageUp,
+		"pagedown" => KeyCode::PageDown,
+		"backtab" => KeyCode::BackTab,
+		"backspace" => KeyCode::Backspace,
+		"del" => KeyCode::Delete,
+		"delete" => KeyCode::Delete,
+		"insert" => KeyCode::Insert,
+		"ins" => KeyCode::Insert,
+		"f1" => KeyCode::F(1),
+		"f2" => KeyCode::F(2),
+		"f3" => KeyCode::F(3),
+		"f4" => KeyCode::F(4),
+		"f5" => KeyCode::F(5),
+		"f6" => KeyCode::F(6),
+		"f7" => KeyCode::F(7),
+		"f8" => KeyCode::F(8),
+		"f9" => KeyCode::F(9),
+		"f10" => KeyCode::F(10),
+		"f11" => KeyCode::F(11),
+		"f12" => KeyCode::F(12),
+		"space" => KeyCode::Char(' '),
+		"tab" => KeyCode::Tab,
+		c if c.len() == 1 => KeyCode::Char(c.chars().next().unwrap()),
+		invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
+	};
+	Ok(KeyEvent::from(code))
 }
 
 impl FromStr for Key {
 	type Err = anyhow::Error;
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let (modifiers, code) = match s.split_once('+') {
+		let event = match s.split_once('+') {
 			Some((s1, s2)) => {
-				let mut mod1 = parse_modifiers(s1)?;
-				let (mod2, code) = parse_code(s2)?;
-				mod1.insert(mod2);
-				(mod1, code)
+				let mut event = parse_code(s2)?;
+				event.modifiers.insert(parse_modifiers(s1)?);
+				assert!(event.modifiers.contains(KeyModifiers::CONTROL));
+				event
 			}
 			None => parse_code(s)?,
 		};
-		Ok(Key { code, modifiers })
+		Ok(Key { event })
 	}
 }
 

@@ -81,7 +81,15 @@ You can find some keybinding examples in [`test-config.toml`](examples/test-conf
 
 <details>
 <summary>All supported KEY values</summary>
+Format: `MODIFIER+CODE` or `CODE`
 
+MODIFIER:
+```
+alt
+ctrl
+```
+
+CODE:
 ```
 esc
 enter

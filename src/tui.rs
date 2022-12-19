@@ -126,7 +126,7 @@ fn poll_execute_command(
 fn poll_key_events(tx: Sender<Event>) {
 	thread::spawn(move || loop {
 		if let CKey(key) = event::read().unwrap() {
-			tx.send(Event::KeyPressed(Key::new(key.code, key.modifiers)))
+			tx.send(Event::KeyPressed(Key::new(key)))
 				.unwrap();
 		}
 	});
