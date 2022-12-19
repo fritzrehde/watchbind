@@ -143,10 +143,10 @@ unselect | Unselect line that cursor is currently on
 select-toggle | Toggle selection of line that cursor is currently on
 select-all | Select all lines
 unselect-all | Unselect all currently selected lines
-\<COMMAND\> | Execute shell command COMMAND and block until command terminates
-\<COMMAND\> & | Execute shell command COMMAND as background process, i.e. don't block until command terminates
+\<COMMAND\> | Execute shell command and block until command terminates
+\<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
 
-COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
+The shell command COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be seperated by a newline in `LINES`.
 
 ### Style

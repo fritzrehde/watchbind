@@ -94,21 +94,15 @@ pub struct ConfigRawFile {
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
-
 	#[serde(rename = "fg+")]
 	fg_cursor: Option<String>,
-
 	#[serde(rename = "bg+")]
 	bg_cursor: Option<String>,
-
 	#[serde(rename = "bg-")]
 	bg_selected: Option<String>,
-
 	bold: Option<bool>,
-
 	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
-
 	keybindings: Option<KeybindingsRaw>,
 }
 
@@ -206,6 +200,7 @@ fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
 	}
 }
 
+// TODO: replace with inline toml config file with toml::toml! macro
 impl Default for ConfigRaw {
 	fn default() -> ConfigRaw {
 		ConfigRaw {

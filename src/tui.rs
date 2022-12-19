@@ -57,7 +57,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
 					if let Some(new_ops) = config.keybindings.get(&key) {
-						operations.append(&mut new_ops.clone());
+						operations.add(&new_ops);
 					}
 					event_tx.send(Event::ExecuteNextCommand).unwrap();
 				}
@@ -69,7 +69,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			}
 			Ok(Event::ExecuteNextCommand) => {
 				while !blocked {
-					match operations.pop_front() {
+					match operations.next() {
 						Some(op) => match exec_operation(&op, &mut state, &event_tx)? {
 							RequestedAction::Exit => return Ok(()),
 							RequestedAction::Reload => wake_tx.send(()).unwrap(),

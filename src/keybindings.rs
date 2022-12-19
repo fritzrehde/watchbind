@@ -12,13 +12,17 @@ use std::{
 // TODO: split Operations into own file (in hidden sub folder)
 // TODO: split Key into own file (in sub folder)
 
-pub type Operations = VecDeque<Operation>;
+// pub type Operations = VecDeque<Operation>;
 pub type Keybindings = HashMap<Key, Operations>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct Key {
 	event: KeyEvent,
+}
+
+pub struct Operations {
+	operations: VecDeque<Operation>,
 }
 
 // TODO: add support for goto nth line
@@ -73,7 +77,8 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 	raw
 		.into_iter()
-		.map(|(key, ops)| Ok((key.parse()?, operations_from_str(ops)?)))
+		// .map(|(key, ops)| Ok((key.parse()?, operations_from_str(ops)?)))
+		.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops)?)))
 		.collect()
 }
 
@@ -146,17 +151,48 @@ impl FromStr for Operation {
 	}
 }
 
-// TODO: turn into own type and implement FromStr trait
-fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
-	ops
-		.into_iter()
-		.map(|op| Ok(Operation::from_str(&op)?))
-		.collect()
+impl Operations {
+	pub fn new() -> Self {
+		Self {
+			operations: VecDeque::new(),
+		}
+	}
+
+	pub fn add(&mut self, added: &Self) {
+		self.operations.append(&mut added.operations.clone());
+	}
+
+	pub fn next(&mut self) -> Option<Operation> {
+		self.operations.pop_front()
+	}
+
+	pub fn from_vec(ops: Vec<String>) -> Result<Self> {
+		let operations = ops
+			.into_iter()
+			.map(|op| Ok(op.parse()?))
+			.collect::<Result<_>>()?;
+		Ok(Self { operations })
+	}
 }
 
 impl Key {
-	pub fn new(event: KeyEvent) -> Key {
-		Key { event }
+	pub fn new(event: KeyEvent) -> Self {
+		Self { event }
+	}
+}
+
+impl FromStr for Key {
+	type Err = anyhow::Error;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let event = match s.split_once('+') {
+			Some((s1, s2)) => {
+				let mut event = parse_code(s2)?;
+				event.modifiers.insert(parse_modifier(s1)?);
+				event
+			}
+			None => parse_code(s)?,
+		};
+		Ok(Key { event })
 	}
 }
 
@@ -204,21 +240,6 @@ fn parse_code(s: &str) -> Result<KeyEvent> {
 		invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
 	};
 	Ok(KeyEvent::from(code))
-}
-
-impl FromStr for Key {
-	type Err = anyhow::Error;
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let event = match s.split_once('+') {
-			Some((s1, s2)) => {
-				let mut event = parse_code(s2)?;
-				event.modifiers.insert(parse_modifier(s1)?);
-				event
-			}
-			None => parse_code(s)?,
-		};
-		Ok(Key { event })
-	}
 }
 
 pub fn default_raw() -> KeybindingsRaw {
