@@ -2,7 +2,7 @@ use crate::exec::{exec_blocking, exec_non_blocking};
 use crate::state::State;
 use crate::tui::{Event, RequestedAction};
 use anyhow::{bail, Context, Result};
-use crossterm::event::KeyCode::{self, *};
+use crossterm::event::{KeyCode, KeyModifiers};
 use std::{
 	collections::{HashMap, VecDeque},
 	str::FromStr,
@@ -10,8 +10,14 @@ use std::{
 };
 
 pub type Operations = VecDeque<Operation>;
+pub type Keybindings = HashMap<Key, Operations>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
-pub type Keybindings = HashMap<KeyCode, Operations>;
+
+#[derive(Hash, Eq, PartialEq)]
+pub struct Key {
+	code: KeyCode,
+	modifiers: KeyModifiers,
+}
 
 // TODO: add support for goto nth line
 #[derive(Clone)]
@@ -66,12 +72,8 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 	raw
 		.into_iter()
-		.map(|(key, ops)| Ok((keycode_from_str(&key)?, operations_from_str(ops)?)))
+		.map(|(key, ops)| Ok((key.parse()?, operations_from_str(ops)?)))
 		.collect()
-}
-
-fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
-	ops.into_iter().map(|op| Ok(Operation::from_str(&op)?)).collect()
 }
 
 // new and old have same key => keep new value
@@ -121,66 +123,83 @@ impl FromStr for Operation {
 				.parse()
 				.with_context(|| format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\""))
 		};
-		Ok(
-			match src.split_whitespace().collect::<Vec<&str>>()[..] {
-				["exit"] => Operation::Exit,
-				["reload"] => Operation::Reload,
-				["down"] => Operation::MoveCursor(MoveCursor::Down(1)),
-				["up"] => Operation::MoveCursor(MoveCursor::Up(1)),
-				["down", steps] => Operation::MoveCursor(MoveCursor::Down(parse_steps(steps, src)?)),
-				["up", steps] => Operation::MoveCursor(MoveCursor::Up(parse_steps(steps, src)?)),
-				["first"] => Operation::MoveCursor(MoveCursor::First),
-				["last"] => Operation::MoveCursor(MoveCursor::Last),
-				["select"] => Operation::SelectLine(SelectOperation::Select),
-				["unselect"] => Operation::SelectLine(SelectOperation::Unselect),
-				["select-toggle"] => Operation::SelectLine(SelectOperation::Toggle),
-				["select-all"] => Operation::SelectLine(SelectOperation::SelectAll),
-				["unselect-all"] => Operation::SelectLine(SelectOperation::UnselectAll),
-				_ => Operation::Execute(Command {
-					command: src.to_string(),
-					blocking: !src.contains("&"),
-				}),
-			},
-		)
+		Ok(match src.split_whitespace().collect::<Vec<&str>>()[..] {
+			["exit"] => Operation::Exit,
+			["reload"] => Operation::Reload,
+			["down"] => Operation::MoveCursor(MoveCursor::Down(1)),
+			["up"] => Operation::MoveCursor(MoveCursor::Up(1)),
+			["down", steps] => Operation::MoveCursor(MoveCursor::Down(parse_steps(steps, src)?)),
+			["up", steps] => Operation::MoveCursor(MoveCursor::Up(parse_steps(steps, src)?)),
+			["first"] => Operation::MoveCursor(MoveCursor::First),
+			["last"] => Operation::MoveCursor(MoveCursor::Last),
+			["select"] => Operation::SelectLine(SelectOperation::Select),
+			["unselect"] => Operation::SelectLine(SelectOperation::Unselect),
+			["select-toggle"] => Operation::SelectLine(SelectOperation::Toggle),
+			["select-all"] => Operation::SelectLine(SelectOperation::SelectAll),
+			["unselect-all"] => Operation::SelectLine(SelectOperation::UnselectAll),
+			_ => Operation::Execute(Command {
+				command: src.to_string(),
+				blocking: !src.contains("&"),
+			}),
+		})
 	}
 }
 
-// TODO: add modifiers
-fn keycode_from_str(s: &str) -> Result<KeyCode> {
-	Ok(match s {
-		"esc" => Esc,
-		"enter" => Enter,
-		"left" => Left,
-		"right" => Right,
-		"up" => Up,
-		"down" => Down,
-		"home" => Home,
-		"end" => End,
-		"pageup" => PageUp,
-		"pagedown" => PageDown,
-		"backtab" => BackTab,
-		"backspace" => Backspace,
-		"del" => Delete,
-		"delete" => Delete,
-		"insert" => Insert,
-		"ins" => Insert,
-		"f1" => F(1),
-		"f2" => F(2),
-		"f3" => F(3),
-		"f4" => F(4),
-		"f5" => F(5),
-		"f6" => F(6),
-		"f7" => F(7),
-		"f8" => F(8),
-		"f9" => F(9),
-		"f10" => F(10),
-		"f11" => F(11),
-		"f12" => F(12),
-		"space" => Char(' '),
-		"tab" => Tab,
-		c if c.len() == 1 => Char(c.chars().next().unwrap()),
-		invalid => bail!("Invalid key provided in keybinding: {}", invalid),
-	})
+// TODO: turn into own type and implement FromStr trait
+fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
+	ops
+		.into_iter()
+		.map(|op| Ok(Operation::from_str(&op)?))
+		.collect()
+}
+
+impl Key {
+	pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Key {
+		Key { code, modifiers }
+	}
+}
+
+impl FromStr for Key {
+	type Err = anyhow::Error;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let code = match s {
+			"esc" => KeyCode::Esc,
+			"enter" => KeyCode::Enter,
+			"left" => KeyCode::Left,
+			"right" => KeyCode::Right,
+			"up" => KeyCode::Up,
+			"down" => KeyCode::Down,
+			"home" => KeyCode::Home,
+			"end" => KeyCode::End,
+			"pageup" => KeyCode::PageUp,
+			"pagedown" => KeyCode::PageDown,
+			"backtab" => KeyCode::BackTab,
+			"backspace" => KeyCode::Backspace,
+			"del" => KeyCode::Delete,
+			"delete" => KeyCode::Delete,
+			"insert" => KeyCode::Insert,
+			"ins" => KeyCode::Insert,
+			"f1" => KeyCode::F(1),
+			"f2" => KeyCode::F(2),
+			"f3" => KeyCode::F(3),
+			"f4" => KeyCode::F(4),
+			"f5" => KeyCode::F(5),
+			"f6" => KeyCode::F(6),
+			"f7" => KeyCode::F(7),
+			"f8" => KeyCode::F(8),
+			"f9" => KeyCode::F(9),
+			"f10" => KeyCode::F(10),
+			"f11" => KeyCode::F(11),
+			"f12" => KeyCode::F(12),
+			"space" => KeyCode::Char(' '),
+			"tab" => KeyCode::Tab,
+			c if c.len() == 1 => KeyCode::Char(c.chars().next().unwrap()),
+			invalid => bail!("Invalid key provided in keybinding: {}", invalid),
+		};
+
+		let modifiers = KeyModifiers::NONE;
+		Ok(Key { code, modifiers })
+	}
 }
 
 pub fn default_raw() -> KeybindingsRaw {

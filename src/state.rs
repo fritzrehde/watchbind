@@ -38,7 +38,7 @@ impl State {
 					} else {
 						self.styles.line
 					}),
-					Cell::from(" ".to_owned() + &line).style(*style)
+					Cell::from(" ".to_owned() + &line).style(*style),
 				])
 			})
 			.collect();
@@ -52,7 +52,10 @@ impl State {
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
 		self.selected.resize(lines.len(), false);
-		self.lines = lines.into_iter().map(|line| (line, self.styles.line)).collect();
+		self.lines = lines
+			.into_iter()
+			.map(|line| (line, self.styles.line))
+			.collect();
 		self.cursor_calibrate();
 	}
 

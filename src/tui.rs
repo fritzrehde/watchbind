@@ -1,10 +1,10 @@
 use crate::config::Config;
 use crate::exec::output_lines;
-use crate::keybindings::{exec_operation, Operations};
+use crate::keybindings::{exec_operation, Key, Operations};
 use crate::state::State;
 use crate::terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
-use crossterm::event::{self, Event::Key, KeyCode};
+use crossterm::event::{self, Event::Key as CKey};
 use mpsc::{Receiver, Sender};
 use std::{
 	sync::mpsc,
@@ -20,7 +20,7 @@ pub enum RequestedAction {
 }
 
 pub enum Event {
-	KeyPressed(KeyCode),
+	KeyPressed(Key),
 	CommandOutput(Result<Vec<String>>),
 	Unblock(Result<()>),
 	ExecuteNextCommand,
@@ -125,8 +125,9 @@ fn poll_execute_command(
 
 fn poll_key_events(tx: Sender<Event>) {
 	thread::spawn(move || loop {
-		if let Key(key) = event::read().unwrap() {
-			tx.send(Event::KeyPressed(key.code)).unwrap();
+		if let CKey(key) = event::read().unwrap() {
+			tx.send(Event::KeyPressed(Key::new(key.code, key.modifiers)))
+				.unwrap();
 		}
 	});
 }
