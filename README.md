@@ -79,8 +79,7 @@ It also doesn't require escaping shell specific characters like `$` in  (read mo
 
 You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
 
-<details>
-<summary>All supported KEY values</summary>
+All supported `KEY` values
 Format: `MODIFIER+CODE` or `CODE`
 
 MODIFIER:
@@ -123,10 +122,8 @@ space
 tab
 [any single character]
 ```
-</details>
 
-<details>
-<summary>All supported OP values</summary>
+#### All supported OP values
 
 Operation | Action
 :-- | :--
@@ -148,7 +145,6 @@ COMMAND & | Execute shell command as background process, i.e. don't block until 
 
 COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be seperated by a newline in `LINES`.
-</details>
 
 ### Style
 
@@ -159,28 +155,45 @@ The names of the customization fields from the command-line options (e.g. `--fg+
 
 **Note**: Since a field name like `fg+` contains the toml special character `+`, the field name has to be put in quotations marks like `"fg+"`.
 
-<details>
-<summary>All supported COLOR values</summary>
+All supported `COLOR` values:
 
-```
-white
-black
-red
-green
-yellow
-blue
-magenta
-cyan
-gray
-dark_gray
-light_red
-light_green
-light_yellow
-light_blue
-light_magenta
+|Color|
+|:--|
+|white|
+|black|
+|red|
+|green|
+|yellow|
+|blue|
+|magenta|
+|cyan|
+|gray|
+|dark_gray|
+|light_red|
+|light_green|
+|light_yellow|
+|light_blue|
+|light_magenta|
 light_cyan
-```
-</details>
+
+<!-- ``` -->
+<!-- white -->
+<!-- black -->
+<!-- red -->
+<!-- green -->
+<!-- yellow -->
+<!-- blue -->
+<!-- magenta -->
+<!-- cyan -->
+<!-- gray -->
+<!-- dark_gray -->
+<!-- light_red -->
+<!-- light_green -->
+<!-- light_yellow -->
+<!-- light_blue -->
+<!-- light_magenta -->
+<!-- light_cyan -->
+<!-- ``` -->
 
 ## Tips
 
