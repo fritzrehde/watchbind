@@ -1,13 +1,12 @@
 use crate::config::Config;
 use crate::exec::output_lines;
-use crate::keybindings::{exec_operation, get_key_operations, Operation};
+use crate::keybindings::{exec_operation, Operations};
 use crate::state::State;
 use crate::terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key, KeyCode};
 use mpsc::{Receiver, Sender};
 use std::{
-	collections::VecDeque,
 	sync::mpsc,
 	thread,
 	time::{Duration, Instant},
@@ -35,11 +34,12 @@ pub fn start(config: Config) -> Result<()> {
 }
 
 fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
+	// TODO: channels: remove unwraps
 	let (event_tx, event_rx) = mpsc::channel();
 	let (wake_tx, wake_rx) = mpsc::channel();
 	let mut state = State::new(&config.styles);
+	let mut operations = Operations::new();
 	let mut blocked = false;
-	let mut operations = VecDeque::<Operation>::new();
 
 	poll_execute_command(
 		config.watch_rate.clone(),
@@ -56,11 +56,9 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
-					// TODO: make operations natively vecdeque
-					operations.append(&mut VecDeque::from(get_key_operations(
-						key,
-						&config.keybindings,
-					)));
+					if let Some(new_ops) = config.keybindings.get(&key) {
+						operations.append(&mut new_ops.clone());
+					}
 					event_tx.send(Event::ExecuteNextCommand).unwrap();
 				}
 			}
@@ -81,6 +79,16 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 						None => break,
 					}
 				}
+
+				// TODO: replace with this once it is stable
+				// while !blocked && let Some(op) = operations.pop_front() {
+				// 	match exec_operation(&op, &mut state, &event_tx)? {
+				// 		RequestedAction::Exit => return Ok(()),
+				// 		RequestedAction::Reload => wake_tx.send(()).unwrap(),
+				// 		RequestedAction::Block => blocked = true,
+				// 		RequestedAction::Continue => {}
+				// 	};
+				// }
 			}
 			_ => {}
 		};
@@ -116,12 +124,9 @@ fn poll_execute_command(
 }
 
 fn poll_key_events(tx: Sender<Event>) {
-	thread::spawn(move || {
-		loop {
-			// TODO: remove unwraps
-			if let Key(key) = event::read().unwrap() {
-				tx.send(Event::KeyPressed(key.code)).unwrap();
-			}
+	thread::spawn(move || loop {
+		if let Key(key) = event::read().unwrap() {
+			tx.send(Event::KeyPressed(key.code)).unwrap();
 		}
 	});
 }

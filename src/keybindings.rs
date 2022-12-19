@@ -1,11 +1,15 @@
-use crate::exec::execute_with_lines;
+use crate::exec::{exec_blocking, exec_non_blocking};
 use crate::state::State;
 use crate::tui::{Event, RequestedAction};
 use anyhow::{bail, Context, Result};
 use crossterm::event::KeyCode::{self, *};
-use std::{collections::HashMap, str::FromStr, sync::mpsc::Sender};
+use std::{
+	collections::{HashMap, VecDeque},
+	str::FromStr,
+	sync::mpsc::Sender,
+};
 
-pub type Operations = Vec<Operation>;
+pub type Operations = VecDeque<Operation>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 pub type Keybindings = HashMap<KeyCode, Operations>;
 
@@ -30,11 +34,9 @@ pub enum SelectOperation {
 #[derive(Clone)]
 pub struct Command {
 	pub command: String,
-	// execute as background process or block until termination
 	pub blocking: bool,
 }
 
-// TODO: extract select and toggle into one type
 #[derive(Clone)]
 pub enum Operation {
 	Exit,
@@ -68,7 +70,7 @@ pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 		.collect()
 }
 
-fn operations_from_str(ops: Vec<String>) -> Result<Vec<Operation>> {
+fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
 	ops.iter().map(|op| Ok(Operation::from_str(op)?)).collect()
 }
 
@@ -97,17 +99,17 @@ pub fn exec_operation(
 		Operation::Reload => return Ok(RequestedAction::Reload),
 		Operation::Exit => return Ok(RequestedAction::Exit),
 		Operation::Execute(command) => {
-			return execute_with_lines(command, &state.get_selected_lines(), event_tx.clone())
+			let lines = state.get_selected_lines();
+			return Ok(if command.blocking {
+				exec_blocking(&command.command, &lines, event_tx.clone());
+				RequestedAction::Block
+			} else {
+				exec_non_blocking(&command.command, &lines)?;
+				RequestedAction::Continue
+			});
 		}
 	};
 	Ok(RequestedAction::Continue)
-}
-
-pub fn get_key_operations(key: KeyCode, keybindings: &Keybindings) -> Vec<Operation> {
-	match keybindings.get(&key) {
-		Some(ops) => ops.clone(),
-		None => vec![],
-	}
 }
 
 impl FromStr for Operation {
@@ -182,7 +184,6 @@ fn keycode_from_str(s: &str) -> Result<KeyCode> {
 	})
 }
 
-// TODO: idea: parse from file instead of hardcoded
 pub fn default_raw() -> KeybindingsRaw {
 	[
 		("q", vec!["exit"]),

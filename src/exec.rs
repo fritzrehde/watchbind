@@ -1,13 +1,18 @@
-use crate::keybindings::Command as CCommand;
-use crate::tui::{Event, RequestedAction};
-use anyhow::{bail, Result};
+use crate::tui::Event;
+use anyhow::{anyhow, bail, Result};
 use std::process::Command;
 use std::{sync::mpsc::Sender, thread};
 
+fn shell_cmd(cmd: &str) -> Command {
+	// TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
+	let sh = vec!["sh", "-c", cmd];
+	let mut command = Command::new(sh[0]);
+	command.args(&sh[1..]);
+	command
+}
+
 pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
-	// execute command
-	let command = vec!["sh", "-c", cmd];
-	let output = Command::new(command[0]).args(&command[1..]).output()?;
+	let output = shell_cmd(cmd).output()?;
 
 	// get stdout
 	let lines = String::from_utf8(output.stdout)
@@ -24,32 +29,30 @@ pub fn output_lines(cmd: &str) -> Result<Vec<String>> {
 	}
 }
 
-// TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-pub fn execute_with_lines(
-	cmd: &CCommand,
-	lines: &str,
-	event_tx: Sender<Event>,
-) -> Result<RequestedAction> {
-	// execute command
-	let sh = vec!["sh", "-c", &cmd.command];
-	let mut command = Command::new(sh[0]);
-	command.env("LINES", lines).args(&sh[1..]);
+pub fn exec_non_blocking(cmd: &str, lines: &str) -> Result<()> {
+	shell_cmd_lines(cmd, lines).spawn()?;
+	Ok(())
+}
 
-	if cmd.blocking {
-		// TODO: use tokio here to not constantly create new threads
-		thread::spawn(move || {
-			let output = command.output()?;
-			let msg = if !output.status.success() {
-				bail!(String::from_utf8(output.stderr).unwrap())
-			} else {
-				Ok(())
-			};
-			event_tx.send(Event::Unblock(msg)).unwrap();
-			Ok(())
-		});
-		Ok(RequestedAction::Block)
-	} else {
-		command.spawn()?;
-		Ok(RequestedAction::Continue)
+fn shell_cmd_lines(cmd: &str, lines: &str) -> Command {
+	let mut command = shell_cmd(cmd);
+	command.env("LINES", lines);
+	command
+}
+
+fn capture_output(command: &mut Command) -> Result<()> {
+	let output = command.output()?;
+	match output.status.success() {
+		false => Err(anyhow!(String::from_utf8(output.stderr).unwrap())),
+		true => Ok(()),
 	}
+}
+
+pub fn exec_blocking(cmd: &str, lines: &str, event_tx: Sender<Event>) {
+	let mut command = shell_cmd_lines(cmd, lines);
+	thread::spawn(move || {
+		event_tx
+			.send(Event::Unblock(capture_output(&mut command)))
+			.unwrap();
+	});
 }
