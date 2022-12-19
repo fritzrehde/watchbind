@@ -4,57 +4,42 @@ use tui::{
 	backend::Backend,
 	layout::Constraint,
 	style::Style,
-	widgets::{Cell, Row, Table, TableState},
+	widgets::{Cell, Row, Table},
 	Frame,
 };
 
 const FIRST_INDEX: usize = 0;
 
+type Line = (String, Style);
+
 // TODO: replace vectors with slices
 pub struct State {
-	lines: Vec<String>,
+	lines: Vec<Line>,
 	selected: Vec<bool>,
-	styles: Vec<Style>,
-	state: TableState,
-	style: Styles,
+	styles: Styles,
+	cursor: Option<usize>,
 }
 
 impl State {
-	pub fn new(style: &Styles) -> State {
-		let mut state = State {
-			selected: vec![],
-			styles: vec![],
+	pub fn new(styles: &Styles) -> State {
+		State {
 			lines: vec![],
-			state: TableState::default(),
-			style: *style,
-		};
-		state.first();
-		state
+			selected: vec![],
+			styles: *styles,
+			cursor: None,
+		}
 	}
 
-	// TODO: very messy formatting
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
-		// TODO: hacky
-		let cursor_index = match self.cursor_position() {
-			Some(i) => i as isize,
-			None => -1,
-		};
-
 		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
-			.enumerate()
-			.map(|(i, (line, &selected))| {
+			.map(|((line, style), &selected)| {
 				Row::new(vec![
 					Cell::from(" ").style(if selected {
-						self.style.selected
+						self.styles.selected
 					} else {
-						// Style::reset()
-						self.style.line
+						self.styles.line
 					}),
-					Cell::from(" ".to_owned() + &line).style(if i as isize == cursor_index {
-						self.style.cursor
-					} else {
-						self.style.line
-					}),
+					Cell::from(" ".to_owned() + &line).style(*style)
 				])
 			})
 			.collect();
@@ -63,35 +48,64 @@ impl State {
 			.widths(&[Constraint::Length(1), Constraint::Percentage(100)])
 			.column_spacing(0);
 
-		frame.render_stateful_widget(table, frame.size(), &mut self.state);
+		frame.render_widget(table, frame.size());
 	}
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
 		self.selected.resize(lines.len(), false);
-		self.lines = lines;
-		self.calibrate_cursor();
+		self.lines = lines.into_iter().map(|line| (line, self.styles.line)).collect();
+		self.cursor_calibrate();
+	}
+
+	fn cursor_calibrate(&mut self) {
+		match self.cursor_position() {
+			None => self.first(),
+			Some(i) => self.cursor_move(i as isize),
+		};
+		// if let Some(i) = self.cursor_position() {
+		// 	self.cursor_move(i as isize);
+		// }
 	}
 
 	fn cursor_position(&mut self) -> Option<usize> {
-		self.state.selected()
+		self.cursor
 	}
 
 	fn cursor_move(&mut self, index: isize) {
-		let first = FIRST_INDEX as isize;
-		let last = self.last_index() as isize;
-		let i = if index < first {
-			first
-		} else if index > last {
-			last
-		} else {
-			index
-		} as usize;
-		self.state.select(Some(i));
+		let old = self.cursor_position();
+		let new = match self.lines.is_empty() {
+			true => None,
+			false => {
+				// TODO: solve more easily with ranges
+				let first = FIRST_INDEX as isize;
+				let last = self.last_index() as isize;
+				let new_index = if index < first {
+					first
+				} else if index > last {
+					last
+				} else {
+					index
+				} as usize;
+				Some(new_index)
+			}
+		};
+
+		self.cursor = new;
+		self.cursor_adjust_style(old, new);
+	}
+
+	fn cursor_adjust_style(&mut self, old: Option<usize>, new: Option<usize>) {
+		if let Some(old_index) = old {
+			self.lines[old_index].1 = self.styles.line;
+		}
+		if let Some(new_index) = new {
+			self.lines[new_index].1 = self.styles.cursor;
+		}
 	}
 
 	fn get_cursor_line(&mut self) -> String {
 		if let Some(i) = self.cursor_position() {
-			if let Some(line) = self.lines.get(i) {
+			if let Some((line, _)) = self.lines.get(i) {
 				return line.clone();
 			}
 		}
@@ -99,18 +113,10 @@ impl State {
 		"".to_string()
 	}
 
-	// if selected line no longer exists, select last line
-	fn calibrate_cursor(&mut self) {
-		if let Some(i) = self.cursor_position() {
-			self.cursor_move(i as isize);
-		}
-	}
-
-	// pub fn get_selected_lines(&mut self) -> &str {
 	pub fn get_selected_lines(&mut self) -> String {
 		let lines: String = izip!(self.lines.iter(), self.selected.iter())
 			.filter_map(
-				|(line, &selected)| {
+				|((line, _), &selected)| {
 					if selected {
 						Some(line.clone())
 					} else {
@@ -141,11 +147,11 @@ impl State {
 	}
 
 	pub fn first(&mut self) {
-		self.state.select(Some(FIRST_INDEX));
+		self.cursor_move(FIRST_INDEX as isize);
 	}
 
 	pub fn last(&mut self) {
-		self.state.select(Some(self.last_index()));
+		self.cursor_move(self.last_index() as isize);
 	}
 
 	pub fn select(&mut self) {
@@ -166,6 +172,7 @@ impl State {
 		}
 	}
 
+	// TODO: optimize
 	pub fn select_all(&mut self) {
 		self.selected = vec![true; self.lines.len()];
 	}

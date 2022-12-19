@@ -71,7 +71,7 @@ pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 }
 
 fn operations_from_str(ops: Vec<String>) -> Result<Operations> {
-	ops.iter().map(|op| Ok(Operation::from_str(op)?)).collect()
+	ops.into_iter().map(|op| Ok(Operation::from_str(&op)?)).collect()
 }
 
 // new and old have same key => keep new value
@@ -197,11 +197,11 @@ pub fn default_raw() -> KeybindingsRaw {
 		("g", vec!["first"]),
 		("G", vec!["last"]),
 	]
-	.iter()
+	.into_iter()
 	.map(|(key, commands)| {
 		(
 			key.to_string(),
-			commands.iter().map(|cmd| cmd.to_string()).collect(),
+			commands.into_iter().map(|cmd| cmd.to_string()).collect(),
 		)
 	})
 	.collect()

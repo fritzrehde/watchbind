@@ -1,5 +1,5 @@
 command = "ls -la"
-interval = 1.0
+interval = 3.0
 fg_cursor = "black"
 bg_cursor = "blue"
 bold = false
