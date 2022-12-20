@@ -1,8 +1,12 @@
+mod state;
+mod terminal_manager;
+
+pub use state::State;
+
 use crate::config::Config;
 use crate::exec::output_lines;
-use crate::keybindings::{exec_operation, Key, Operations};
-use crate::state::State;
-use crate::terminal_manager::{Terminal, TerminalManager};
+use crate::config::{Key, Operations};
+use terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key as CKey};
 use mpsc::{Receiver, Sender};
@@ -70,7 +74,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			Ok(Event::ExecuteNextCommand) => {
 				while !blocked {
 					match operations.next() {
-						Some(op) => match exec_operation(&op, &mut state, &event_tx)? {
+						Some(op) => match op.execute(&mut state, &event_tx)? {
 							RequestedAction::Exit => return Ok(()),
 							RequestedAction::Reload => wake_tx.send(()).unwrap(),
 							RequestedAction::Block => blocked = true,

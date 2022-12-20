@@ -14,7 +14,7 @@ pub struct TerminalManager {
 }
 
 impl TerminalManager {
-	pub fn new() -> Result<TerminalManager> {
+	pub fn new() -> Result<Self> {
 		enable_raw_mode()?;
 		let mut stdout = stdout();
 		execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;

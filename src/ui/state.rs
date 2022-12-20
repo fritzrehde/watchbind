@@ -1,4 +1,4 @@
-use crate::style::Styles;
+use crate::config::Styles;
 use itertools::izip;
 use tui::{
 	backend::Backend,
@@ -20,8 +20,8 @@ pub struct State {
 }
 
 impl State {
-	pub fn new(styles: &Styles) -> State {
-		State {
+	pub fn new(styles: &Styles) -> Self {
+		Self {
 			lines: vec![],
 			selected: vec![],
 			styles: *styles,

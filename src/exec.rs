@@ -1,4 +1,4 @@
-use crate::tui::Event;
+use crate::ui::Event;
 use anyhow::{anyhow, Result};
 use std::process::Command;
 use std::{sync::mpsc::Sender, thread};

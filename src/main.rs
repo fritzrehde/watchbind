@@ -1,13 +1,9 @@
 mod config;
+mod ui;
 mod exec;
-mod keybindings;
-mod state;
-mod style;
-mod terminal_manager;
-mod tui;
 
 use crate::config::Config;
-use crate::tui::start;
+use crate::ui::start;
 use anyhow::Result;
 
 fn main() -> Result<()> {

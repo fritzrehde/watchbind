@@ -1,7 +1,10 @@
-use crate::{
-	keybindings::{self, Keybindings, KeybindingsRaw},
-	style,
-};
+mod keybindings;
+mod style;
+
+pub use keybindings::{Key, Operations};
+pub use style::Styles;
+
+use keybindings::{Keybindings, KeybindingsRaw};
 use anyhow::{bail, Result};
 use clap::Parser;
 use serde::Deserialize;
@@ -16,7 +19,7 @@ pub struct Config {
 }
 
 impl Config {
-	pub fn parse() -> Result<Config> {
+	pub fn parse() -> Result<Self> {
 		let cli = ConfigRawArgs::parse();
 		let config_file = cli.config_file.clone();
 		let args = args2optional(cli);
@@ -202,7 +205,7 @@ fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
 
 // TODO: replace with inline toml config file with toml::toml! macro
 impl Default for ConfigRaw {
-	fn default() -> ConfigRaw {
+	fn default() -> Self {
 		ConfigRaw {
 			interval: 5.0,
 			fg: None,
