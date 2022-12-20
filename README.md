@@ -123,7 +123,7 @@ f11
 f12
 space
 tab
-[any single character]
+<any single character>
 ```
 
 All supported `OP` values:
@@ -146,7 +146,7 @@ unselect-all | Unselect all currently selected lines
 \<COMMAND\> | Execute shell command and block until command terminates
 \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
 
-The shell command COMMAND will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
+The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be seperated by a newline in `LINES`.
 
 ### Style
@@ -225,7 +225,7 @@ This means you can run a command like
 ```
 watchbind --bind "enter:notify-send \$LINES" ls
 ```
-and the environment variable `$LINE` will contain the line the cursor is currently on.
+and the environment variable `$LINES` will contain the line the cursor is currently on.
 
 But note that 
 ```
