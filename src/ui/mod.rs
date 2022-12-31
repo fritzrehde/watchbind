@@ -4,24 +4,16 @@ mod terminal_manager;
 pub use state::State;
 
 use crate::config::Config;
-use crate::exec::output_lines;
+use crate::command::Command;
 use crate::config::{Key, Operations};
 use terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key as CKey};
-use mpsc::{Receiver, Sender};
 use std::{
-	sync::mpsc,
+	sync::mpsc::{self, Receiver, Sender},
 	thread,
 	time::{Duration, Instant},
 };
-
-pub enum RequestedAction {
-	Continue,
-	Reload,
-	Block,
-	Exit,
-}
 
 pub enum Event {
 	KeyPressed(Key),
@@ -30,16 +22,26 @@ pub enum Event {
 	ExecuteNextCommand,
 }
 
-pub fn start(config: Config) -> Result<()> {
+pub enum RequestedAction {
+	Continue,
+	Reload,
+	Block,
+	Exit,
+}
+
+pub fn start() -> Result<()> {
 	let mut terminal_manager = TerminalManager::new()?;
-	let err = run(config, &mut terminal_manager.terminal);
+	// let err = run(config, &mut terminal_manager.terminal);
+	let err = run(&mut terminal_manager.terminal);
 	terminal_manager.restore()?;
 	err
 }
 
-fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
+// fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
+fn run(terminal: &mut Terminal) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, event_rx) = mpsc::channel();
+	let config = Config::parse(&event_tx)?;
 	let (wake_tx, wake_rx) = mpsc::channel();
 	let mut state = State::new(&config.styles);
 	let mut operations = Operations::new();
@@ -47,13 +49,15 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 
 	poll_execute_command(
 		config.watch_rate.clone(),
-		config.command.clone(),
+		// config.command.clone(),
+		config.command,
 		event_tx.clone(),
 		wake_rx,
 	);
 	poll_key_events(event_tx.clone());
 
 	loop {
+		// TODO: don't redraw if unmapped keybinding was pressed
 		terminal.draw(|frame| state.draw(frame))?;
 
 		match event_rx.recv() {
@@ -74,7 +78,7 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 			Ok(Event::ExecuteNextCommand) => {
 				while !blocked {
 					match operations.next() {
-						Some(op) => match op.execute(&mut state, &event_tx)? {
+						Some(op) => match op.execute(&mut state)? {
 							RequestedAction::Exit => return Ok(()),
 							RequestedAction::Reload => wake_tx.send(()).unwrap(),
 							RequestedAction::Block => blocked = true,
@@ -101,15 +105,18 @@ fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
 
 fn poll_execute_command(
 	watch_rate: Duration,
-	command: String,
+	command: Command,
 	event_tx: Sender<Event>,
 	wake_rx: Receiver<()>,
 ) {
 	thread::spawn(move || {
 		loop {
+			// TODO: write helper function that takes a lambda to measure time difference
 			// execute command and time execution
 			let before = Instant::now();
-			let lines = output_lines(&command);
+			// let lines = output_lines(&command);
+			// TODO: remove command
+			let lines = command.clone().capture_output();
 			let exec_time = Instant::now().duration_since(before);
 			let sleep = watch_rate.saturating_sub(exec_time);
 

@@ -7,7 +7,8 @@ pub type Keybindings = HashMap<Key, Operations>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 
 use anyhow::{bail, Result};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc::Sender};
+use crate::ui::Event;
 
 // TODO: return (&str, &str), deal with lifetime
 // TODO: replace with nom
@@ -25,11 +26,11 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 	))
 }
 
-pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
+pub fn parse_raw(raw: KeybindingsRaw, event_tx: &Sender<Event>) -> Result<Keybindings> {
 	raw
 		.into_iter()
 		// .map(|(key, ops)| Ok((key.parse()?, operations_from_str(ops)?)))
-		.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops)?)))
+		.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops, event_tx)?)))
 		.collect()
 }
 

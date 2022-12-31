@@ -8,18 +8,20 @@ use keybindings::{Keybindings, KeybindingsRaw};
 use anyhow::{bail, Result};
 use clap::Parser;
 use serde::Deserialize;
-use std::{collections::HashMap, time::Duration, fs::read_to_string};
+use std::{collections::HashMap, time::Duration, fs::read_to_string, sync::mpsc::Sender};
+use crate::command::Command;
+use crate::ui::Event;
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
-	pub command: String,
+	pub command: Command,
 	pub watch_rate: Duration,
 	pub styles: style::Styles,
 	pub keybindings: Keybindings,
 }
 
 impl Config {
-	pub fn parse() -> Result<Self> {
+	pub fn parse(event_tx: &Sender<Event>) -> Result<Self> {
 		let cli = ConfigRawArgs::parse();
 		let config_file = cli.config_file.clone();
 		let args = args2optional(cli);
@@ -27,7 +29,7 @@ impl Config {
 			// TODO: parse toml directly into optional
 			Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
 			None => args,
-		})
+		}, event_tx)
 	}
 }
 
@@ -129,11 +131,11 @@ fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {
 }
 
 // Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
+fn merge_default(opt: ConfigRawOptional, event_tx: &Sender<Event>) -> Result<Config> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
 		command: match opt.command {
-			Some(command) => command,
+			Some(command) => Command::new(command),
 			None => bail!("A command must be provided via command line or config file"),
 		},
 		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
@@ -146,10 +148,11 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_cursor.unwrap_or(default.bold_cursor),
 		)?,
+		// TODO: move keybindings to Keybindings object
 		keybindings: keybindings::parse_raw(keybindings::merge_raw(
 			opt.keybindings,
 			default.keybindings,
-		))?,
+		), event_tx)?,
 	})
 }
 

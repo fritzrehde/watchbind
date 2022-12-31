@@ -94,17 +94,19 @@ impl State {
 		}
 	}
 
-	fn get_cursor_line(&mut self) -> String {
+	fn get_cursor_line(&mut self) -> Option<String> {
 		if let Some(i) = self.cursor_position() {
 			if let Some((line, _)) = self.lines.get(i) {
-				return line.clone();
+				// return line.clone();
+				return Some(line.clone());
 			}
 		}
 		// no line selected => LINE=""
-		"".to_string()
+		None
+		// "".to_string()
 	}
 
-	pub fn get_selected_lines(&mut self) -> String {
+	pub fn get_selected_lines(&mut self) -> Option<String> {
 		let lines: String = izip!(self.lines.iter(), self.selected.iter())
 			.filter_map(
 				|((line, _), &selected)| {
@@ -121,7 +123,7 @@ impl State {
 		if lines.is_empty() {
 			self.get_cursor_line()
 		} else {
-			lines
+			Some(lines)
 		}
 	}
 
