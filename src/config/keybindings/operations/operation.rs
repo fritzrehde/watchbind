@@ -31,38 +31,38 @@ pub enum SelectOperation {
 }
 
 impl Operation {
-	pub fn from_str(src: String, event_tx: &Sender<Event>) -> Result<Self> {
-		// TODO: consider creating type "StepSize"
-		let parse_steps = |steps: &str| {
-			steps
-				.parse()
-				.with_context(|| format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\""))
-		};
-		Ok(match src.split_whitespace().collect::<Vec<&str>>()[..] {
-			["exit"] => Self::Exit,
-			["reload"] => Self::Reload,
-			["down"] => Self::MoveCursor(MoveCursor::Down(1)),
-			["up"] => Self::MoveCursor(MoveCursor::Up(1)),
-			["down", steps] => Self::MoveCursor(MoveCursor::Down(parse_steps(steps)?)),
-			["up", steps] => Self::MoveCursor(MoveCursor::Up(parse_steps(steps)?)),
-			["first"] => Self::MoveCursor(MoveCursor::First),
-			["last"] => Self::MoveCursor(MoveCursor::Last),
-			["select"] => Self::SelectLine(SelectOperation::Select),
-			["unselect"] => Self::SelectLine(SelectOperation::Unselect),
-			["select-toggle"] => Self::SelectLine(SelectOperation::Toggle),
-			["select-all"] => Self::SelectLine(SelectOperation::SelectAll),
-			["unselect-all"] => Self::SelectLine(SelectOperation::UnselectAll),
-			_ => Self::Execute({
-				// TODO: remove " &" from command if present
-				let blocking = !src.contains(" &");
-				let mut command = Command::new(src);
-				if blocking {
-					command.block(event_tx.clone());
-				}
-				command
-			}),
-		})
-	}
+	// pub fn from_str(src: String, event_tx: &Sender<Event>) -> Result<Self> {
+	// 	// TODO: consider creating type "StepSize"
+	// 	let parse_steps = |steps: &str| {
+	// 		steps
+	// 			.parse()
+	// 			.with_context(|| format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\""))
+	// 	};
+	// 	Ok(match src.split_whitespace().collect::<Vec<&str>>()[..] {
+	// 		["exit"] => Self::Exit,
+	// 		["reload"] => Self::Reload,
+	// 		["down"] => Self::MoveCursor(MoveCursor::Down(1)),
+	// 		["up"] => Self::MoveCursor(MoveCursor::Up(1)),
+	// 		["down", steps] => Self::MoveCursor(MoveCursor::Down(parse_steps(steps)?)),
+	// 		["up", steps] => Self::MoveCursor(MoveCursor::Up(parse_steps(steps)?)),
+	// 		["first"] => Self::MoveCursor(MoveCursor::First),
+	// 		["last"] => Self::MoveCursor(MoveCursor::Last),
+	// 		["select"] => Self::SelectLine(SelectOperation::Select),
+	// 		["unselect"] => Self::SelectLine(SelectOperation::Unselect),
+	// 		["select-toggle"] => Self::SelectLine(SelectOperation::Toggle),
+	// 		["select-all"] => Self::SelectLine(SelectOperation::SelectAll),
+	// 		["unselect-all"] => Self::SelectLine(SelectOperation::UnselectAll),
+	// 		_ => Self::Execute({
+	// 			// TODO: remove " &" from command if present
+	// 			let blocking = !src.contains(" &");
+	// 			let mut command = Command::new(src);
+	// 			if blocking {
+	// 				command.block(event_tx.clone());
+	// 			}
+	// 			command
+	// 		}),
+	// 	})
+	// }
 
 	pub fn execute(&self, state: &mut State) -> Result<RequestedAction> {
 		match self {

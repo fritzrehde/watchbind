@@ -14,14 +14,10 @@ pub struct Command {
 impl Command {
 	pub fn new(command: String) -> Self {
 		Self {
-			command,
 			is_blocking: command.ends_with(" &"),
+			command,
 			blocking: None,
 		}
-	}
-
-	pub fn block(&mut self, tx: Sender<Event>) {
-		self.blocking = Some(tx);
 	}
 
 	pub fn is_blocking(&self) -> bool {

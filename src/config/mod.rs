@@ -6,12 +6,11 @@ pub use style::Styles;
 pub use keybindings::add_event_tx;
 
 use crate::command::Command;
-use crate::ui::Event;
 use anyhow::{bail, Result};
 use clap::Parser;
 use keybindings::{Keybindings, KeybindingsRaw};
 use serde::Deserialize;
-use std::{collections::HashMap, fs::read_to_string, sync::mpsc::Sender, time::Duration};
+use std::{collections::HashMap, fs::read_to_string, time::Duration};
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
