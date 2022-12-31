@@ -3,6 +3,7 @@ mod style;
 
 pub use keybindings::{Key, Operations};
 pub use style::Styles;
+pub use keybindings::add_event_tx;
 
 use crate::command::Command;
 use crate::ui::Event;

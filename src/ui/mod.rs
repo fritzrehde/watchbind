@@ -14,6 +14,7 @@ use std::{
 	time::{Duration, Instant},
 };
 use terminal_manager::{Terminal, TerminalManager};
+use crate::config::add_event_tx;
 
 pub enum Event {
 	KeyPressed(Key),
@@ -46,6 +47,7 @@ fn run(terminal: &mut Terminal, config: Config, channels: (Sender<Event>, Receiv
 	let (wake_tx, wake_rx) = mpsc::channel();
 	let mut state = State::new(&config.styles);
 	let mut operations = Operations::new();
+	let keybindings = add_event_tx(config.keybindings, &event_tx);
 	let mut blocked = false;
 
 	poll_execute_command(
@@ -64,7 +66,8 @@ fn run(terminal: &mut Terminal, config: Config, channels: (Sender<Event>, Receiv
 			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
-					if let Some(new_ops) = config.keybindings.get(&key) {
+					// if let Some(new_ops) = config.keybindings.get(&key) {
+					if let Some(new_ops) = keybindings.get(&key) {
 						operations.add(&new_ops);
 					}
 					event_tx.send(Event::ExecuteNextCommand).unwrap();

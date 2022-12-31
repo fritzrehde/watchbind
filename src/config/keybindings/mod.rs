@@ -43,14 +43,9 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 
 pub fn add_event_tx(k: Keybindings, event_tx: &Sender<Event>) -> Keybindings {
 	let mut keybindings = k;
-	for ops in keybindings.mut_values() {
-		for op in ops {
-			if let Operation::Execute(command) = op {
-				command.add_tx(event_tx.clone());
-			}
-		}
+	for ops in keybindings.values_mut() {
+		ops.add_tx(event_tx);
 	}
-
 	keybindings
 }
 
