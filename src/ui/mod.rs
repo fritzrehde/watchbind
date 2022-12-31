@@ -30,18 +30,13 @@ pub enum RequestedAction {
 	Exit,
 }
 
-// TODO: add event_tx later after config parsing
-pub fn start() -> Result<()> {
-	let config = Config::parse()?;
-
+pub fn start(config: Config) -> Result<()> {
 	let mut terminal_manager = TerminalManager::new()?;
 	let err = run(&mut terminal_manager.terminal, config);
-	// let err = run(&mut terminal_manager.terminal, config, (event_tx, event_rx));
 	terminal_manager.restore()?;
 	err
 }
 
-// fn run(terminal: &mut Terminal, config: Config, channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
 fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, event_rx) = mpsc::channel();

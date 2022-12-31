@@ -14,7 +14,7 @@ pub struct Command {
 impl Command {
 	pub fn new(command: String) -> Self {
 		Self {
-			is_blocking: command.ends_with(" &"),
+			is_blocking: !command.ends_with(" &"),
 			command,
 			blocking: None,
 		}

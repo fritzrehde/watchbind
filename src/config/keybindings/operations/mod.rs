@@ -28,7 +28,6 @@ impl Operations {
 	pub fn from_vec(ops: Vec<String>) -> Result<Self> {
 		let operations = ops
 			.into_iter()
-			// .map(|op| Ok(Operation::from_str(op, event_tx)?))
 			.map(|op| Ok(op.parse()?))
 			.collect::<Result<_>>()?;
 		Ok(Self { operations })
