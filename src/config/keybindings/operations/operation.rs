@@ -86,4 +86,10 @@ impl Operation {
 		};
 		Ok(RequestedAction::Continue)
 	}
+
+	pub fn add_tx(&mut self, event_tx: &Sender<Event>) {
+		if let Self::Execute(command) = self {
+			command.add_tx(event_tx);
+		}
+	}
 }

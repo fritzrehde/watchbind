@@ -7,6 +7,7 @@ use std::{sync::mpsc::Sender, thread};
 pub struct Command {
 	command: String,
 	// TODO: turn Sender<Event> into own type
+	is_blocking: bool,
 	blocking: Option<Sender<Event>>,
 }
 
@@ -14,6 +15,7 @@ impl Command {
 	pub fn new(command: String) -> Self {
 		Self {
 			command,
+			is_blocking: false,
 			blocking: None,
 		}
 	}
@@ -23,13 +25,12 @@ impl Command {
 	}
 
 	pub fn is_blocking(&self) -> bool {
-		self.blocking.is_some()
+		self.is_blocking
 	}
 
-	pub fn add_tx(&mut self, event_tx: Sender<Event>) {
-		// if &self.is_blocking {
-		if self.is_blocking() {
-			self.blocking = Some(event_tx);
+	pub fn add_tx(&mut self, event_tx: &Sender<Event>) {
+		if self.is_blocking {
+			self.blocking = Some(event_tx.clone());
 		}
 	}
 

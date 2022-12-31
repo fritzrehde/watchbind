@@ -35,10 +35,7 @@ impl Operations {
 
 	pub fn add_tx(&mut self, event_tx: &Sender<Event>) {
 		for op in self.operations.iter_mut() {
-			if let Operation::Execute(command) = op {
-				command.add_tx(event_tx.clone());
-			}
-			// op.add_tx(event_tx.clone());
+			op.add_tx(event_tx);
 		}
 	}
 }
