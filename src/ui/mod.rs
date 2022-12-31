@@ -3,10 +3,9 @@ mod terminal_manager;
 
 pub use state::State;
 
-use crate::config::Config;
 use crate::command::Command;
+use crate::config::Config;
 use crate::config::{Key, Operations};
-use terminal_manager::{Terminal, TerminalManager};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key as CKey};
 use std::{
@@ -14,6 +13,7 @@ use std::{
 	thread,
 	time::{Duration, Instant},
 };
+use terminal_manager::{Terminal, TerminalManager};
 
 pub enum Event {
 	KeyPressed(Key),
@@ -29,19 +29,20 @@ pub enum RequestedAction {
 	Exit,
 }
 
+// TODO: add event_tx later after config parsing
 pub fn start() -> Result<()> {
+	let (event_tx, event_rx) = mpsc::channel();
+	let config = Config::parse(&event_tx)?;
+
 	let mut terminal_manager = TerminalManager::new()?;
-	// let err = run(config, &mut terminal_manager.terminal);
-	let err = run(&mut terminal_manager.terminal);
+	let err = run(&mut terminal_manager.terminal, config, (event_tx, event_rx));
 	terminal_manager.restore()?;
 	err
 }
 
-// fn run(config: Config, terminal: &mut Terminal) -> Result<()> {
-fn run(terminal: &mut Terminal) -> Result<()> {
+fn run(terminal: &mut Terminal, config: Config, channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
 	// TODO: channels: remove unwraps
-	let (event_tx, event_rx) = mpsc::channel();
-	let config = Config::parse(&event_tx)?;
+	let (event_tx, event_rx) = channels;
 	let (wake_tx, wake_rx) = mpsc::channel();
 	let mut state = State::new(&config.styles);
 	let mut operations = Operations::new();
@@ -49,7 +50,6 @@ fn run(terminal: &mut Terminal) -> Result<()> {
 
 	poll_execute_command(
 		config.watch_rate.clone(),
-		// config.command.clone(),
 		config.command,
 		event_tx.clone(),
 		wake_rx,

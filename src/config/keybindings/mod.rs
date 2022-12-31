@@ -6,9 +6,9 @@ pub use operations::Operations;
 pub type Keybindings = HashMap<Key, Operations>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 
+use crate::ui::Event;
 use anyhow::{bail, Result};
 use std::{collections::HashMap, sync::mpsc::Sender};
-use crate::ui::Event;
 
 // TODO: return (&str, &str), deal with lifetime
 // TODO: replace with nom

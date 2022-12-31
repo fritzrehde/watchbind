@@ -1,6 +1,6 @@
+mod command;
 mod config;
 mod ui;
-mod command;
 
 use anyhow::Result;
 

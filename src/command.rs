@@ -1,5 +1,5 @@
 use crate::ui::Event;
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use std::process::{self, Output};
 use std::{sync::mpsc::Sender, thread};
 
@@ -46,7 +46,7 @@ impl Command {
 		match &self.blocking {
 			None => {
 				cmd.spawn()?;
-			},
+			}
 			Some(event_tx) => {
 				let tx = event_tx.clone();
 				thread::spawn(move || {
@@ -54,8 +54,9 @@ impl Command {
 						check_stderr(cmd.output()?)
 					};
 					tx.send(Event::Unblock(exec())).unwrap();
+					// tx.send(Event::Unblock(cmd.output().and_then(check_stderr))).unwrap();
 				});
-			},
+			}
 		};
 		Ok(())
 	}
@@ -73,8 +74,8 @@ impl Command {
 }
 
 fn check_stderr(output: Output) -> Result<()> {
-	match output.status.success() {
-		false => Err(anyhow!(String::from_utf8(output.stderr).unwrap())),
-		true => Ok(()),
+	if !output.status.success() {
+		bail!(String::from_utf8(output.stderr).unwrap());
 	}
+	Ok(())
 }

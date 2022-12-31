@@ -1,5 +1,5 @@
 use crate::command::Command;
-use crate::ui::{State, Event, RequestedAction};
+use crate::ui::{Event, RequestedAction, State};
 use anyhow::{Context, Result};
 use std::sync::mpsc::Sender;
 
@@ -64,10 +64,7 @@ impl Operation {
 		})
 	}
 
-	pub fn execute(
-		&self,
-		state: &mut State,
-	) -> Result<RequestedAction> {
+	pub fn execute(&self, state: &mut State) -> Result<RequestedAction> {
 		match self {
 			Self::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
 			Self::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
@@ -85,7 +82,7 @@ impl Operation {
 				if command.is_blocking() {
 					return Ok(RequestedAction::Block);
 				}
-			},
+			}
 		};
 		Ok(RequestedAction::Continue)
 	}

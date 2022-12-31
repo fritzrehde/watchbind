@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::str::FromStr;
 
 #[derive(Hash, Eq, PartialEq)]

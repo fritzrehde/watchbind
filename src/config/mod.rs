@@ -4,13 +4,13 @@ mod style;
 pub use keybindings::{Key, Operations};
 pub use style::Styles;
 
-use keybindings::{Keybindings, KeybindingsRaw};
-use anyhow::{bail, Result};
-use clap::Parser;
-use serde::Deserialize;
-use std::{collections::HashMap, time::Duration, fs::read_to_string, sync::mpsc::Sender};
 use crate::command::Command;
 use crate::ui::Event;
+use anyhow::{bail, Result};
+use clap::Parser;
+use keybindings::{Keybindings, KeybindingsRaw};
+use serde::Deserialize;
+use std::{collections::HashMap, fs::read_to_string, sync::mpsc::Sender, time::Duration};
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
@@ -25,11 +25,14 @@ impl Config {
 		let cli = ConfigRawArgs::parse();
 		let config_file = cli.config_file.clone();
 		let args = args2optional(cli);
-		merge_default(match &config_file {
-			// TODO: parse toml directly into optional
-			Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
-			None => args,
-		}, event_tx)
+		merge_default(
+			match &config_file {
+				// TODO: parse toml directly into optional
+				Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
+				None => args,
+			},
+			event_tx,
+		)
 	}
 }
 
@@ -149,10 +152,10 @@ fn merge_default(opt: ConfigRawOptional, event_tx: &Sender<Event>) -> Result<Con
 			opt.bold_cursor.unwrap_or(default.bold_cursor),
 		)?,
 		// TODO: move keybindings to Keybindings object
-		keybindings: keybindings::parse_raw(keybindings::merge_raw(
-			opt.keybindings,
-			default.keybindings,
-		), event_tx)?,
+		keybindings: keybindings::parse_raw(
+			keybindings::merge_raw(opt.keybindings, default.keybindings),
+			event_tx,
+		)?,
 	})
 }
 
