@@ -22,7 +22,7 @@ pub struct Config {
 }
 
 impl Config {
-	pub fn parse(event_tx: &Sender<Event>) -> Result<Self> {
+	pub fn parse() -> Result<Self> {
 		let cli = ConfigRawArgs::parse();
 		let config_file = cli.config_file.clone();
 		let args = args2optional(cli);
@@ -31,8 +31,7 @@ impl Config {
 				// TODO: parse toml directly into optional
 				Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
 				None => args,
-			},
-			event_tx,
+			}
 		)
 	}
 }
@@ -135,7 +134,7 @@ fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {
 }
 
 // Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional, event_tx: &Sender<Event>) -> Result<Config> {
+fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
 	let default: ConfigRaw = ConfigRaw::default();
 	Ok(Config {
 		command: match opt.command {
@@ -154,8 +153,7 @@ fn merge_default(opt: ConfigRawOptional, event_tx: &Sender<Event>) -> Result<Con
 		)?,
 		// TODO: move keybindings to Keybindings object
 		keybindings: keybindings::parse_raw(
-			keybindings::merge_raw(opt.keybindings, default.keybindings),
-			event_tx,
+			keybindings::merge_raw(opt.keybindings, default.keybindings)
 		)?,
 	})
 }

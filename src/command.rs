@@ -15,7 +15,7 @@ impl Command {
 	pub fn new(command: String) -> Self {
 		Self {
 			command,
-			is_blocking: false,
+			is_blocking: command.ends_with(" &"),
 			blocking: None,
 		}
 	}

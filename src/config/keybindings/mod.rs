@@ -26,11 +26,11 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 	))
 }
 
-pub fn parse_raw(raw: KeybindingsRaw, event_tx: &Sender<Event>) -> Result<Keybindings> {
+pub fn parse_raw(raw: KeybindingsRaw) -> Result<Keybindings> {
 	raw
 		.into_iter()
 		// .map(|(key, ops)| Ok((key.parse()?, operations_from_str(ops)?)))
-		.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops, event_tx)?)))
+		.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops)?)))
 		.collect()
 }
 
