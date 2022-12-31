@@ -2,7 +2,7 @@ mod key;
 mod operations;
 
 pub use key::Key;
-pub use operations::Operations;
+pub use operations::{Operation, Operations};
 pub type Keybindings = HashMap<Key, Operations>;
 pub type KeybindingsRaw = HashMap<String, Vec<String>>;
 
@@ -39,6 +39,19 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	let mut merged = old.clone();
 	merged.extend(new);
 	merged
+}
+
+pub fn add_event_tx(k: Keybindings, event_tx: &Sender<Event>) -> Keybindings {
+	let mut keybindings = k;
+	for ops in keybindings.mut_values() {
+		for op in ops {
+			if let Operation::Execute(command) = op {
+				command.add_tx(event_tx.clone());
+			}
+		}
+	}
+
+	keybindings
 }
 
 pub fn default_raw() -> KeybindingsRaw {

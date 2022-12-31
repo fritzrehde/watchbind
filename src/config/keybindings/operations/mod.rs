@@ -1,8 +1,9 @@
 mod operation;
 
+pub use operation::Operation;
+
 use crate::ui::Event;
 use anyhow::Result;
-use operation::Operation;
 use std::{collections::VecDeque, sync::mpsc::Sender};
 
 pub struct Operations {

@@ -26,6 +26,13 @@ impl Command {
 		self.blocking.is_some()
 	}
 
+	pub fn add_tx(&mut self, event_tx: Sender<Event>) {
+		// if &self.is_blocking {
+		if self.is_blocking() {
+			self.blocking = Some(event_tx);
+		}
+	}
+
 	// TODO: merge into execute function
 	pub fn capture_output(self) -> Result<Vec<String>> {
 		let output = self.shell_cmd(None).output()?;
