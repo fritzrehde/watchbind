@@ -14,7 +14,6 @@ use std::{
 	time::{Duration, Instant},
 };
 use terminal_manager::{Terminal, TerminalManager};
-use crate::config::add_event_tx;
 
 pub enum Event {
 	KeyPressed(Key),
@@ -41,10 +40,11 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, event_rx) = mpsc::channel();
 	let (wake_tx, wake_rx) = mpsc::channel();
-	let mut state = State::new(&config.styles);
+	let mut state = State::new(config.styles);
 	let mut operations = Operations::new();
-	let keybindings = add_event_tx(config.keybindings, &event_tx);
 	let mut blocked = false;
+	let mut keybindings = config.keybindings;
+	keybindings.add_event_tx(&event_tx);
 
 	poll_execute_command(
 		config.watch_rate.clone(),
@@ -62,8 +62,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
-					// if let Some(new_ops) = config.keybindings.get(&key) {
-					if let Some(new_ops) = keybindings.get(&key) {
+					if let Some(new_ops) = keybindings.get_operations(&key) {
 						operations.add(&new_ops);
 					}
 					event_tx.send(Event::ExecuteNextCommand).unwrap();
@@ -112,11 +111,10 @@ fn poll_execute_command(
 		loop {
 			// TODO: write helper function that takes a lambda to measure time difference
 			// execute command and time execution
-			let before = Instant::now();
-			// let lines = output_lines(&command);
+			let start = Instant::now();
 			// TODO: remove command
-			let lines = command.clone().capture_output();
-			let exec_time = Instant::now().duration_since(before);
+			let lines = command.capture_output();
+			let exec_time = start.elapsed();
 			let sleep = watch_rate.saturating_sub(exec_time);
 
 			// ignore error that occurs when main thread (and channels) close

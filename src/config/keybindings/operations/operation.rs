@@ -1,7 +1,7 @@
 use crate::command::Command;
 use crate::ui::{Event, RequestedAction, State};
 use anyhow::{Context, Result};
-use std::{sync::mpsc::Sender, str::FromStr};
+use std::{str::FromStr, sync::mpsc::Sender};
 
 #[derive(Clone)]
 pub enum Operation {

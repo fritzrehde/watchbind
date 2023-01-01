@@ -12,10 +12,14 @@ pub struct Command {
 }
 
 impl Command {
-	pub fn new(command: String) -> Self {
+	pub fn new(mut command: String) -> Self {
+		let is_blocking = !command.ends_with(" &");
+		if command.ends_with(" &") {
+			command.truncate(command.len() - " &".len());
+		}
 		Self {
-			is_blocking: !command.ends_with(" &"),
 			command,
+			is_blocking,
 			blocking: None,
 		}
 	}
@@ -31,7 +35,7 @@ impl Command {
 	}
 
 	// TODO: merge into execute function
-	pub fn capture_output(self) -> Result<Vec<String>> {
+	pub fn capture_output(&self) -> Result<Vec<String>> {
 		let output = self.shell_cmd(None).output()?;
 
 		// TODO: add support for blocking and non-blocking
@@ -54,11 +58,14 @@ impl Command {
 			Some(event_tx) => {
 				let tx = event_tx.clone();
 				thread::spawn(move || {
-					let mut exec = move || {
-						check_stderr(cmd.output()?)
-					};
-					tx.send(Event::Unblock(exec())).unwrap();
-					// tx.send(Event::Unblock(cmd.output().and_then(check_stderr))).unwrap();
+					// let mut exec = move || {
+					// 	check_stderr(cmd.output()?)
+					// };
+					// tx.send(Event::Unblock(exec())).unwrap();
+					tx.send(Event::Unblock(
+						cmd.output().map_err(From::from).and_then(check_stderr),
+					))
+					.unwrap();
 				});
 			}
 		};

@@ -3,7 +3,6 @@ mod style;
 
 pub use keybindings::{Key, Operations};
 pub use style::Styles;
-pub use keybindings::add_event_tx;
 
 use crate::command::Command;
 use anyhow::{bail, Result};
@@ -25,13 +24,11 @@ impl Config {
 		let cli = ConfigRawArgs::parse();
 		let config_file = cli.config_file.clone();
 		let args = args2optional(cli);
-		merge_default(
-			match &config_file {
-				// TODO: parse toml directly into optional
-				Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
-				None => args,
-			}
-		)
+		merge_default(match &config_file {
+			// TODO: parse toml directly into optional
+			Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
+			None => args,
+		})
 	}
 }
 
@@ -150,14 +147,15 @@ fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
 			opt.bold.unwrap_or(default.bold),
 			opt.bold_cursor.unwrap_or(default.bold_cursor),
 		)?,
-		// TODO: move keybindings to Keybindings object
-		keybindings: keybindings::parse_raw(
-			keybindings::merge_raw(opt.keybindings, default.keybindings)
-		)?,
+		keybindings: keybindings::merge_raw(
+			opt.keybindings,
+			default.keybindings,
+		).try_into()?,
+
 	})
 }
 
-// Merge two ConfigRawOptional configs, opt1 is favoured
+// opt1 is favored
 fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptional {
 	ConfigRawOptional {
 		command: opt1.command.or(opt2.command),
@@ -214,9 +212,9 @@ impl Default for ConfigRaw {
 			interval: 5.0,
 			fg: None,
 			bg: None,
-			fg_cursor: Some("black".to_string()),
-			bg_cursor: Some("blue".to_string()),
-			bg_selected: Some("magenta".to_string()),
+			fg_cursor: Some("black".to_owned()),
+			bg_cursor: Some("blue".to_owned()),
+			bg_selected: Some("magenta".to_owned()),
 			bold: false,
 			bold_cursor: true,
 			keybindings: keybindings::default_raw(),

@@ -20,11 +20,11 @@ pub struct State {
 }
 
 impl State {
-	pub fn new(styles: &Styles) -> Self {
+	pub fn new(styles: Styles) -> Self {
 		Self {
 			lines: vec![],
 			selected: vec![],
-			styles: *styles,
+			styles,
 			cursor: None,
 		}
 	}
@@ -97,13 +97,10 @@ impl State {
 	fn get_cursor_line(&mut self) -> Option<String> {
 		if let Some(i) = self.cursor_position() {
 			if let Some((line, _)) = self.lines.get(i) {
-				// return line.clone();
 				return Some(line.clone());
 			}
 		}
-		// no line selected => LINE=""
 		None
-		// "".to_string()
 	}
 
 	pub fn get_selected_lines(&mut self) -> Option<String> {
