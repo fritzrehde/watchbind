@@ -23,13 +23,13 @@ impl Config {
 	pub fn parse() -> Result<Self> {
 		let cli = ClapConfig::parse();
 		let config_file = cli.config_file.clone();
-		let cli: ConfigRawOptional = cli.into();
+		let cli: OptionalConfig = cli.into();
 		let config = match &config_file {
 			// TODO: parse toml directly into optional
 			Some(path) => cli.merge(TomlConfig::parse(path)?.into()),
 			None => cli,
 		};
-		config.merge_with_default()
+		config.try_into()
 	}
 }
 
@@ -82,6 +82,33 @@ pub struct ClapConfig {
 	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
+impl TryFrom<OptionalConfig> for Config {
+	type Error = anyhow::Error;
+	fn try_from(opt: OptionalConfig) -> Result<Self, Self::Error> {
+		let default = DefaultConfig::new();
+		Ok(Self {
+			command: match opt.command {
+				Some(command) => Command::new(command),
+				None => bail!("A command must be provided via command line or config file"),
+			},
+			watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
+			styles: Styles::parse(
+				opt.fg.or(default.fg),
+				opt.bg.or(default.bg),
+				opt.fg_cursor.or(default.fg_cursor),
+				opt.bg_cursor.or(default.bg_cursor),
+				opt.bg_selected.or(default.bg_selected),
+				opt.bold.unwrap_or(default.bold),
+				opt.bold_cursor.unwrap_or(default.bold_cursor),
+			)?,
+			keybindings: keybindings::merge_raw(
+				opt.keybindings,
+				default.keybindings,
+			).try_into()?,
+		})
+	}
+}
+
 #[derive(Deserialize)]
 pub struct TomlConfig {
 	command: Option<String>,
@@ -108,7 +135,7 @@ impl TomlConfig {
 	}
 }
 
-pub struct ConfigRawOptional {
+pub struct OptionalConfig {
 	command: Option<String>,
 	interval: Option<f64>,
 	fg: Option<String>,
@@ -121,7 +148,7 @@ pub struct ConfigRawOptional {
 	keybindings: KeybindingsRaw,
 }
 
-impl ConfigRawOptional {
+impl OptionalConfig {
 	// self is favored
 	fn merge(self, other: Self) -> Self {
 		Self {
@@ -138,33 +165,9 @@ impl ConfigRawOptional {
 			keybindings: keybindings::merge_raw(self.keybindings, other.keybindings),
 		}
 	}
-
-	fn merge_with_default(self) -> Result<Config> {
-		let default: ConfigRaw = ConfigRaw::default();
-		Ok(Config {
-			command: match self.command {
-				Some(command) => Command::new(command),
-				None => bail!("A command must be provided via command line or config file"),
-			},
-			watch_rate: Duration::from_secs_f64(self.interval.unwrap_or(default.interval)),
-			styles: Styles::parse(
-				self.fg.or(default.fg),
-				self.bg.or(default.bg),
-				self.fg_cursor.or(default.fg_cursor),
-				self.bg_cursor.or(default.bg_cursor),
-				self.bg_selected.or(default.bg_selected),
-				self.bold.unwrap_or(default.bold),
-				self.bold_cursor.unwrap_or(default.bold_cursor),
-			)?,
-			keybindings: keybindings::merge_raw(
-				self.keybindings,
-				default.keybindings,
-			).try_into()?,
-		})
-	}
 }
 
-impl From<ClapConfig> for ConfigRawOptional {
+impl From<ClapConfig> for OptionalConfig {
 	fn from(clap: ClapConfig) -> Self {
 		Self {
 			command: clap.command.map_or(None, |s| Some(s.join(" "))),
@@ -185,7 +188,7 @@ impl From<ClapConfig> for ConfigRawOptional {
 }
 
 // TODO: optimize away
-impl From<TomlConfig> for ConfigRawOptional {
+impl From<TomlConfig> for OptionalConfig {
 	fn from(file: TomlConfig) -> Self {
 		Self {
 			command: file.command,
@@ -202,7 +205,7 @@ impl From<TomlConfig> for ConfigRawOptional {
 	}
 }
 
-struct ConfigRaw {
+struct DefaultConfig {
 	interval: f64,
 	fg: Option<String>,
 	bg: Option<String>,
@@ -216,9 +219,9 @@ struct ConfigRaw {
 
 // TODO: replace with inline toml config file with toml::toml! macro
 // TODO: remove ConfigRaw completely
-impl Default for ConfigRaw {
-	fn default() -> Self {
-		ConfigRaw {
+impl DefaultConfig {
+	fn new() -> Self {
+		Self {
 			interval: 5.0,
 			fg: None,
 			bg: None,

@@ -19,6 +19,7 @@ impl Styles {
 		bold_cursor: bool,
 	) -> Result<Self> {
 		Ok(Self {
+			// TODO: group into common lambda
 			line: Style::reset()
 				.fg(parse_color(fg)?)
 				.bg(parse_color(bg)?)
