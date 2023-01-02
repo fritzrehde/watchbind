@@ -8,26 +8,28 @@ pub struct Styles {
 	pub selected: Style,
 }
 
-pub fn parse_style(
-	fg: Option<String>,
-	bg: Option<String>,
-	fg_cursor: Option<String>,
-	bg_cursor: Option<String>,
-	bg_selected: Option<String>,
-	bold: bool,
-	bold_cursor: bool,
-) -> Result<Styles> {
-	Ok(Styles {
-		line: Style::reset()
-			.fg(parse_color(fg)?)
-			.bg(parse_color(bg)?)
-			.add_modifier(parse_bold(bold)),
-		cursor: Style::reset()
-			.fg(parse_color(fg_cursor)?)
-			.bg(parse_color(bg_cursor)?)
-			.add_modifier(parse_bold(bold_cursor)),
-		selected: Style::reset().bg(parse_color(bg_selected)?),
-	})
+impl Styles {
+	pub fn parse(
+		fg: Option<String>,
+		bg: Option<String>,
+		fg_cursor: Option<String>,
+		bg_cursor: Option<String>,
+		bg_selected: Option<String>,
+		bold: bool,
+		bold_cursor: bool,
+	) -> Result<Self> {
+		Ok(Self {
+			line: Style::reset()
+				.fg(parse_color(fg)?)
+				.bg(parse_color(bg)?)
+				.add_modifier(parse_bold(bold)),
+			cursor: Style::reset()
+				.fg(parse_color(fg_cursor)?)
+				.bg(parse_color(bg_cursor)?)
+				.add_modifier(parse_bold(bold_cursor)),
+			selected: Style::reset().bg(parse_color(bg_selected)?),
+		})
+	}
 }
 
 fn parse_bold(bold: bool) -> Modifier {
@@ -38,6 +40,7 @@ fn parse_bold(bold: bool) -> Modifier {
 	}
 }
 
+// TODO: create custom Color type and impl from_str and add parser directly into toml and clap structs
 fn parse_color(src: Option<String>) -> Result<Color> {
 	Ok(match src {
 		Some(color) => match color.to_lowercase().as_str() {

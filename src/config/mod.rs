@@ -15,38 +15,27 @@ use std::{collections::HashMap, fs::read_to_string, time::Duration};
 pub struct Config {
 	pub command: Command,
 	pub watch_rate: Duration,
-	pub styles: style::Styles,
+	pub styles: Styles,
 	pub keybindings: Keybindings,
 }
 
 impl Config {
 	pub fn parse() -> Result<Self> {
-		let cli = ConfigRawArgs::parse();
+		let cli = ClapConfig::parse();
 		let config_file = cli.config_file.clone();
-		let args = args2optional(cli);
-		merge_default(match &config_file {
+		let cli: ConfigRawOptional = cli.into();
+		let config = match &config_file {
 			// TODO: parse toml directly into optional
-			Some(path) => merge_opt(args, file2optional(parse_toml(path)?)),
-			None => args,
-		})
+			Some(path) => cli.merge(TomlConfig::parse(path)?.into()),
+			None => cli,
+		};
+		config.merge_with_default()
 	}
-}
-
-struct ConfigRaw {
-	interval: f64,
-	fg: Option<String>,
-	bg: Option<String>,
-	fg_cursor: Option<String>,
-	bg_cursor: Option<String>,
-	bg_selected: Option<String>,
-	bold: bool,
-	bold_cursor: bool,
-	keybindings: KeybindingsRaw,
 }
 
 #[derive(Parser)]
 #[clap(version, about)]
-pub struct ConfigRawArgs {
+pub struct ClapConfig {
 	/// Command to execute periodically
 	#[arg(trailing_var_arg(true))]
 	command: Option<Vec<String>>,
@@ -87,13 +76,14 @@ pub struct ConfigRawArgs {
 	#[arg(long = "bold+")]
 	bold_cursor: bool,
 
+	// TODO: use KeybindingsRaw once clap supports parsing into HashMap
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
 	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
 #[derive(Deserialize)]
-pub struct ConfigRawFile {
+pub struct TomlConfig {
 	command: Option<String>,
 	interval: Option<f64>,
 	fg: Option<String>,
@@ -110,6 +100,14 @@ pub struct ConfigRawFile {
 	keybindings: Option<KeybindingsRaw>,
 }
 
+impl TomlConfig {
+	fn parse(config_file: &str) -> Result<Self> {
+		// TODO: add to anyhow error that error came from parsing file in here
+		let config = toml::from_str(&read_to_string(config_file)?)?;
+		Ok(config)
+	}
+}
+
 pub struct ConfigRawOptional {
 	command: Option<String>,
 	interval: Option<f64>,
@@ -123,89 +121,101 @@ pub struct ConfigRawOptional {
 	keybindings: KeybindingsRaw,
 }
 
-fn parse_toml(config_file: &str) -> Result<ConfigRawFile> {
-	// TODO: add to anyhow error that error came from parsing file in here
-	let config = toml::from_str(&read_to_string(config_file)?)?;
-	Ok(config)
-}
+impl ConfigRawOptional {
+	// self is favored
+	fn merge(self, other: Self) -> Self {
+		Self {
+			command: self.command.or(other.command),
+			interval: self.interval.or(other.interval),
+			fg: self.fg.or(other.fg),
+			bg: self.bg.or(other.bg),
+			fg_cursor: self.fg_cursor.or(other.fg_cursor),
+			bg_cursor: self.bg_cursor.or(other.bg_cursor),
+			bg_selected: self.bg_selected.or(other.bg_selected),
+			bold: self.bold.or(other.bold),
+			bold_cursor: self.bold_cursor.or(other.bold_cursor),
+			// TODO: self.keybindings.merge_with(other.keybindings)
+			keybindings: keybindings::merge_raw(self.keybindings, other.keybindings),
+		}
+	}
 
-// Merge a ConfigRawOptional config with the default config
-fn merge_default(opt: ConfigRawOptional) -> Result<Config> {
-	let default: ConfigRaw = ConfigRaw::default();
-	Ok(Config {
-		command: match opt.command {
-			Some(command) => Command::new(command),
-			None => bail!("A command must be provided via command line or config file"),
-		},
-		watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
-		styles: style::parse_style(
-			opt.fg.or(default.fg),
-			opt.bg.or(default.bg),
-			opt.fg_cursor.or(default.fg_cursor),
-			opt.bg_cursor.or(default.bg_cursor),
-			opt.bg_selected.or(default.bg_selected),
-			opt.bold.unwrap_or(default.bold),
-			opt.bold_cursor.unwrap_or(default.bold_cursor),
-		)?,
-		keybindings: keybindings::merge_raw(
-			opt.keybindings,
-			default.keybindings,
-		).try_into()?,
-
-	})
-}
-
-// opt1 is favored
-fn merge_opt(opt1: ConfigRawOptional, opt2: ConfigRawOptional) -> ConfigRawOptional {
-	ConfigRawOptional {
-		command: opt1.command.or(opt2.command),
-		interval: opt1.interval.or(opt2.interval),
-		fg: opt1.fg.or(opt2.fg),
-		bg: opt1.bg.or(opt2.bg),
-		fg_cursor: opt1.fg_cursor.or(opt2.fg_cursor),
-		bg_cursor: opt1.bg_cursor.or(opt2.bg_cursor),
-		bg_selected: opt1.bg_selected.or(opt2.bg_selected),
-		bold: opt1.bold.or(opt2.bold),
-		bold_cursor: opt1.bold_cursor.or(opt2.bold_cursor),
-		keybindings: keybindings::merge_raw(opt1.keybindings, opt2.keybindings),
+	fn merge_with_default(self) -> Result<Config> {
+		let default: ConfigRaw = ConfigRaw::default();
+		Ok(Config {
+			command: match self.command {
+				Some(command) => Command::new(command),
+				None => bail!("A command must be provided via command line or config file"),
+			},
+			watch_rate: Duration::from_secs_f64(self.interval.unwrap_or(default.interval)),
+			styles: Styles::parse(
+				self.fg.or(default.fg),
+				self.bg.or(default.bg),
+				self.fg_cursor.or(default.fg_cursor),
+				self.bg_cursor.or(default.bg_cursor),
+				self.bg_selected.or(default.bg_selected),
+				self.bold.unwrap_or(default.bold),
+				self.bold_cursor.unwrap_or(default.bold_cursor),
+			)?,
+			keybindings: keybindings::merge_raw(
+				self.keybindings,
+				default.keybindings,
+			).try_into()?,
+		})
 	}
 }
 
-fn args2optional(args: ConfigRawArgs) -> ConfigRawOptional {
-	ConfigRawOptional {
-		command: args.command.map_or(None, |s| Some(s.join(" "))),
-		interval: args.interval,
-		fg: args.fg,
-		bg: args.bg,
-		fg_cursor: args.fg_cursor,
-		bg_cursor: args.bg_cursor,
-		bg_selected: args.bg_selected,
-		bold: args.bold.then_some(args.bold),
-		bold_cursor: args.bold_cursor.then_some(args.bold_cursor),
-		// TODO: simplify
-		keybindings: args
-			.keybindings
-			.map_or_else(|| HashMap::new(), |s| s.into_iter().collect()),
+impl From<ClapConfig> for ConfigRawOptional {
+	fn from(clap: ClapConfig) -> Self {
+		Self {
+			command: clap.command.map_or(None, |s| Some(s.join(" "))),
+			interval: clap.interval,
+			fg: clap.fg,
+			bg: clap.bg,
+			fg_cursor: clap.fg_cursor,
+			bg_cursor: clap.bg_cursor,
+			bg_selected: clap.bg_selected,
+			bold: clap.bold.then_some(clap.bold),
+			bold_cursor: clap.bold_cursor.then_some(clap.bold_cursor),
+			// TODO: simplify
+			keybindings: clap
+				.keybindings
+				.map_or_else(|| HashMap::new(), |s| s.into_iter().collect()),
+		}
 	}
 }
 
 // TODO: optimize away
-fn file2optional(file: ConfigRawFile) -> ConfigRawOptional {
-	ConfigRawOptional {
-		command: file.command,
-		interval: file.interval,
-		fg: file.fg,
-		bg: file.bg,
-		fg_cursor: file.fg_cursor,
-		bg_cursor: file.bg_cursor,
-		bg_selected: file.bg_selected,
-		bold: file.bold,
-		bold_cursor: file.bold_cursor,
-		keybindings: file.keybindings.unwrap_or(HashMap::new()),
+impl From<TomlConfig> for ConfigRawOptional {
+	fn from(file: TomlConfig) -> Self {
+		Self {
+			command: file.command,
+			interval: file.interval,
+			fg: file.fg,
+			bg: file.bg,
+			fg_cursor: file.fg_cursor,
+			bg_cursor: file.bg_cursor,
+			bg_selected: file.bg_selected,
+			bold: file.bold,
+			bold_cursor: file.bold_cursor,
+			keybindings: file.keybindings.unwrap_or(HashMap::new()),
+		}
 	}
 }
 
+struct ConfigRaw {
+	interval: f64,
+	fg: Option<String>,
+	bg: Option<String>,
+	fg_cursor: Option<String>,
+	bg_cursor: Option<String>,
+	bg_selected: Option<String>,
+	bold: bool,
+	bold_cursor: bool,
+	keybindings: KeybindingsRaw,
+}
+
 // TODO: replace with inline toml config file with toml::toml! macro
+// TODO: remove ConfigRaw completely
 impl Default for ConfigRaw {
 	fn default() -> Self {
 		ConfigRaw {
