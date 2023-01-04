@@ -59,30 +59,29 @@ impl State {
 		self.cursor_calibrate();
 	}
 
-	fn cursor_calibrate(&mut self) {
-		match self.cursor_position() {
-			None => self.first(),
-			Some(i) => self.cursor_move(i as isize),
-		};
-	}
-
 	fn cursor_position(&mut self) -> Option<usize> {
 		self.cursor
 	}
 
 	fn cursor_move(&mut self, index: isize) {
 		let old = self.cursor_position();
-		let new = match self.lines.is_empty() {
-			true => None,
-			false => {
-				let first = FIRST_INDEX as isize;
-				let last = self.last_index() as isize;
-				Some(index.clamp(first, last) as usize)
-			}
+		let new = if self.lines.is_empty() {
+			None
+		} else {
+			let first = FIRST_INDEX as isize;
+			let last = self.last_index() as isize;
+			Some(index.clamp(first, last) as usize)
 		};
 
 		self.cursor = new;
 		self.cursor_adjust_style(old, new);
+	}
+
+	fn cursor_calibrate(&mut self) {
+		match self.cursor_position() {
+			None => self.first(),
+			Some(i) => self.cursor_move(i as isize),
+		};
 	}
 
 	fn cursor_adjust_style(&mut self, old: Option<usize>, new: Option<usize>) {
@@ -162,13 +161,12 @@ impl State {
 		}
 	}
 
-	// TODO: optimize
 	pub fn select_all(&mut self) {
-		self.selected = vec![true; self.lines.len()];
+		self.selected.fill(true);
 	}
 
 	pub fn unselect_all(&mut self) {
-		self.selected = vec![false; self.lines.len()];
+		self.selected.fill(false);
 	}
 
 	fn last_index(&self) -> usize {

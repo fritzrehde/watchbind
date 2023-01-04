@@ -9,6 +9,7 @@
 [keybindings]
 "q" = [ "exit" ]
 "j" = [ "down" ]
+"A" = [ "select-all" ]
 "down" = [ "down", "down", "down" ]
 "J" = [ "down 3" ]
 "K" = [ 
