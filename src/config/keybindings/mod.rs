@@ -59,28 +59,3 @@ pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
 	merged.extend(new);
 	merged
 }
-
-pub fn default_raw() -> KeybindingsRaw {
-	[
-		("ctrl+c", vec!["exit"]),
-		("q", vec!["exit"]),
-		("r", vec!["reload"]),
-		("space", vec!["select-toggle", "down"]),
-		("v", vec!["select-toggle"]),
-		("esc", vec!["unselect-all"]),
-		("down", vec!["down"]),
-		("up", vec!["up"]),
-		("j", vec!["down"]),
-		("k", vec!["up"]),
-		("g", vec!["first"]),
-		("G", vec!["last"]),
-	]
-	.into_iter()
-	.map(|(key, ops)| {
-		(
-			key.to_string(),
-			ops.into_iter().map(|op| op.to_string()).collect(),
-		)
-	})
-	.collect()
-}

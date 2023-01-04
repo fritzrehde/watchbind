@@ -7,6 +7,7 @@ pub use style::Styles;
 use crate::command::Command;
 use anyhow::{bail, Result};
 use clap::Parser;
+use indoc::indoc;
 use keybindings::{Keybindings, KeybindingsRaw};
 use serde::Deserialize;
 use std::{collections::HashMap, fs::read_to_string, time::Duration};
@@ -85,26 +86,28 @@ pub struct ClapConfig {
 impl TryFrom<OptionalConfig> for Config {
 	type Error = anyhow::Error;
 	fn try_from(opt: OptionalConfig) -> Result<Self, Self::Error> {
-		let default = DefaultConfig::new();
+		let default = TomlConfig::default();
 		Ok(Self {
 			command: match opt.command {
 				Some(command) => Command::new(command),
 				None => bail!("A command must be provided via command line or config file"),
 			},
-			watch_rate: Duration::from_secs_f64(opt.interval.unwrap_or(default.interval)),
+			watch_rate: Duration::from_secs_f64(
+				opt.interval.unwrap_or(default.interval.expect("default")),
+			),
 			styles: Styles::parse(
 				opt.fg.or(default.fg),
 				opt.bg.or(default.bg),
 				opt.fg_cursor.or(default.fg_cursor),
 				opt.bg_cursor.or(default.bg_cursor),
 				opt.bg_selected.or(default.bg_selected),
-				opt.bold.unwrap_or(default.bold),
-				opt.bold_cursor.unwrap_or(default.bold_cursor),
+				opt.bold.unwrap_or(default.bold.expect("default")),
+				opt
+					.bold_cursor
+					.unwrap_or(default.bold_cursor.expect("default")),
 			)?,
-			keybindings: keybindings::merge_raw(
-				opt.keybindings,
-				default.keybindings,
-			).try_into()?,
+			keybindings: keybindings::merge_raw(opt.keybindings, default.keybindings.expect("default"))
+				.try_into()?,
 		})
 	}
 }
@@ -132,6 +135,34 @@ impl TomlConfig {
 		// TODO: add to anyhow error that error came from parsing file in here
 		let config = toml::from_str(&read_to_string(config_file)?)?;
 		Ok(config)
+	}
+}
+
+impl Default for TomlConfig {
+	fn default() -> Self {
+		let toml = indoc! {r#"
+			"interval" = 5.0
+			"fg+" = "black"
+			"bg+" = "blue"
+			"bg-" = "magenta"
+			"bold" = false
+			"bold+" = true
+
+			[keybindings]
+			"ctrl+c" = [ "exit" ]
+			"q" = [ "exit" ]
+			"r" = [ "reload" ]
+			"space" = [ "select-toggle", "down" ]
+			"v" = [ "select-toggle" ]
+			"esc" = [ "unselect-all" ]
+			"down" = [ "down" ]
+			"up" = [ "up" ]
+			"j" = [ "down" ]
+			"k" = [ "up" ]
+			"g" = [ "first" ]
+			"G" = [ "last" ]
+		"#};
+		toml::from_str(toml).expect("correct default toml config file")
 	}
 }
 
@@ -182,55 +213,25 @@ impl From<ClapConfig> for OptionalConfig {
 			// TODO: simplify
 			keybindings: clap
 				.keybindings
-				.map_or_else(|| HashMap::new(), |s| s.into_iter().collect()),
+				.map_or_else(|| HashMap::new(), |vec| vec.into_iter().collect()),
 		}
 	}
 }
 
 // TODO: optimize away
 impl From<TomlConfig> for OptionalConfig {
-	fn from(file: TomlConfig) -> Self {
+	fn from(toml: TomlConfig) -> Self {
 		Self {
-			command: file.command,
-			interval: file.interval,
-			fg: file.fg,
-			bg: file.bg,
-			fg_cursor: file.fg_cursor,
-			bg_cursor: file.bg_cursor,
-			bg_selected: file.bg_selected,
-			bold: file.bold,
-			bold_cursor: file.bold_cursor,
-			keybindings: file.keybindings.unwrap_or(HashMap::new()),
-		}
-	}
-}
-
-struct DefaultConfig {
-	interval: f64,
-	fg: Option<String>,
-	bg: Option<String>,
-	fg_cursor: Option<String>,
-	bg_cursor: Option<String>,
-	bg_selected: Option<String>,
-	bold: bool,
-	bold_cursor: bool,
-	keybindings: KeybindingsRaw,
-}
-
-// TODO: replace with inline toml config file with toml::toml! macro
-// TODO: remove ConfigRaw completely
-impl DefaultConfig {
-	fn new() -> Self {
-		Self {
-			interval: 5.0,
-			fg: None,
-			bg: None,
-			fg_cursor: Some("black".to_owned()),
-			bg_cursor: Some("blue".to_owned()),
-			bg_selected: Some("magenta".to_owned()),
-			bold: false,
-			bold_cursor: true,
-			keybindings: keybindings::default_raw(),
+			command: toml.command,
+			interval: toml.interval,
+			fg: toml.fg,
+			bg: toml.bg,
+			fg_cursor: toml.fg_cursor,
+			bg_cursor: toml.bg_cursor,
+			bg_selected: toml.bg_selected,
+			bold: toml.bold,
+			bold_cursor: toml.bold_cursor,
+			keybindings: toml.keybindings.unwrap_or(HashMap::new()),
 		}
 	}
 }
