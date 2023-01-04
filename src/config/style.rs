@@ -15,26 +15,27 @@ impl Styles {
 		fg_cursor: Option<String>,
 		bg_cursor: Option<String>,
 		bg_selected: Option<String>,
-		bold: bool,
-		bold_cursor: bool,
+		bold: Option<bool>,
+		bold_cursor: Option<bool>,
 	) -> Result<Self> {
+		let new_style = |fg, bg, bold| -> Result<Style> {
+			Ok(
+				Style::reset()
+					.fg(parse_color(fg)?)
+					.bg(parse_color(bg)?)
+					.add_modifier(parse_bold(bold)),
+			)
+		};
 		Ok(Self {
-			// TODO: group into common lambda
-			line: Style::reset()
-				.fg(parse_color(fg)?)
-				.bg(parse_color(bg)?)
-				.add_modifier(parse_bold(bold)),
-			cursor: Style::reset()
-				.fg(parse_color(fg_cursor)?)
-				.bg(parse_color(bg_cursor)?)
-				.add_modifier(parse_bold(bold_cursor)),
-			selected: Style::reset().bg(parse_color(bg_selected)?),
+			line: new_style(fg, bg, bold)?,
+			cursor: new_style(fg_cursor, bg_cursor, bold_cursor)?,
+			selected: new_style(None, bg_selected, None)?,
 		})
 	}
 }
 
-fn parse_bold(bold: bool) -> Modifier {
-	if bold {
+fn parse_bold(bold: Option<bool>) -> Modifier {
+	if let Some(true) = bold {
 		Modifier::BOLD
 	} else {
 		Modifier::empty()

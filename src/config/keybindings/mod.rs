@@ -53,9 +53,20 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
 }
 
 // new and old have same key => keep new value
-pub fn merge_raw(new: KeybindingsRaw, old: KeybindingsRaw) -> KeybindingsRaw {
-	// TODO: borrow old as mutable and avoid clone
-	let mut merged = old.clone();
-	merged.extend(new);
-	merged
+pub fn merge_raw(
+	new_opt: Option<KeybindingsRaw>,
+	old_opt: Option<KeybindingsRaw>,
+) -> Option<KeybindingsRaw> {
+	match new_opt {
+		Some(new) => match old_opt {
+			Some(old) => {
+				// TODO: borrow old as mutable and avoid clone
+				let mut merged = old.clone();
+				merged.extend(new);
+				Some(merged)
+			}
+			None => Some(new),
+		},
+		None => old_opt,
+	}
 }

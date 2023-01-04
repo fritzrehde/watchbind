@@ -10,7 +10,7 @@ use clap::Parser;
 use indoc::indoc;
 use keybindings::{Keybindings, KeybindingsRaw};
 use serde::Deserialize;
-use std::{collections::HashMap, fs::read_to_string, time::Duration};
+use std::{fs::read_to_string, time::Duration};
 
 // TODO: find better solution than to make all fields public
 pub struct Config {
@@ -24,9 +24,8 @@ impl Config {
 	pub fn parse() -> Result<Self> {
 		let cli = ClapConfig::parse();
 		let config_file = cli.config_file.clone();
-		let cli: OptionalConfig = cli.into();
+		let cli: TomlConfig = cli.into();
 		let config = match &config_file {
-			// TODO: parse toml directly into optional
 			Some(path) => cli.merge(TomlConfig::parse(path)?.into()),
 			None => cli,
 		};
@@ -70,12 +69,12 @@ pub struct ClapConfig {
 	bg_selected: Option<String>,
 
 	/// Text on all lines except cursor are bold
-	#[arg(long)]
-	bold: bool,
+	#[arg(long, value_name = "BOOL")]
+	bold: Option<bool>,
 
 	/// Text on cursor's line is bold
-	#[arg(long = "bold+")]
-	bold_cursor: bool,
+	#[arg(long = "bold+", value_name = "BOOL")]
+	bold_cursor: Option<bool>,
 
 	// TODO: use KeybindingsRaw once clap supports parsing into HashMap
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
@@ -83,9 +82,9 @@ pub struct ClapConfig {
 	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
-impl TryFrom<OptionalConfig> for Config {
+impl TryFrom<TomlConfig> for Config {
 	type Error = anyhow::Error;
-	fn try_from(opt: OptionalConfig) -> Result<Self, Self::Error> {
+	fn try_from(opt: TomlConfig) -> Result<Self, Self::Error> {
 		let default = TomlConfig::default();
 		Ok(Self {
 			command: match opt.command {
@@ -101,12 +100,11 @@ impl TryFrom<OptionalConfig> for Config {
 				opt.fg_cursor.or(default.fg_cursor),
 				opt.bg_cursor.or(default.bg_cursor),
 				opt.bg_selected.or(default.bg_selected),
-				opt.bold.unwrap_or(default.bold.expect("default")),
-				opt
-					.bold_cursor
-					.unwrap_or(default.bold_cursor.expect("default")),
+				opt.bold.or(default.bold),
+				opt.bold_cursor.or(default.bold_cursor),
 			)?,
-			keybindings: keybindings::merge_raw(opt.keybindings, default.keybindings.expect("default"))
+			keybindings: keybindings::merge_raw(opt.keybindings, default.keybindings)
+				.expect("default")
 				.try_into()?,
 		})
 	}
@@ -136,6 +134,42 @@ impl TomlConfig {
 		let config = toml::from_str(&read_to_string(config_file)?)?;
 		Ok(config)
 	}
+
+	// self is favored
+	fn merge(self, other: Self) -> Self {
+		Self {
+			command: self.command.or(other.command),
+			interval: self.interval.or(other.interval),
+			fg: self.fg.or(other.fg),
+			bg: self.bg.or(other.bg),
+			fg_cursor: self.fg_cursor.or(other.fg_cursor),
+			bg_cursor: self.bg_cursor.or(other.bg_cursor),
+			bg_selected: self.bg_selected.or(other.bg_selected),
+			bold: self.bold.or(other.bold),
+			bold_cursor: self.bold_cursor.or(other.bold_cursor),
+			// TODO: self.keybindings.merge_with(other.keybindings)
+			keybindings: keybindings::merge_raw(self.keybindings, other.keybindings),
+		}
+	}
+}
+
+impl From<ClapConfig> for TomlConfig {
+	fn from(clap: ClapConfig) -> Self {
+		Self {
+			command: clap.command.map_or(None, |s| Some(s.join(" "))),
+			interval: clap.interval,
+			fg: clap.fg,
+			bg: clap.bg,
+			fg_cursor: clap.fg_cursor,
+			bg_cursor: clap.bg_cursor,
+			bg_selected: clap.bg_selected,
+			bold: clap.bold,
+			bold_cursor: clap.bold_cursor,
+			keybindings: clap
+				.keybindings
+				.and_then(|vec| Some(vec.into_iter().collect())),
+		}
+	}
 }
 
 impl Default for TomlConfig {
@@ -163,75 +197,5 @@ impl Default for TomlConfig {
 			"G" = [ "last" ]
 		"#};
 		toml::from_str(toml).expect("correct default toml config file")
-	}
-}
-
-pub struct OptionalConfig {
-	command: Option<String>,
-	interval: Option<f64>,
-	fg: Option<String>,
-	bg: Option<String>,
-	fg_cursor: Option<String>,
-	bg_cursor: Option<String>,
-	bg_selected: Option<String>,
-	bold: Option<bool>,
-	bold_cursor: Option<bool>,
-	keybindings: KeybindingsRaw,
-}
-
-impl OptionalConfig {
-	// self is favored
-	fn merge(self, other: Self) -> Self {
-		Self {
-			command: self.command.or(other.command),
-			interval: self.interval.or(other.interval),
-			fg: self.fg.or(other.fg),
-			bg: self.bg.or(other.bg),
-			fg_cursor: self.fg_cursor.or(other.fg_cursor),
-			bg_cursor: self.bg_cursor.or(other.bg_cursor),
-			bg_selected: self.bg_selected.or(other.bg_selected),
-			bold: self.bold.or(other.bold),
-			bold_cursor: self.bold_cursor.or(other.bold_cursor),
-			// TODO: self.keybindings.merge_with(other.keybindings)
-			keybindings: keybindings::merge_raw(self.keybindings, other.keybindings),
-		}
-	}
-}
-
-impl From<ClapConfig> for OptionalConfig {
-	fn from(clap: ClapConfig) -> Self {
-		Self {
-			command: clap.command.map_or(None, |s| Some(s.join(" "))),
-			interval: clap.interval,
-			fg: clap.fg,
-			bg: clap.bg,
-			fg_cursor: clap.fg_cursor,
-			bg_cursor: clap.bg_cursor,
-			bg_selected: clap.bg_selected,
-			bold: clap.bold.then_some(clap.bold),
-			bold_cursor: clap.bold_cursor.then_some(clap.bold_cursor),
-			// TODO: simplify
-			keybindings: clap
-				.keybindings
-				.map_or_else(|| HashMap::new(), |vec| vec.into_iter().collect()),
-		}
-	}
-}
-
-// TODO: optimize away
-impl From<TomlConfig> for OptionalConfig {
-	fn from(toml: TomlConfig) -> Self {
-		Self {
-			command: toml.command,
-			interval: toml.interval,
-			fg: toml.fg,
-			bg: toml.bg,
-			fg_cursor: toml.fg_cursor,
-			bg_cursor: toml.bg_cursor,
-			bg_selected: toml.bg_selected,
-			bold: toml.bold,
-			bold_cursor: toml.bold_cursor,
-			keybindings: toml.keybindings.unwrap_or(HashMap::new()),
-		}
 	}
 }
