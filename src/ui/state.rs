@@ -4,7 +4,7 @@ use tui::{
 	backend::Backend,
 	layout::Constraint,
 	style::Style,
-	widgets::{Cell, Row, Table},
+	widgets::{Cell, Row, Table, TableState},
 	Frame,
 };
 
@@ -17,6 +17,8 @@ pub struct State {
 	selected: Vec<bool>,
 	styles: Styles,
 	cursor: Option<usize>,
+	// TODO: deprecate in future
+	table_state: TableState,
 }
 
 impl State {
@@ -26,6 +28,7 @@ impl State {
 			selected: vec![],
 			styles,
 			cursor: None,
+			table_state: TableState::default(),
 		}
 	}
 
@@ -47,7 +50,7 @@ impl State {
 			.widths(&[Constraint::Length(1), Constraint::Percentage(100)])
 			.column_spacing(0);
 
-		frame.render_widget(table, frame.size());
+		frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
 	}
 
 	pub fn set_lines(&mut self, lines: Vec<String>) {
@@ -74,6 +77,7 @@ impl State {
 		};
 
 		self.cursor = new;
+		self.table_state.select(self.cursor);
 		self.cursor_adjust_style(old, new);
 	}
 

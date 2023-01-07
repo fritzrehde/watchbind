@@ -112,7 +112,6 @@ fn poll_execute_command(
 			// TODO: write helper function that takes a lambda to measure time difference
 			// execute command and time execution
 			let start = Instant::now();
-			// TODO: remove command
 			let lines = command.capture_output();
 			let exec_time = start.elapsed();
 			let sleep = watch_rate.saturating_sub(exec_time);
