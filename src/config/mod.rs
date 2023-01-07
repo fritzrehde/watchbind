@@ -8,11 +8,10 @@ use crate::command::Command;
 use anyhow::{bail, Result};
 use clap::Parser;
 use indoc::indoc;
-use keybindings::{Keybindings, KeybindingsRaw};
+use keybindings::{ClapKeybindings, Keybindings, RawKeybindings};
 use serde::Deserialize;
 use std::{fs::read_to_string, time::Duration};
 
-// TODO: find better solution than to make all fields public
 pub struct Config {
 	pub command: Command,
 	pub watch_rate: Duration,
@@ -76,10 +75,10 @@ pub struct ClapConfig {
 	#[arg(long = "bold+", value_name = "BOOL")]
 	bold_cursor: Option<bool>,
 
-	// TODO: use KeybindingsRaw once clap supports parsing into HashMap
+	// TODO: replace with RawKeybindings once clap supports parsing into HashMap
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
-	keybindings: Option<Vec<(String, Vec<String>)>>,
+	keybindings: Option<ClapKeybindings>,
 }
 
 impl TryFrom<TomlConfig> for Config {
@@ -91,9 +90,7 @@ impl TryFrom<TomlConfig> for Config {
 				Some(command) => Command::new(command),
 				None => bail!("A command must be provided via command line or config file"),
 			},
-			watch_rate: Duration::from_secs_f64(
-				opt.interval.unwrap_or(default.interval.expect("default")),
-			),
+			watch_rate: Duration::from_secs_f64(opt.interval.or(default.interval).expect("default")),
 			styles: Styles::parse(
 				opt.fg.or(default.fg),
 				opt.bg.or(default.bg),
@@ -103,7 +100,7 @@ impl TryFrom<TomlConfig> for Config {
 				opt.bold.or(default.bold),
 				opt.bold_cursor.or(default.bold_cursor),
 			)?,
-			keybindings: keybindings::merge_raw(opt.keybindings, default.keybindings)
+			keybindings: RawKeybindings::merge(opt.keybindings, default.keybindings)
 				.expect("default")
 				.try_into()?,
 		})
@@ -125,7 +122,7 @@ pub struct TomlConfig {
 	bold: Option<bool>,
 	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
-	keybindings: Option<KeybindingsRaw>,
+	keybindings: Option<RawKeybindings>,
 }
 
 impl TomlConfig {
@@ -147,8 +144,7 @@ impl TomlConfig {
 			bg_selected: self.bg_selected.or(other.bg_selected),
 			bold: self.bold.or(other.bold),
 			bold_cursor: self.bold_cursor.or(other.bold_cursor),
-			// TODO: self.keybindings.merge_with(other.keybindings)
-			keybindings: keybindings::merge_raw(self.keybindings, other.keybindings),
+			keybindings: RawKeybindings::merge(self.keybindings, other.keybindings),
 		}
 	}
 }
@@ -165,9 +161,7 @@ impl From<ClapConfig> for TomlConfig {
 			bg_selected: clap.bg_selected,
 			bold: clap.bold,
 			bold_cursor: clap.bold_cursor,
-			keybindings: clap
-				.keybindings
-				.and_then(|vec| Some(vec.into_iter().collect())),
+			keybindings: clap.keybindings.and_then(|vec| Some(vec.into())),
 		}
 	}
 }
