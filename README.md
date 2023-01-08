@@ -1,5 +1,7 @@
 # Watchbind
 
+[![version info](https://img.shields.io/crates/v/watchbind)](https://crates.io/crates/watchbind)
+
 *Turn the output of any shell command into a powerful TUI with custom keybindings.*
 
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
@@ -20,6 +22,12 @@
 
 ## Installation
 
+### From [crates.io](https://crates.io/crates/watchbind)
+
+```shell
+cargo install watchbind
+```
+
 ### Build from source
 
 ```shell
@@ -29,12 +37,6 @@ cargo build
 ```
 
 You can also run `cargo run -- -c examples/test-config.toml` to see a simple demo of `watchbind`.
-
-### From [crates.io](https://crates.io/crates/watchbind)
-
-```shell
-cargo install watchbind
-```
 
 ### AUR
 
