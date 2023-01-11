@@ -88,3 +88,26 @@ impl FromStr for Operation {
 		})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_move_cursor() {
+		assert!(matches!(
+			"down 42".parse(),
+			Ok(Operation::MoveCursor(MoveCursor::Down(42)))
+		));
+		assert!(matches!(
+			"up 24".parse(),
+			Ok(Operation::MoveCursor(MoveCursor::Up(24)))
+		));
+	}
+
+	#[test]
+	fn test_move_cursor_invalid_step_size() {
+		assert!("down -42".parse::<Operation>().is_err());
+		assert!("up -24".parse::<Operation>().is_err());
+	}
+}

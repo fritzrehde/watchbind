@@ -6,8 +6,8 @@ use std::{sync::mpsc::Sender, thread};
 #[derive(Clone)]
 pub struct Command {
 	command: String,
-	// TODO: turn Sender<Event> into own type
 	is_blocking: bool,
+	// TODO: turn Sender<Event> into own type
 	blocking: Option<Sender<Event>>,
 }
 
@@ -89,4 +89,23 @@ fn check_stderr(output: Output) -> Result<()> {
 		bail!(String::from_utf8(output.stderr).unwrap());
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_executing_echo_command() -> Result<()> {
+		let echo_cmd = r#"echo "hello world""#.to_owned();
+		let output_lines = Command::new(echo_cmd).capture_output()?;
+		assert_eq!(output_lines, vec!["hello world".to_owned()]);
+		Ok(())
+	}
+
+	// TODO: can't add env AND capture output right now
+	// #[test]
+	// fn test_adding_lines_env_variable() -> Result<()> {
+	// 	Ok(())
+	// }
 }

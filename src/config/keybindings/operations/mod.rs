@@ -11,6 +11,7 @@ pub struct Operations {
 }
 
 impl Operations {
+	// TODO: rename to default or empty
 	pub fn new() -> Self {
 		Self {
 			operations: VecDeque::new(),
