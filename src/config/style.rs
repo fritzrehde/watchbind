@@ -1,7 +1,6 @@
 use anyhow::{bail, Result};
 use tui::style::{Color, Modifier, Style};
 
-#[derive(Debug, Clone, Copy)]
 pub struct Styles {
 	pub line: Style,
 	pub cursor: Style,

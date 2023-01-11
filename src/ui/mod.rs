@@ -46,12 +46,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	let mut keybindings = config.keybindings;
 	keybindings.add_event_tx(&event_tx);
 
-	poll_execute_command(
-		config.watch_rate.clone(),
-		config.command,
-		event_tx.clone(),
-		wake_rx,
-	);
+	poll_execute_command(config.watch_rate, config.command, event_tx.clone(), wake_rx);
 	poll_key_events(event_tx.clone());
 
 	loop {
@@ -63,7 +58,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 			Ok(Event::KeyPressed(key)) => {
 				if !blocked {
 					if let Some(new_ops) = keybindings.get_operations(&key) {
-						operations.add(&new_ops);
+						operations.add(new_ops);
 					}
 					event_tx.send(Event::ExecuteNextCommand).unwrap();
 				}

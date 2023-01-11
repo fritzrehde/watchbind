@@ -25,7 +25,7 @@ impl Config {
 		let config_file = cli.config_file.clone();
 		let cli: TomlConfig = cli.into();
 		let config = match &config_file {
-			Some(path) => cli.merge(TomlConfig::parse(path)?.into()),
+			Some(path) => cli.merge(TomlConfig::parse(path)?),
 			None => cli,
 		};
 		config.try_into()
@@ -152,7 +152,7 @@ impl TomlConfig {
 impl From<ClapConfig> for TomlConfig {
 	fn from(clap: ClapConfig) -> Self {
 		Self {
-			command: clap.command.map_or(None, |s| Some(s.join(" "))),
+			command: clap.command.map(|s| s.join(" ")),
 			interval: clap.interval,
 			fg: clap.fg,
 			bg: clap.bg,
@@ -161,7 +161,7 @@ impl From<ClapConfig> for TomlConfig {
 			bg_selected: clap.bg_selected,
 			bold: clap.bold,
 			bold_cursor: clap.bold_cursor,
-			keybindings: clap.keybindings.and_then(|vec| Some(vec.into())),
+			keybindings: clap.keybindings.map(|vec| vec.into()),
 		}
 	}
 }

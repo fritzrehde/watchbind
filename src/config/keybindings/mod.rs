@@ -46,9 +46,8 @@ impl RawKeybindings {
 		match new_opt {
 			Some(new) => match old_opt {
 				Some(old) => {
-					// TODO: borrow old as mutable and avoid clone
 					// new and old have same key => keep new value
-					let mut merged = old.0.clone();
+					let mut merged = old.0;
 					merged.extend(new.0);
 					Some(RawKeybindings(merged))
 				}

@@ -41,7 +41,7 @@ impl State {
 					} else {
 						self.styles.line
 					}),
-					Cell::from(" ".to_owned() + &line).style(*style),
+					Cell::from(" ".to_owned() + line).style(*style),
 				])
 			})
 			.collect();
