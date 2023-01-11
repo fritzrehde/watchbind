@@ -3,13 +3,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::str::FromStr;
 
 #[derive(Hash, Eq, PartialEq)]
-pub struct Key {
-	event: KeyEvent,
-}
+pub struct Key(KeyEvent);
 
 impl Key {
 	pub fn new(event: KeyEvent) -> Self {
-		Self { event }
+		Self(event)
 	}
 }
 
@@ -24,7 +22,7 @@ impl FromStr for Key {
 			}
 			None => parse_code(s)?,
 		};
-		Ok(Key { event })
+		Ok(Key(event))
 	}
 }
 
