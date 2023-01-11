@@ -94,7 +94,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_move_cursor() {
+	fn test_parse_move_cursor() {
 		assert!(matches!(
 			"down 42".parse(),
 			Ok(Operation::MoveCursor(MoveCursor::Down(42)))
@@ -106,7 +106,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_move_cursor_invalid_step_size() {
+	fn test_parse_move_cursor_invalid_step_size() {
 		assert!("down -42".parse::<Operation>().is_err());
 		assert!("up -24".parse::<Operation>().is_err());
 	}

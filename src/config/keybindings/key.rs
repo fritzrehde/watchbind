@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::str::FromStr;
 
+#[cfg_attr(test, derive(Debug))]
 #[derive(Hash, Eq, PartialEq)]
 pub struct Key(KeyEvent);
 
@@ -70,4 +71,52 @@ fn parse_code(s: &str) -> Result<KeyEvent> {
 		invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
 	};
 	Ok(KeyEvent::from(code))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_parse_lowercase_key() -> Result<()> {
+		assert_eq!("k".parse::<Key>()?, Key(KeyCode::Char('k').into()));
+		Ok(())
+	}
+
+	#[test]
+	fn test_parse_uppercase_key() -> Result<()> {
+		assert_eq!("G".parse::<Key>()?, Key(KeyCode::Char('G').into()));
+		Ok(())
+	}
+
+	#[test]
+	fn test_parse_ctrl_modifier() -> Result<()> {
+		assert_eq!(
+			"ctrl+c".parse::<Key>()?,
+			Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL))
+		);
+		// TODO: passes test, but doesn't practically work in all terminals
+		assert_eq!(
+			"ctrl+S".parse::<Key>()?,
+			Key(KeyEvent::new(KeyCode::Char('S'), KeyModifiers::CONTROL))
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn test_parse_alt_modifier() -> Result<()> {
+		assert_eq!(
+			"alt+z".parse::<Key>()?,
+			Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::ALT))
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn test_parse_invalid_modifiers() {
+		assert!("shift+a".parse::<Key>().is_err());
+		assert!("super+a".parse::<Key>().is_err());
+		assert!("alt+shift+a".parse::<Key>().is_err());
+		assert!("alt+ctrl+a".parse::<Key>().is_err());
+	}
 }
