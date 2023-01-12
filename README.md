@@ -1,6 +1,6 @@
 # Watchbind
 
-[![Build status](https://github.com/fritzrehde/watchbind/workflows/ci/badge.svg)](https://github.com/fritzrehde/watchbind/actions)
+[![Build status](https://github.com/fritzrehde/watchbind/actions/workflows/ci.yml/badge.svg)](https://github.com/fritzrehde/watchbind/actions)
 [![Version info](https://img.shields.io/crates/v/watchbind)](https://crates.io/crates/watchbind)
 
 *Turn the output of any shell command into a powerful TUI with custom keybindings.*
