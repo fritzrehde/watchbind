@@ -18,6 +18,6 @@
   "up"
 ]
 "k" = [ "up" ]
-"l" = [ "dunstify \"Printing $LINES\"", "reload", "unselect-all" ]
+"l" = [ "dunstify \"Printing $LINES\"", "unselect-all", "reload"]
 "s" = [ "sleep 3" ]
 "S" = [ "sleep 3 &" ]

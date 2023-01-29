@@ -91,12 +91,12 @@ impl State {
 	fn cursor_adjust_style(&mut self, old: Option<usize>, new: Option<usize>) {
 		if let Some(old_index) = old {
 			if let Some(old_cursor) = self.lines.get_mut(old_index) {
-				(*old_cursor).1 = self.styles.line;
+				old_cursor.1 = self.styles.line;
 			}
 		}
 		if let Some(new_index) = new {
 			if let Some(new_cursor) = self.lines.get_mut(new_index) {
-				(*new_cursor).1 = self.styles.cursor;
+				new_cursor.1 = self.styles.cursor;
 			}
 		}
 	}

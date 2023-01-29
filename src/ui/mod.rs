@@ -37,11 +37,16 @@ pub fn start(config: Config) -> Result<()> {
 fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, mut event_rx) = mpsc::channel();
-	let (wake_tx, wake_rx) = mpsc::sync_channel(1);
+	let (reload_tx, reload_rx) = mpsc::sync_channel(1);
 	let mut state = State::new(config.styles);
 
-	poll_execute_command(config.watch_rate, config.command, event_tx.clone(), wake_rx);
-	poll_key_events(event_tx.clone(), config.keybindings.clone());
+	poll_execute_command(
+		config.watch_rate,
+		config.command,
+		event_tx.clone(),
+		reload_rx,
+	);
+	poll_key_events(event_tx, config.keybindings.clone());
 
 	loop {
 		terminal.draw(|frame| state.draw(frame))?;
@@ -54,9 +59,9 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 						match op.execute(&mut state)? {
 							RequestedAction::Exit => return Ok(()),
 							RequestedAction::Reload => {
-								// TODO: ugly solution
-								if let Ok(_) = wake_tx.try_send(()) {
+								if reload_tx.try_send(()).is_ok() {
 									loop {
+										// TODO: code duplication
 										if let Ok(Event::CommandOutput(lines)) = event_rx.recv() {
 											state.set_lines(lines?);
 											clear_buffer(&mut event_rx);
@@ -68,6 +73,8 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 							RequestedAction::Unblock => clear_buffer(&mut event_rx),
 							RequestedAction::Continue => {}
 						};
+						// TODO: code duplication
+						terminal.draw(|frame| state.draw(frame))?;
 					}
 				}
 			}
@@ -83,30 +90,19 @@ fn poll_execute_command(
 	reload_rx: Receiver<()>,
 ) {
 	// TODO: don't run command when blocked, isn't displayed anyways
-	thread::spawn(move || {
-		loop {
-			// TODO: write helper function that takes a lambda to measure time difference
-			// execute command and time execution
-			let start = Instant::now();
+	thread::spawn(move || loop {
+		// TODO: write helper function that takes a lambda to measure time difference
+		let start = Instant::now();
+		let lines = command.capture_output(&reload_rx);
+		let timeout = watch_rate.saturating_sub(start.elapsed());
+		event_tx.send(Event::CommandOutput(lines)).ok();
 
-			// TODO: kill command process immediately once we receive reload signal
-			let lines = command.capture_output();
-
-			let timeout = watch_rate.saturating_sub(start.elapsed());
-
-			if let Ok(_) = reload_rx.try_recv() {
-				continue;
-			}
-
-			event_tx.send(Event::CommandOutput(lines)).ok();
-
-			// sleep until notified
-			if watch_rate == Duration::ZERO {
-				reload_rx.recv().ok();
-			} else {
-				// wake up at latest after watch_rate time
-				reload_rx.recv_timeout(timeout).ok();
-			}
+		// sleep until notified
+		if watch_rate == Duration::ZERO {
+			reload_rx.recv().ok();
+		} else {
+			// wake up at latest after watch_rate time
+			reload_rx.recv_timeout(timeout).ok();
 		}
 	});
 }
