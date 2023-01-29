@@ -4,32 +4,26 @@ mod operations;
 pub use key::Key;
 pub use operations::{Operation, Operations};
 
-use crate::ui::Event;
 use anyhow::{bail, Result};
 use serde::Deserialize;
-use std::{collections::HashMap, sync::mpsc::Sender};
+use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Keybindings(HashMap<Key, Operations>);
 
 impl Keybindings {
-	pub fn add_event_tx(&mut self, event_tx: &Sender<Event>) {
-		for ops in self.0.values_mut() {
-			ops.add_tx(event_tx);
-		}
-	}
-
 	pub fn get_operations(&self, key: &Key) -> Option<&Operations> {
 		self.0.get(key)
 	}
 }
 
-impl TryFrom<RawKeybindings> for Keybindings {
+impl TryFrom<StringKeybindings> for Keybindings {
 	type Error = anyhow::Error;
-	fn try_from(value: RawKeybindings) -> Result<Self, Self::Error> {
+	fn try_from(value: StringKeybindings) -> Result<Self, Self::Error> {
 		let keybindings = value
 			.0
 			.into_iter()
-			.map(|(key, ops)| Ok((key.parse()?, Operations::from_vec(ops)?)))
+			.map(|(key, ops)| Ok((key.parse()?, ops.try_into()?)))
 			.collect::<Result<_>>()?;
 		Ok(Self(keybindings))
 	}
@@ -39,9 +33,9 @@ impl TryFrom<RawKeybindings> for Keybindings {
 pub type ClapKeybindings = Vec<(String, Vec<String>)>;
 
 #[derive(Deserialize)]
-pub struct RawKeybindings(HashMap<String, Vec<String>>);
+pub struct StringKeybindings(HashMap<String, Vec<String>>);
 
-impl RawKeybindings {
+impl StringKeybindings {
 	pub fn merge(new_opt: Option<Self>, old_opt: Option<Self>) -> Option<Self> {
 		match new_opt {
 			Some(new) => match old_opt {
@@ -49,7 +43,7 @@ impl RawKeybindings {
 					// new and old have same key => keep new value
 					let mut merged = old.0;
 					merged.extend(new.0);
-					Some(RawKeybindings(merged))
+					Some(StringKeybindings(merged))
 				}
 				None => Some(new),
 			},
@@ -58,7 +52,7 @@ impl RawKeybindings {
 	}
 }
 
-impl From<ClapKeybindings> for RawKeybindings {
+impl From<ClapKeybindings> for StringKeybindings {
 	fn from(clap: ClapKeybindings) -> Self {
 		Self(clap.into_iter().collect())
 	}

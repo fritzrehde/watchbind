@@ -1,14 +1,14 @@
 mod keybindings;
 mod style;
 
-pub use keybindings::{Key, Operations};
+pub use keybindings::{Key, Keybindings, Operations};
 pub use style::Styles;
 
 use crate::command::Command;
 use anyhow::{bail, Result};
 use clap::Parser;
 use indoc::indoc;
-use keybindings::{ClapKeybindings, Keybindings, RawKeybindings};
+use keybindings::{ClapKeybindings, StringKeybindings};
 use serde::Deserialize;
 use std::{fs::read_to_string, time::Duration};
 
@@ -32,55 +32,6 @@ impl Config {
 	}
 }
 
-#[derive(Parser)]
-#[clap(version, about)]
-pub struct ClapConfig {
-	/// Command to execute periodically
-	#[arg(trailing_var_arg(true))]
-	command: Option<Vec<String>>,
-
-	/// TOML config file path
-	#[arg(short, long, value_name = "FILE")]
-	config_file: Option<String>,
-
-	/// Seconds to wait between updates, 0 only executes once
-	#[arg(short, long, value_name = "SECS")]
-	interval: Option<f64>,
-
-	/// Foreground color of all lines except cursor
-	#[arg(long, value_name = "COLOR")]
-	fg: Option<String>,
-
-	/// Background color of all lines except cursor
-	#[arg(long, value_name = "COLOR")]
-	bg: Option<String>,
-
-	/// Foreground color of cursor
-	#[arg(long = "fg+", value_name = "COLOR")]
-	fg_cursor: Option<String>,
-
-	/// Background color of cursor
-	#[arg(long = "bg+", value_name = "COLOR")]
-	bg_cursor: Option<String>,
-
-	/// Color of selected line marker
-	#[arg(long = "bg-", value_name = "COLOR")]
-	bg_selected: Option<String>,
-
-	/// Text on all lines except cursor are bold
-	#[arg(long, value_name = "BOOL")]
-	bold: Option<bool>,
-
-	/// Text on cursor's line is bold
-	#[arg(long = "bold+", value_name = "BOOL")]
-	bold_cursor: Option<bool>,
-
-	// TODO: replace with RawKeybindings once clap supports parsing into HashMap
-	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
-	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
-	keybindings: Option<ClapKeybindings>,
-}
-
 impl TryFrom<TomlConfig> for Config {
 	type Error = anyhow::Error;
 	fn try_from(opt: TomlConfig) -> Result<Self, Self::Error> {
@@ -100,7 +51,7 @@ impl TryFrom<TomlConfig> for Config {
 				opt.bold.or(default.bold),
 				opt.bold_cursor.or(default.bold_cursor),
 			)?,
-			keybindings: RawKeybindings::merge(opt.keybindings, default.keybindings)
+			keybindings: StringKeybindings::merge(opt.keybindings, default.keybindings)
 				.expect("default")
 				.try_into()?,
 		})
@@ -122,7 +73,7 @@ pub struct TomlConfig {
 	bold: Option<bool>,
 	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
-	keybindings: Option<RawKeybindings>,
+	keybindings: Option<StringKeybindings>,
 }
 
 impl TomlConfig {
@@ -144,7 +95,7 @@ impl TomlConfig {
 			bg_selected: self.bg_selected.or(other.bg_selected),
 			bold: self.bold.or(other.bold),
 			bold_cursor: self.bold_cursor.or(other.bold_cursor),
-			keybindings: RawKeybindings::merge(self.keybindings, other.keybindings),
+			keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
 		}
 	}
 }
@@ -192,4 +143,54 @@ impl Default for TomlConfig {
 		"#};
 		toml::from_str(toml).expect("correct default toml config file")
 	}
+}
+
+#[derive(Parser)]
+#[clap(version, about)]
+pub struct ClapConfig {
+	/// Command to execute periodically
+	#[arg(trailing_var_arg(true))]
+	command: Option<Vec<String>>,
+
+	/// TOML config file path
+	#[arg(short, long, value_name = "FILE")]
+	config_file: Option<String>,
+
+	/// Seconds to wait between updates, 0 only executes once
+	#[arg(short, long, value_name = "SECS")]
+	interval: Option<f64>,
+
+	/// Foreground color of all lines except cursor
+	#[arg(long, value_name = "COLOR")]
+	fg: Option<String>,
+
+	/// Background color of all lines except cursor
+	#[arg(long, value_name = "COLOR")]
+	bg: Option<String>,
+
+	/// Foreground color of cursor
+	#[arg(long = "fg+", value_name = "COLOR")]
+	fg_cursor: Option<String>,
+
+	/// Background color of cursor
+	#[arg(long = "bg+", value_name = "COLOR")]
+	bg_cursor: Option<String>,
+
+	/// Color of selected line marker
+	#[arg(long = "bg-", value_name = "COLOR")]
+	bg_selected: Option<String>,
+
+	/// Text on all lines except cursor are bold
+	#[arg(long, value_name = "BOOL")]
+	bold: Option<bool>,
+
+	/// Text on cursor's line is bold
+	#[arg(long = "bold+", value_name = "BOOL")]
+	bold_cursor: Option<bool>,
+
+	// TODO: replace with StringKeybindings once clap supports parsing into HashMap
+	// TODO: bug: doesn't work at all currently
+	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
+	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
+	keybindings: Option<ClapKeybindings>,
 }

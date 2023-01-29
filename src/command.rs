@@ -1,14 +1,10 @@
-use crate::ui::Event;
 use anyhow::{bail, Result};
 use std::process::{self, Output};
-use std::{sync::mpsc::Sender, thread};
 
 #[derive(Clone)]
 pub struct Command {
 	command: String,
 	is_blocking: bool,
-	// TODO: turn Sender<Event> into own type
-	blocking: Option<Sender<Event>>,
 }
 
 impl Command {
@@ -20,18 +16,11 @@ impl Command {
 		Self {
 			command,
 			is_blocking,
-			blocking: None,
 		}
 	}
 
 	pub fn is_blocking(&self) -> bool {
 		self.is_blocking
-	}
-
-	pub fn add_tx(&mut self, event_tx: &Sender<Event>) {
-		if self.is_blocking {
-			self.blocking = Some(event_tx.clone());
-		}
 	}
 
 	// TODO: merge into execute function
@@ -51,24 +40,11 @@ impl Command {
 
 	pub fn execute(&self, lines: Option<String>) -> Result<()> {
 		let mut cmd = self.shell_cmd(lines);
-		match &self.blocking {
-			None => {
-				cmd.spawn()?;
-			}
-			Some(event_tx) => {
-				let tx = event_tx.clone();
-				thread::spawn(move || {
-					// let mut exec = move || {
-					// 	check_stderr(cmd.output()?)
-					// };
-					// tx.send(Event::Unblock(exec())).unwrap();
-					tx.send(Event::Unblock(
-						cmd.output().map_err(From::from).and_then(check_stderr),
-					))
-					.unwrap();
-				});
-			}
-		};
+		if self.is_blocking {
+			check_stderr(cmd.output()?)?
+		} else {
+			cmd.spawn()?;
+		}
 		Ok(())
 	}
 

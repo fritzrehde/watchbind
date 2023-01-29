@@ -3,7 +3,7 @@
 [![Build status](https://github.com/fritzrehde/watchbind/actions/workflows/ci.yml/badge.svg)](https://github.com/fritzrehde/watchbind/actions)
 [![Version info](https://img.shields.io/crates/v/watchbind)](https://crates.io/crates/watchbind)
 
-*Turn the output of any shell command into a powerful TUI with custom keybindings.*
+*Turn any shell command into a powerful TUI with custom keybindings.*
 
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-dark.png#gh-dark-mode-only)

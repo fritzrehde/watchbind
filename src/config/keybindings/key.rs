@@ -1,16 +1,11 @@
 use anyhow::{bail, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use derive_more::From;
 use std::str::FromStr;
 
 #[cfg_attr(test, derive(Debug))]
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, From, Clone)]
 pub struct Key(KeyEvent);
-
-impl Key {
-	pub fn new(event: KeyEvent) -> Self {
-		Self(event)
-	}
-}
 
 impl FromStr for Key {
 	type Err = anyhow::Error;

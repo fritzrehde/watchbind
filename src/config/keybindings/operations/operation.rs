@@ -1,7 +1,7 @@
 use crate::command::Command;
-use crate::ui::{Event, RequestedAction, State};
+use crate::ui::{RequestedAction, State};
 use anyhow::{Context, Result};
-use std::{str::FromStr, sync::mpsc::Sender};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub enum Operation {
@@ -47,17 +47,11 @@ impl Operation {
 			Self::Execute(command) => {
 				command.execute(state.get_selected_lines())?;
 				if command.is_blocking() {
-					return Ok(RequestedAction::Block);
+					return Ok(RequestedAction::Unblock);
 				}
 			}
 		};
 		Ok(RequestedAction::Continue)
-	}
-
-	pub fn add_tx(&mut self, event_tx: &Sender<Event>) {
-		if let Self::Execute(command) = self {
-			command.add_tx(event_tx);
-		}
 	}
 }
 
