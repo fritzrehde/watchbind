@@ -5,7 +5,7 @@ pub use keybindings::{Key, Keybindings, Operations};
 pub use style::Styles;
 
 use crate::command::Command;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
 use keybindings::{ClapKeybindings, StringKeybindings};
@@ -79,8 +79,11 @@ pub struct TomlConfig {
 impl TomlConfig {
 	fn parse(config_file: &str) -> Result<Self> {
 		// TODO: add to anyhow error that error came from parsing file in here
-		let config =
-			toml::from_str(&read_to_string(config_file)?).with_context("Could not find config file")?;
+		let config = toml::from_str(
+			&read_to_string(config_file)
+				.with_context(|| format!("Failed to read configuration from {}", config_file))?,
+		)
+		.with_context(|| format!("Failed to parse toml from {}", config_file))?;
 		Ok(config)
 	}
 
