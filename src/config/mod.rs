@@ -79,7 +79,8 @@ pub struct TomlConfig {
 impl TomlConfig {
 	fn parse(config_file: &str) -> Result<Self> {
 		// TODO: add to anyhow error that error came from parsing file in here
-		let config = toml::from_str(&read_to_string(config_file)?)?;
+		let config =
+			toml::from_str(&read_to_string(config_file)?).with_context("Could not find config file")?;
 		Ok(config)
 	}
 
