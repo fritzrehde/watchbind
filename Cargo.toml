@@ -7,7 +7,7 @@ license-file = "LICENSE.md"
 description = "A cli menu for periodically watching a program's output and executing commands on its lines through keybindings"
 
 [dependencies]
-clap = { version = "4.1.4", default-features = false, features = ["std", "help", "cargo", "derive"] }
+clap = { version = "4.1.4", default-features = false, features = ["std", "help", "cargo", "derive", "error-context"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.7.0"
 tui = "0.19"
