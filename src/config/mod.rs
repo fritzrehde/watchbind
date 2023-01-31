@@ -41,7 +41,7 @@ impl TryFrom<TomlConfig> for Config {
 				Some(command) => Command::new(command),
 				None => bail!("A command must be provided via command line or config file"),
 			},
-			watch_rate: Duration::from_secs_f64(opt.interval.or(default.interval).expect("default")),
+			watch_rate: Duration::from_secs_f32(opt.interval.or(default.interval).expect("default")),
 			styles: Styles::parse(
 				opt.fg.or(default.fg),
 				opt.bg.or(default.bg),
@@ -61,7 +61,7 @@ impl TryFrom<TomlConfig> for Config {
 #[derive(Deserialize)]
 pub struct TomlConfig {
 	command: Option<String>,
-	interval: Option<f64>,
+	interval: Option<f32>,
 	fg: Option<String>,
 	bg: Option<String>,
 	#[serde(rename = "fg+")]
@@ -162,7 +162,7 @@ pub struct ClapConfig {
 
 	/// Seconds to wait between updates, 0 only executes once
 	#[arg(short, long, value_name = "SECS")]
-	interval: Option<f64>,
+	interval: Option<f32>,
 
 	/// Foreground color of all lines except cursor
 	#[arg(long, value_name = "COLOR")]
