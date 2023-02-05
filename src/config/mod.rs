@@ -17,6 +17,8 @@ pub struct Config {
 	pub watch_rate: Duration,
 	pub styles: Styles,
 	pub keybindings: Keybindings,
+	// TODO: turn into own type
+	pub field_seperator: Option<String>,
 }
 
 impl Config {
@@ -34,26 +36,27 @@ impl Config {
 
 impl TryFrom<TomlConfig> for Config {
 	type Error = anyhow::Error;
-	fn try_from(opt: TomlConfig) -> Result<Self, Self::Error> {
+	fn try_from(toml: TomlConfig) -> Result<Self, Self::Error> {
 		let default = TomlConfig::default();
 		Ok(Self {
-			command: match opt.command {
+			command: match toml.command {
 				Some(command) => Command::new(command),
 				None => bail!("A command must be provided via command line or config file"),
 			},
-			watch_rate: Duration::from_secs_f64(opt.interval.or(default.interval).expect("default")),
+			watch_rate: Duration::from_secs_f64(toml.interval.or(default.interval).expect("default")),
 			styles: Styles::parse(
-				opt.fg.or(default.fg),
-				opt.bg.or(default.bg),
-				opt.fg_cursor.or(default.fg_cursor),
-				opt.bg_cursor.or(default.bg_cursor),
-				opt.bg_selected.or(default.bg_selected),
-				opt.bold.or(default.bold),
-				opt.bold_cursor.or(default.bold_cursor),
+				toml.fg.or(default.fg),
+				toml.bg.or(default.bg),
+				toml.fg_cursor.or(default.fg_cursor),
+				toml.bg_cursor.or(default.bg_cursor),
+				toml.bg_selected.or(default.bg_selected),
+				toml.bold.or(default.bold),
+				toml.bold_cursor.or(default.bold_cursor),
 			)?,
-			keybindings: StringKeybindings::merge(opt.keybindings, default.keybindings)
+			keybindings: StringKeybindings::merge(toml.keybindings, default.keybindings)
 				.expect("default")
 				.try_into()?,
+			field_seperator: toml.field_seperator,
 		})
 	}
 }
@@ -73,6 +76,8 @@ pub struct TomlConfig {
 	bold: Option<bool>,
 	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
+	#[serde(rename = "field-seperator")]
+	field_seperator: Option<String>,
 	keybindings: Option<StringKeybindings>,
 }
 
@@ -99,6 +104,7 @@ impl TomlConfig {
 			bg_selected: self.bg_selected.or(other.bg_selected),
 			bold: self.bold.or(other.bold),
 			bold_cursor: self.bold_cursor.or(other.bold_cursor),
+			field_seperator: self.field_seperator.or(other.field_seperator),
 			keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
 		}
 	}
@@ -116,6 +122,7 @@ impl From<ClapConfig> for TomlConfig {
 			bg_selected: clap.bg_selected,
 			bold: clap.bold,
 			bold_cursor: clap.bold_cursor,
+			field_seperator: clap.field_seperator,
 			keybindings: clap.keybindings.map(|vec| vec.into()),
 		}
 	}
@@ -191,6 +198,10 @@ pub struct ClapConfig {
 	/// Text on cursor's line is bold
 	#[arg(long = "bold+", value_name = "BOOL")]
 	bold_cursor: Option<bool>,
+
+	/// Field seperator
+	#[arg(short = 's', long = "field-seperator", value_name = "STRING")]
+	field_seperator: Option<String>,
 
 	// TODO: replace with StringKeybindings once clap supports parsing into HashMap
 	// TODO: bug: doesn't work at all currently

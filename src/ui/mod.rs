@@ -17,7 +17,7 @@ use terminal_manager::{Terminal, TerminalManager};
 
 pub enum Event {
 	KeyPressed(Key),
-	CommandOutput(Result<Vec<String>>),
+	CommandOutput(Result<String>),
 }
 
 pub enum RequestedAction {
@@ -38,7 +38,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, mut event_rx) = mpsc::channel();
 	let (reload_tx, reload_rx) = mpsc::sync_channel(1);
-	let mut state = State::new(config.styles);
+	let mut state = State::new(config.field_seperator, config.styles);
 
 	poll_execute_command(
 		config.watch_rate,
@@ -52,7 +52,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 		terminal.draw(|frame| state.draw(frame))?;
 
 		match event_rx.recv() {
-			Ok(Event::CommandOutput(lines)) => state.set_lines(lines?),
+			Ok(Event::CommandOutput(lines)) => state.update_lines(lines?)?,
 			Ok(Event::KeyPressed(key)) => {
 				if let Some(ops) = config.keybindings.get_operations(&key) {
 					for op in ops.iter() {
@@ -63,7 +63,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 									loop {
 										// TODO: code duplication
 										if let Ok(Event::CommandOutput(lines)) = event_rx.recv() {
-											state.set_lines(lines?);
+											state.update_lines(lines?)?;
 											clear_buffer(&mut event_rx);
 											break;
 										}

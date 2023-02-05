@@ -34,7 +34,8 @@ impl Command {
 		self.is_blocking
 	}
 
-	pub fn capture_output(&self, reload_rx: &Receiver<()>) -> Result<Vec<String>> {
+	// pub fn capture_output(&self, reload_rx: &Receiver<()>) -> Result<Vec<String>> {
+	pub fn capture_output(&self, reload_rx: &Receiver<()>) -> Result<String> {
 		// let mut cmd = self.shell_cmd(None);
 		// let mut child = cmd.stdout(Stdio::piped());
 
@@ -71,11 +72,7 @@ impl Command {
 				if let Ok(Some(_)) = child.try_wait() {
 					let output = child.wait_with_output()?;
 					check_stderr(&output)?;
-					let lines = String::from_utf8(output.stdout)?
-						.lines()
-						.map(str::to_string)
-						.collect();
-					return Ok(lines);
+					return Ok(String::from_utf8(output.stdout)?);
 				}
 				thread::sleep(Duration::from_millis(50));
 			}
@@ -118,10 +115,21 @@ mod tests {
 
 	#[test]
 	fn test_executing_echo_command() -> Result<()> {
-		let (_tx, rx) = std::sync::mpsc::channel();
+		let (_, rx) = std::sync::mpsc::channel();
 		let echo_cmd = r#"echo "hello world""#.to_owned();
 		let output_lines = Command::new(echo_cmd).capture_output(&rx)?;
-		assert_eq!(output_lines, vec!["hello world".to_owned()]);
+		// assert_eq!(output_lines, vec!["hello world".to_owned()]);
+		assert_eq!(output_lines, "hello world\n");
+		Ok(())
+	}
+
+	#[test]
+	fn test_multiline_output() -> Result<()> {
+		let (_, rx) = std::sync::mpsc::channel();
+		let cmd = r#"printf "one\ntwo\n""#.to_owned();
+		let output_lines = Command::new(cmd).capture_output(&rx)?;
+		// assert_eq!(output_lines, vec!["hello world".to_owned()]);
+		assert_eq!(output_lines, "one\ntwo\n");
 		Ok(())
 	}
 

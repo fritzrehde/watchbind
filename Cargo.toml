@@ -15,4 +15,5 @@ crossterm = "0.26"
 itertools = "0.10.5"
 anyhow = "1.0.68"
 indoc = "1.0.8"
-derive_more = { version = "0.99.17", default-features = false, features = ["deref", "from"] }
+derive_more = { version = "0.99.17", default-features = false, features = ["from", "deref"] }
+tabwriter = "1.2.1"

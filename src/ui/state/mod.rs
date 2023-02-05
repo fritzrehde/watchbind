@@ -1,8 +1,12 @@
+// TODO: hide line in lines
 mod line;
+mod lines;
 
 use crate::config::Styles;
+use anyhow::Result;
 use itertools::izip;
 use line::Line;
+use lines::Lines;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
@@ -12,10 +16,8 @@ use tui::{
 
 const FIRST_INDEX: usize = 0;
 
-// type Line = (String, Style);
-
 pub struct State {
-	lines: Vec<Line>,
+	lines: Lines,
 	selected: Vec<bool>,
 	styles: Styles,
 	cursor: Option<usize>,
@@ -24,9 +26,9 @@ pub struct State {
 }
 
 impl State {
-	pub fn new(styles: Styles) -> Self {
+	pub fn new(field_seperator: Option<String>, styles: Styles) -> Self {
 		Self {
-			lines: vec![],
+			lines: Lines::new(field_seperator, styles.line),
 			selected: vec![],
 			styles,
 			cursor: None,
@@ -35,8 +37,8 @@ impl State {
 	}
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
-		// TODO: do as much as possible in set_lines to improve performance
-		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
+		// TODO: do as much as possible in update_lines to improve performance
+		let rows: Vec<Row> = izip!(self.lines.formatted(), self.selected.iter())
 			.map(|(line, &selected)| {
 				let style = if selected {
 					self.styles.selected
@@ -54,13 +56,11 @@ impl State {
 		frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
 	}
 
-	pub fn set_lines(&mut self, lines: Vec<String>) {
-		self.selected.resize(lines.len(), false);
-		self.lines = lines
-			.into_iter()
-			.map(|line| Line::new(line, self.styles.line))
-			.collect();
+	pub fn update_lines(&mut self, lines: String) -> Result<()> {
+		self.lines.update(lines)?;
+		self.selected.resize(self.lines.len(), false);
 		self.cursor_calibrate();
+		Ok(())
 	}
 
 	fn cursor_position(&mut self) -> Option<usize> {
@@ -91,36 +91,30 @@ impl State {
 
 	fn cursor_adjust_style(&mut self, old: Option<usize>, new: Option<usize>) {
 		if let Some(old_index) = old {
-			if let Some(old_cursor) = self.lines.get_mut(old_index) {
-				old_cursor.set_style(self.styles.line);
-			}
+			self.lines.update_style(old_index, self.styles.line);
 		}
 		if let Some(new_index) = new {
-			if let Some(new_cursor) = self.lines.get_mut(new_index) {
-				new_cursor.set_style(self.styles.cursor);
-			}
+			self.lines.update_style(new_index, self.styles.cursor);
 		}
 	}
 
 	fn get_cursor_line(&mut self) -> Option<String> {
 		if let Some(i) = self.cursor_position() {
-			if let Some(line) = self.lines.get(i) {
-				return Some(line.get());
-			}
+			self.lines.get_unformatted(i)
+		} else {
+			None
 		}
-		None
 	}
 
 	pub fn get_selected_lines(&mut self) -> Option<String> {
-		let lines: String = izip!(self.lines.iter(), self.selected.iter())
-			.filter_map(|(line, &selected)| selected.then(|| line.get()))
-			.collect::<Vec<String>>()
-			.join("\n");
-
-		if lines.is_empty() {
-			self.get_cursor_line()
-		} else {
+		if self.selected.contains(&true) {
+			let lines: String = izip!(self.lines.unformatted(), self.selected.iter())
+				.filter_map(|(line, &selected)| selected.then(|| line.to_owned()))
+				.collect::<Vec<String>>()
+				.join("\n");
 			Some(lines)
+		} else {
+			self.get_cursor_line()
 		}
 	}
 
