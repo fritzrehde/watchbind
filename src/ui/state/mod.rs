@@ -1,16 +1,18 @@
+mod line;
+
 use crate::config::Styles;
 use itertools::izip;
+use line::Line;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
-	style::Style,
-	widgets::{Cell, Row, Table, TableState},
+	widgets::{Row, Table, TableState},
 	Frame,
 };
 
 const FIRST_INDEX: usize = 0;
 
-type Line = (String, Style);
+// type Line = (String, Style);
 
 pub struct State {
 	lines: Vec<Line>,
@@ -33,16 +35,15 @@ impl State {
 	}
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
+		// TODO: do as much as possible in set_lines to improve performance
 		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
-			.map(|((line, style), &selected)| {
-				Row::new(vec![
-					Cell::from(" ").style(if selected {
-						self.styles.selected
-					} else {
-						self.styles.line
-					}),
-					Cell::from(" ".to_owned() + line).style(*style),
-				])
+			.map(|(line, &selected)| {
+				let style = if selected {
+					self.styles.selected
+				} else {
+					self.styles.line
+				};
+				line.draw(style)
 			})
 			.collect();
 
@@ -57,7 +58,7 @@ impl State {
 		self.selected.resize(lines.len(), false);
 		self.lines = lines
 			.into_iter()
-			.map(|line| (line, self.styles.line))
+			.map(|line| Line::new(line, self.styles.line))
 			.collect();
 		self.cursor_calibrate();
 	}
@@ -91,20 +92,20 @@ impl State {
 	fn cursor_adjust_style(&mut self, old: Option<usize>, new: Option<usize>) {
 		if let Some(old_index) = old {
 			if let Some(old_cursor) = self.lines.get_mut(old_index) {
-				old_cursor.1 = self.styles.line;
+				old_cursor.set_style(self.styles.line);
 			}
 		}
 		if let Some(new_index) = new {
 			if let Some(new_cursor) = self.lines.get_mut(new_index) {
-				new_cursor.1 = self.styles.cursor;
+				new_cursor.set_style(self.styles.cursor);
 			}
 		}
 	}
 
 	fn get_cursor_line(&mut self) -> Option<String> {
 		if let Some(i) = self.cursor_position() {
-			if let Some((line, _)) = self.lines.get(i) {
-				return Some(line.clone());
+			if let Some(line) = self.lines.get(i) {
+				return Some(line.get());
 			}
 		}
 		None
@@ -112,15 +113,7 @@ impl State {
 
 	pub fn get_selected_lines(&mut self) -> Option<String> {
 		let lines: String = izip!(self.lines.iter(), self.selected.iter())
-			.filter_map(
-				|((line, _), &selected)| {
-					if selected {
-						Some(line.clone())
-					} else {
-						None
-					}
-				},
-			)
+			.filter_map(|(line, &selected)| selected.then(|| line.get()))
 			.collect::<Vec<String>>()
 			.join("\n");
 
