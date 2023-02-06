@@ -204,8 +204,8 @@ pub struct ClapConfig {
 	field_seperator: Option<String>,
 
 	// TODO: replace with StringKeybindings once clap supports parsing into HashMap
-	// TODO: bug: doesn't work at all currently
+	// TODO: known clap bug: replace with ClapKeybindings once supported
 	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
-	keybindings: Option<ClapKeybindings>,
+	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
