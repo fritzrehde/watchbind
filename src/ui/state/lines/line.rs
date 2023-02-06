@@ -11,10 +11,10 @@ pub struct Line {
 }
 
 impl Line {
-	pub fn new(unformatted: String, style: Style) -> Self {
+	pub fn new(unformatted: String, formatted: Option<String>, style: Style) -> Self {
 		Self {
 			unformatted,
-			formatted: None,
+			formatted,
 			style,
 		}
 	}
@@ -32,11 +32,7 @@ impl Line {
 		])
 	}
 
-	pub fn format(&mut self, formatted: String) {
-		self.formatted = Some(formatted);
-	}
-
-	pub fn set_style(&mut self, style: Style) {
+	pub fn update_style(&mut self, style: Style) {
 		self.style = style;
 	}
 

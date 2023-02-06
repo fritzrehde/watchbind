@@ -1,11 +1,8 @@
-// TODO: hide line in lines
-mod line;
 mod lines;
 
 use crate::config::Styles;
 use anyhow::Result;
 use itertools::izip;
-use line::Line;
 use lines::Lines;
 use tui::{
 	backend::Backend,

@@ -1,7 +1,8 @@
 # Watchbind
 
 [![Build status](https://github.com/fritzrehde/watchbind/actions/workflows/ci.yml/badge.svg)](https://github.com/fritzrehde/watchbind/actions)
-[![Version info](https://img.shields.io/crates/v/watchbind)](https://crates.io/crates/watchbind)
+[![Releases](https://img.shields.io/github/v/release/fritzrehde/watchbind?logo=GitHub)](https://github.com/fritzrehde/watchbind/releases)
+[![Crates.io](https://img.shields.io/crates/v/watchbind?logo=Rust)](https://crates.io/crates/watchbind)
 
 *Turn any shell command into a powerful TUI with custom keybindings.*
 
@@ -18,30 +19,20 @@
 ## Features
 
 - **Customizable**: all keybindings and styles (colors and boldness) are customizable
-- **Flexible**: specify settings using cli options, a toml config file or both
+- **Flexible**: specify settings using cli options, a toml config file, or both
 - **Speed**: written completely in rust with speed in mind
 
 ## Installation
+
+### From binaries
+
+The [releases page](https://github.com/fritzrehde/watchbind/releases) contains pre-compiled binaries for Linux, macOS and Windows.
 
 ### From [crates.io](https://crates.io/crates/watchbind)
 
 ```shell
 cargo install watchbind
 ```
-
-### Build from source
-
-```shell
-git clone https://github.com/fritzrehde/watchbind.git
-cd watchbind
-cargo build
-```
-
-You can also run `cargo run -- -c examples/test-config.toml` to see a simple demo of `watchbind`.
-
-### AUR
-
-To be added.
 
 ## Customizations
 
