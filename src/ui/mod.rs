@@ -38,7 +38,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	// TODO: channels: remove unwraps
 	let (event_tx, mut event_rx) = mpsc::channel();
 	let (reload_tx, reload_rx) = mpsc::sync_channel(1);
-	let mut state = State::new(config.field_seperator, config.styles);
+	let mut state = State::new(config.field_separator, config.styles);
 
 	poll_execute_command(
 		config.watch_rate,

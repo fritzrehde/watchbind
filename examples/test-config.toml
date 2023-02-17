@@ -7,7 +7,7 @@
 "bold" = false
 "bold+" = true
 "bg-" = "red"
-field-seperator = ","
+field-separator = ","
 
 [keybindings]
 "q" = [ "exit" ]

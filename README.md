@@ -50,9 +50,9 @@ Personally, I recommend using the cli options for small one liners and a toml co
 
 On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` is a list of operations `OP` that are bound to `KEY`.
 One `KEY` can be bound to multiple operations, therefore, the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
-The operations are seperated by `+` and executed in succession (one after the other).
+The operations are separated by `+` and executed in succession (one after the other).
 
-**TLDR**: operations are seperated by `+`, keybindings are seperated by `,`
+**TLDR**: operations are separated by `+`, keybindings are separated by `,`
 
 #### Via toml config file
 
@@ -132,7 +132,7 @@ up | Go up one line (i.e. move cursor to the previous line)
 up \<STEPS\> | Go up STEPS number of lines
 first | Go to the first line
 last | Go to the last line
-select | Select line that cursor is currenly on (i.e. add line that cursor is currently on to selected lines)
+select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
 unselect | Unselect line that cursor is currently on
 select-toggle | Toggle selection of line that cursor is currently on
 select-all | Select all lines
@@ -141,7 +141,7 @@ unselect-all | Unselect all currently selected lines
 \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
 
 The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
-If multiple lines are selected, they will be seperated by a newline in `LINES`.
+If multiple lines are selected, they will be separated by a newline in `LINES`.
 
 ### Style
 
