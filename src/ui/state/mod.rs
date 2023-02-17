@@ -23,9 +23,9 @@ pub struct State {
 }
 
 impl State {
-	pub fn new(field_seperator: Option<String>, styles: Styles) -> Self {
+	pub fn new(field_separator: Option<String>, styles: Styles) -> Self {
 		Self {
-			lines: Lines::new(field_seperator, styles.line),
+			lines: Lines::new(field_separator, styles.line),
 			selected: vec![],
 			styles,
 			cursor: None,

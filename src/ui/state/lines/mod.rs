@@ -13,25 +13,25 @@ use tui::style::Style;
 pub struct Lines {
 	#[deref]
 	lines: Vec<Line>,
-	field_seperator: Option<String>,
+	field_separator: Option<String>,
 	style: Style,
 }
 
 impl Lines {
-	pub fn new(field_seperator: Option<String>, style: Style) -> Self {
+	pub fn new(field_separator: Option<String>, style: Style) -> Self {
 		Self {
 			lines: vec![],
-			field_seperator,
+			field_separator,
 			style,
 		}
 	}
 
 	pub fn update(&mut self, lines: String) -> Result<()> {
-		let formatted: Vec<Option<String>> = match &self.field_seperator {
-			Some(seperator) => {
+		let formatted: Vec<Option<String>> = match &self.field_separator {
+			Some(separator) => {
 				// TODO: cleaner syntax
 				let mut tw = TabWriter::new(vec![]);
-				write!(&mut tw, "{}", lines.replace(seperator, "\t"))?;
+				write!(&mut tw, "{}", lines.replace(separator, "\t"))?;
 				tw.flush()?;
 
 				String::from_utf8(tw.into_inner()?)?

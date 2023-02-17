@@ -18,7 +18,7 @@ pub struct Config {
 	pub styles: Styles,
 	pub keybindings: Keybindings,
 	// TODO: turn into own type
-	pub field_seperator: Option<String>,
+	pub field_separator: Option<String>,
 }
 
 impl Config {
@@ -56,7 +56,7 @@ impl TryFrom<TomlConfig> for Config {
 			keybindings: StringKeybindings::merge(toml.keybindings, default.keybindings)
 				.expect("default")
 				.try_into()?,
-			field_seperator: toml.field_seperator,
+			field_separator: toml.field_separator,
 		})
 	}
 }
@@ -76,8 +76,8 @@ pub struct TomlConfig {
 	bold: Option<bool>,
 	#[serde(rename = "bold+")]
 	bold_cursor: Option<bool>,
-	#[serde(rename = "field-seperator")]
-	field_seperator: Option<String>,
+	#[serde(rename = "field-separator")]
+	field_separator: Option<String>,
 	keybindings: Option<StringKeybindings>,
 }
 
@@ -104,7 +104,7 @@ impl TomlConfig {
 			bg_selected: self.bg_selected.or(other.bg_selected),
 			bold: self.bold.or(other.bold),
 			bold_cursor: self.bold_cursor.or(other.bold_cursor),
-			field_seperator: self.field_seperator.or(other.field_seperator),
+			field_separator: self.field_separator.or(other.field_separator),
 			keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
 		}
 	}
@@ -122,7 +122,7 @@ impl From<ClapConfig> for TomlConfig {
 			bg_selected: clap.bg_selected,
 			bold: clap.bold,
 			bold_cursor: clap.bold_cursor,
-			field_seperator: clap.field_seperator,
+			field_separator: clap.field_separator,
 			keybindings: clap.keybindings.map(|vec| vec.into()),
 		}
 	}
@@ -199,13 +199,13 @@ pub struct ClapConfig {
 	#[arg(long = "bold+", value_name = "BOOL")]
 	bold_cursor: Option<bool>,
 
-	/// Field seperator
-	#[arg(short = 's', long = "field-seperator", value_name = "STRING")]
-	field_seperator: Option<String>,
+	/// Field separator
+	#[arg(short = 's', long = "field-separator", value_name = "STRING")]
+	field_separator: Option<String>,
 
 	// TODO: replace with StringKeybindings once clap supports parsing into HashMap
 	// TODO: known clap bug: replace with ClapKeybindings once supported
-	/// Comma-seperated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
+	/// Comma-separated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
 	#[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
 	keybindings: Option<Vec<(String, Vec<String>)>>,
 }
