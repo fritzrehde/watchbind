@@ -8,7 +8,7 @@ use crate::command::Command;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
-use keybindings::{ClapKeybindings, StringKeybindings};
+use keybindings::StringKeybindings;
 use serde::Deserialize;
 use std::{fs::read_to_string, time::Duration};
 

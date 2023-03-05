@@ -51,11 +51,12 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
 	loop {
 		terminal.draw(|frame| state.draw(frame))?;
 
+		// TODO: remove deep match statements
 		match event_rx.recv() {
 			Ok(Event::CommandOutput(lines)) => state.update_lines(lines?)?,
 			Ok(Event::KeyPressed(key)) => {
 				if let Some(ops) = config.keybindings.get_operations(&key) {
-					for op in ops.iter() {
+					for op in ops {
 						match op.execute(&mut state)? {
 							RequestedAction::Exit => return Ok(()),
 							RequestedAction::Reload => {

@@ -3,15 +3,16 @@ mod line;
 pub use line::Line;
 
 use anyhow::Result;
-use derive_more::Deref;
+// use derive_more::Deref;
+use derive_more::IntoIterator;
 use itertools::izip;
 use std::io::Write;
 use tabwriter::TabWriter;
 use tui::style::Style;
 
-#[derive(Deref)]
+#[derive(IntoIterator)]
 pub struct Lines {
-	#[deref]
+	#[into_iterator(ref)]
 	lines: Vec<Line>,
 	field_separator: Option<String>,
 	style: Style,
@@ -61,5 +62,13 @@ impl Lines {
 
 	pub fn get_unformatted(&self, index: usize) -> Option<String> {
 		self.lines.get(index).map(|line| line.unformatted().clone())
+	}
+
+	pub fn len(&self) -> usize {
+		self.lines.len()
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.lines.is_empty()
 	}
 }

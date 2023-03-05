@@ -3,10 +3,10 @@ mod operation;
 pub use operation::Operation;
 
 use anyhow::Result;
-use derive_more::Deref;
+use derive_more::IntoIterator;
 
-#[derive(Clone, Deref)]
-pub struct Operations(Vec<Operation>);
+#[derive(Clone, IntoIterator)]
+pub struct Operations(#[into_iterator(ref)] Vec<Operation>);
 
 impl TryFrom<Vec<String>> for Operations {
 	type Error = anyhow::Error;

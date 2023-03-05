@@ -1,7 +1,5 @@
-# "command" = "ls -la"
-# "interval" = 3.0
-"command" = "footy -s -c PL -r"
-"interval" = 10.0
+"command" = "ls -la"
+"interval" = 3.0
 "fg+" = "black"
 "bg+" = "blue"
 "bold" = false

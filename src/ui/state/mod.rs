@@ -35,7 +35,8 @@ impl State {
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
 		// TODO: do as much as possible in update_lines to improve performance
-		let rows: Vec<Row> = izip!(self.lines.iter(), self.selected.iter())
+		// TODO: replace with self.lines.iter() again
+		let rows: Vec<Row> = izip!(&self.lines, self.selected.iter())
 			.map(|(line, &selected)| {
 				let style = if selected {
 					self.styles.selected
