@@ -6,6 +6,7 @@
 "bold+" = true
 "bg-" = "red"
 field-separator = ","
+header-lines = 1
 
 [keybindings]
 "q" = [ "exit" ]

@@ -17,6 +17,7 @@ pub struct Config {
 	pub watch_rate: Duration,
 	pub styles: Styles,
 	pub keybindings: Keybindings,
+	pub header_lines: usize,
 	// TODO: turn into own type
 	pub field_separator: Option<String>,
 }
@@ -47,15 +48,19 @@ impl TryFrom<TomlConfig> for Config {
 			styles: Styles::parse(
 				toml.fg.or(default.fg),
 				toml.bg.or(default.bg),
-				toml.fg_cursor.or(default.fg_cursor),
-				toml.bg_cursor.or(default.bg_cursor),
-				toml.bg_selected.or(default.bg_selected),
 				toml.bold.or(default.bold),
-				toml.bold_cursor.or(default.bold_cursor),
+				toml.cursor_fg.or(default.cursor_fg),
+				toml.cursor_bg.or(default.cursor_bg),
+				toml.cursor_bold.or(default.cursor_bold),
+				toml.header_fg.or(default.header_fg),
+				toml.header_bg.or(default.header_bg),
+				toml.header_bold.or(default.header_bold),
+				toml.selected_bg.or(default.selected_bg),
 			)?,
 			keybindings: StringKeybindings::merge(toml.keybindings, default.keybindings)
 				.expect("default")
 				.try_into()?,
+			header_lines: toml.header_lines.unwrap_or(0),
 			field_separator: toml.field_separator,
 		})
 	}
@@ -67,28 +72,45 @@ pub struct TomlConfig {
 	interval: Option<f64>,
 	fg: Option<String>,
 	bg: Option<String>,
-	#[serde(rename = "fg+")]
-	fg_cursor: Option<String>,
-	#[serde(rename = "bg+")]
-	bg_cursor: Option<String>,
-	#[serde(rename = "bg-")]
-	bg_selected: Option<String>,
 	bold: Option<bool>,
-	#[serde(rename = "bold+")]
-	bold_cursor: Option<bool>,
-	#[serde(rename = "field-separator")]
+
+	#[serde(rename = "cursor-fg")]
+	cursor_fg: Option<String>,
+
+	#[serde(rename = "cursor-bg")]
+	cursor_bg: Option<String>,
+
+	#[serde(rename = "cursor-bold")]
+	cursor_bold: Option<bool>,
+
+	#[serde(rename = "header-fg")]
+	header_fg: Option<String>,
+
+	#[serde(rename = "header-bg")]
+	header_bg: Option<String>,
+
+	#[serde(rename = "header-bold")]
+	header_bold: Option<bool>,
+
+	#[serde(rename = "selected-bg")]
+	selected_bg: Option<String>,
+
+	#[serde(rename = "header-lines")]
+	header_lines: Option<usize>,
+
+	#[serde(rename = "field-seperator")]
 	field_separator: Option<String>,
+
 	keybindings: Option<StringKeybindings>,
 }
 
 impl TomlConfig {
 	fn parse(config_file: &str) -> Result<Self> {
-		// TODO: add to anyhow error that error came from parsing file in here
 		let config = toml::from_str(
 			&read_to_string(config_file)
-				.with_context(|| format!("Failed to read configuration from {}", config_file))?,
+				.with_context(|| format!("Failed to read configuration from {config_file}"))?,
 		)
-		.with_context(|| format!("Failed to parse toml from {}", config_file))?;
+		.with_context(|| format!("Failed to parse toml from {config_file}"))?;
 		Ok(config)
 	}
 
@@ -99,11 +121,15 @@ impl TomlConfig {
 			interval: self.interval.or(other.interval),
 			fg: self.fg.or(other.fg),
 			bg: self.bg.or(other.bg),
-			fg_cursor: self.fg_cursor.or(other.fg_cursor),
-			bg_cursor: self.bg_cursor.or(other.bg_cursor),
-			bg_selected: self.bg_selected.or(other.bg_selected),
 			bold: self.bold.or(other.bold),
-			bold_cursor: self.bold_cursor.or(other.bold_cursor),
+			cursor_fg: self.cursor_fg.or(other.cursor_fg),
+			cursor_bg: self.cursor_bg.or(other.cursor_bg),
+			cursor_bold: self.cursor_bold.or(other.cursor_bold),
+			header_fg: self.header_fg.or(other.header_fg),
+			header_bg: self.header_bg.or(other.header_bg),
+			header_bold: self.header_bold.or(other.header_bold),
+			selected_bg: self.selected_bg.or(other.selected_bg),
+			header_lines: self.header_lines.or(other.header_lines),
 			field_separator: self.field_separator.or(other.field_separator),
 			keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
 		}
@@ -117,11 +143,15 @@ impl From<ClapConfig> for TomlConfig {
 			interval: clap.interval,
 			fg: clap.fg,
 			bg: clap.bg,
-			fg_cursor: clap.fg_cursor,
-			bg_cursor: clap.bg_cursor,
-			bg_selected: clap.bg_selected,
 			bold: clap.bold,
-			bold_cursor: clap.bold_cursor,
+			cursor_fg: clap.cursor_fg,
+			cursor_bg: clap.cursor_bg,
+			cursor_bold: clap.cursor_bold,
+			header_fg: clap.header_fg,
+			header_bg: clap.header_bg,
+			header_bold: clap.header_bold,
+			selected_bg: clap.selected_bg,
+			header_lines: clap.header_lines,
 			field_separator: clap.field_separator,
 			keybindings: clap.keybindings.map(|vec| vec.into()),
 		}
@@ -132,11 +162,12 @@ impl Default for TomlConfig {
 	fn default() -> Self {
 		let toml = indoc! {r#"
 			"interval" = 5.0
-			"fg+" = "black"
-			"bg+" = "blue"
-			"bg-" = "magenta"
 			"bold" = false
-			"bold+" = true
+			"cursor-fg" = "black"
+			"cursor-bg" = "blue"
+			"cursor-bold" = true
+			"header-fg" = "blue"
+			"selected-bg" = "magenta"
 
 			[keybindings]
 			"ctrl+c" = [ "exit" ]
@@ -152,7 +183,7 @@ impl Default for TomlConfig {
 			"g" = [ "first" ]
 			"G" = [ "last" ]
 		"#};
-		toml::from_str(toml).expect("correct default toml config file")
+		toml::from_str(toml).expect("default toml config file should be correct")
 	}
 }
 
@@ -179,29 +210,49 @@ pub struct ClapConfig {
 	#[arg(long, value_name = "COLOR")]
 	bg: Option<String>,
 
-	/// Foreground color of cursor
-	#[arg(long = "fg+", value_name = "COLOR")]
-	fg_cursor: Option<String>,
-
-	/// Background color of cursor
-	#[arg(long = "bg+", value_name = "COLOR")]
-	bg_cursor: Option<String>,
-
-	/// Color of selected line marker
-	#[arg(long = "bg-", value_name = "COLOR")]
-	bg_selected: Option<String>,
-
-	/// Text on all lines except cursor are bold
+	/// Text on all lines except the cursor's line are bold
 	#[arg(long, value_name = "BOOL")]
 	bold: Option<bool>,
 
+	/// Foreground color of cursor
+	#[arg(long = "cursor-fg", value_name = "COLOR")]
+	cursor_fg: Option<String>,
+
+	/// Background color of cursor
+	#[arg(long = "cursor-bg", value_name = "COLOR")]
+	cursor_bg: Option<String>,
+
 	/// Text on cursor's line is bold
-	#[arg(long = "bold+", value_name = "BOOL")]
-	bold_cursor: Option<bool>,
+	#[arg(long = "cursor-bold", value_name = "BOOL")]
+	cursor_bold: Option<bool>,
+
+	/// Foreground color of header lines
+	#[arg(long = "header-fg", value_name = "COLOR")]
+	header_fg: Option<String>,
+
+	/// Background color of header lines
+	#[arg(long = "header-bg", value_name = "COLOR")]
+	header_bg: Option<String>,
+
+	/// Text on header line is bold
+	#[arg(long = "header-bold", value_name = "BOOL")]
+	header_bold: Option<bool>,
+
+	/// Background color of selected line marker
+	#[arg(long = "selected-bg", value_name = "COLOR")]
+	selected_bg: Option<String>,
+
+	/// The first N lines of the input are treated as a sticky header
+	#[arg(long = "header-lines", value_name = "N")]
+	header_lines: Option<usize>,
 
 	/// Field separator
 	#[arg(short = 's', long = "field-separator", value_name = "STRING")]
 	field_separator: Option<String>,
+
+	// /// Print only these specified fields to the UI
+	// #[arg(short = 'f', long = "fields", value_name = "STRING")]
+	// fields: Option<String>,
 
 	// TODO: replace with StringKeybindings once clap supports parsing into HashMap
 	// TODO: known clap bug: replace with ClapKeybindings once supported

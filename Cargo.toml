@@ -10,9 +10,9 @@ repository = "https://github.com/fritzrehde/watchbind"
 description = "A cli menu for periodically watching a program's output and executing commands on its lines through keybindings"
 
 [dependencies]
-clap = { version = "4.1.4", default-features = false, features = ["std", "help", "cargo", "derive", "error-context"] }
+clap = { version = "4.1.8", default-features = false, features = ["std", "help", "cargo", "derive", "error-context"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-toml = { version = "0.7.1", default-features = false, features = ["parse"] }
+toml = { version = "0.7.2", default-features = false, features = ["parse"] }
 tui = "0.19"
 crossterm = { version = "0.26", default-features = false }
 itertools = "0.10.5"

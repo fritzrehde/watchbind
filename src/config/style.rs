@@ -1,21 +1,27 @@
 use anyhow::{bail, Result};
 use tui::style::{Color, Modifier, Style};
 
+#[derive(Clone)]
 pub struct Styles {
 	pub line: Style,
 	pub cursor: Style,
+	pub header: Style,
 	pub selected: Style,
 }
 
 impl Styles {
+	// TODO: clippy says too many arguments (and I agree)
 	pub fn parse(
 		fg: Option<String>,
 		bg: Option<String>,
-		fg_cursor: Option<String>,
-		bg_cursor: Option<String>,
-		bg_selected: Option<String>,
 		bold: Option<bool>,
-		bold_cursor: Option<bool>,
+		cursor_fg: Option<String>,
+		cursor_bg: Option<String>,
+		cursor_bold: Option<bool>,
+		header_fg: Option<String>,
+		header_bg: Option<String>,
+		header_bold: Option<bool>,
+		selected_bg: Option<String>,
 	) -> Result<Self> {
 		let new_style = |fg, bg, bold| -> Result<Style> {
 			Ok(
@@ -27,8 +33,9 @@ impl Styles {
 		};
 		Ok(Self {
 			line: new_style(fg, bg, bold)?,
-			cursor: new_style(fg_cursor, bg_cursor, bold_cursor)?,
-			selected: new_style(None, bg_selected, None)?,
+			cursor: new_style(cursor_fg, cursor_bg, cursor_bold)?,
+			header: new_style(header_fg, header_bg, header_bold)?,
+			selected: new_style(None, selected_bg, None)?,
 		})
 	}
 }

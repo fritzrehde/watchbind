@@ -2,8 +2,8 @@ mod line;
 
 pub use line::Line;
 
+use crate::config::Styles;
 use anyhow::Result;
-// use derive_more::Deref;
 use derive_more::IntoIterator;
 use itertools::izip;
 use std::io::Write;
@@ -15,15 +15,17 @@ pub struct Lines {
 	#[into_iterator(ref)]
 	lines: Vec<Line>,
 	field_separator: Option<String>,
-	style: Style,
+	styles: Styles,
+	header_lines: usize,
 }
 
 impl Lines {
-	pub fn new(field_separator: Option<String>, style: Style) -> Self {
+	pub fn new(field_separator: Option<String>, styles: Styles, header_lines: usize) -> Self {
 		Self {
 			lines: vec![],
 			field_separator,
-			style,
+			styles,
+			header_lines,
 		}
 	}
 
@@ -44,7 +46,16 @@ impl Lines {
 		};
 
 		self.lines = izip!(lines.lines(), formatted)
-			.map(|(unformatted, formatted)| Line::new(unformatted.to_owned(), formatted, self.style))
+			.enumerate()
+			.map(|(i, (unformatted, formatted))| {
+				let style = if i < self.header_lines {
+					self.styles.header
+				} else {
+					self.styles.line
+				};
+
+				Line::new(unformatted.to_owned(), formatted, style)
+			})
 			.collect();
 
 		Ok(())

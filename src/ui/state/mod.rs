@@ -4,46 +4,48 @@ use crate::config::Styles;
 use anyhow::Result;
 use itertools::izip;
 use lines::Lines;
+use std::cmp::max;
 use tui::{
 	backend::Backend,
 	layout::Constraint,
-	widgets::{Row, Table, TableState},
+	widgets::{Cell, Row, Table, TableState},
 	Frame,
 };
-
-const FIRST_INDEX: usize = 0;
 
 pub struct State {
 	lines: Lines,
 	selected: Vec<bool>,
 	styles: Styles,
 	cursor: Option<usize>,
+	first_index: usize,
 	// TODO: deprecate in future
 	table_state: TableState,
 }
 
 impl State {
-	pub fn new(field_separator: Option<String>, styles: Styles) -> Self {
+	pub fn new(header_lines: usize, field_separator: Option<String>, styles: Styles) -> Self {
 		Self {
-			lines: Lines::new(field_separator, styles.line),
+			lines: Lines::new(field_separator, styles.clone(), header_lines),
 			selected: vec![],
 			styles,
 			cursor: None,
+			first_index: header_lines,
 			table_state: TableState::default(),
 		}
 	}
 
 	pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
 		// TODO: do as much as possible in update_lines to improve performance
-		// TODO: replace with self.lines.iter() again
-		let rows: Vec<Row> = izip!(&self.lines, self.selected.iter())
+		let rows: Vec<Row> = izip!(&self.lines, &self.selected)
 			.map(|(line, &selected)| {
-				let style = if selected {
+				// TODO: consider replacing Vec<bool> with Vec<Style> directly
+				let selected_style = if selected {
 					self.styles.selected
 				} else {
 					self.styles.line
 				};
-				line.draw(style)
+
+				Row::new(vec![Cell::from(" ").style(selected_style), line.draw()])
 			})
 			.collect();
 
@@ -54,8 +56,8 @@ impl State {
 		frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
 	}
 
-	pub fn update_lines(&mut self, lines: String) -> Result<()> {
-		self.lines.update(lines)?;
+	pub fn update_lines(&mut self, new_lines: String) -> Result<()> {
+		self.lines.update(new_lines)?;
 		self.selected.resize(self.lines.len(), false);
 		self.cursor_calibrate();
 		Ok(())
@@ -70,7 +72,7 @@ impl State {
 		let new = if self.lines.is_empty() {
 			None
 		} else {
-			let first = FIRST_INDEX as isize;
+			let first = self.first_index as isize;
 			let last = self.last_index() as isize;
 			Some(index.clamp(first, last) as usize)
 		};
@@ -129,7 +131,7 @@ impl State {
 	}
 
 	pub fn first(&mut self) {
-		self.cursor_move(FIRST_INDEX as isize);
+		self.cursor_move(self.first_index as isize);
 	}
 
 	pub fn last(&mut self) {
@@ -164,9 +166,9 @@ impl State {
 
 	fn last_index(&self) -> usize {
 		if self.lines.is_empty() {
-			0
+			self.first_index
 		} else {
-			self.lines.len() - 1
+			max(self.first_index, self.lines.len() - 1)
 		}
 	}
 }
