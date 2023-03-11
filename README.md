@@ -148,7 +148,7 @@ If multiple lines are selected, they will be separated by a newline in `LINES`.
 Foreground colors, background colors and boldness of the line the cursor is on, the header lines and all other lines can be customized.
 
 To see all available fields you can customize, run `watchbind -h`.
-The names of the customization fields from the command-line options (e.g. `--cursor-fg blue`) are the same in the toml config file (e.g. `"cursor-fg" = "blue"`).
+The names of the customization fields from the command-line options (e.g. `--cursor-fg blue`) are the same in the toml config file (e.g. `cursor-fg = "blue"`).
 
 All supported `COLOR` values:
 ```
