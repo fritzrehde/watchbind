@@ -17,7 +17,7 @@ tui = "0.19"
 crossterm = { version = "0.26", default-features = false }
 itertools = "0.10.5"
 anyhow = "1.0.69"
-indoc = "2.0.0"
+indoc = "2.0.1"
 derive_more = { version = "0.99.17", default-features = false, features = ["from", "into_iterator"] }
 tabwriter = "1.2.1"
 
