@@ -140,19 +140,25 @@ impl State {
 
 	pub fn select(&mut self) {
 		if let Some(i) = self.cursor_position() {
-			self.selected[i] = true;
+			if let Some(selected) = self.selected.get_mut(i) {
+				*selected = true;
+			}
 		}
 	}
 
 	pub fn unselect(&mut self) {
 		if let Some(i) = self.cursor_position() {
-			self.selected[i] = false;
+			if let Some(selected) = self.selected.get_mut(i) {
+				*selected = false;
+			}
 		}
 	}
 
 	pub fn select_toggle(&mut self) {
 		if let Some(i) = self.cursor_position() {
-			self.selected[i] = !self.selected[i];
+			if let Some(selected) = self.selected.get_mut(i) {
+				*selected = !(*selected);
+			}
 		}
 	}
 
