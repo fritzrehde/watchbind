@@ -20,6 +20,6 @@ header-lines = 1
   "up"
 ]
 "k" = [ "up" ]
-"l" = [ "dunstify \"Printing $LINES\"", "reload", "unselect-all"]
+"l" = [ "dunstify \"Printing $LINES\"", "reload", "unselect-all" ]
 "s" = [ "sleep 3" ]
 "S" = [ "sleep 3 &" ]
