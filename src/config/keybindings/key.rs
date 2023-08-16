@@ -1,117 +1,202 @@
-use anyhow::{bail, Result};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use anyhow::{bail, Error, Result};
+use crossterm::event::{KeyCode as CKeyCode, KeyEvent as CKeyEvent, KeyModifiers as CKeyModifiers};
 use derive_more::From;
-use std::str::FromStr;
+use parse_display::{Display, FromStr};
+use std::{fmt, str};
 
-#[cfg_attr(test, derive(Debug))]
-#[derive(Hash, Eq, PartialEq, From, Clone)]
-pub struct Key(KeyEvent);
+/// The specific combinations of modifiers and key codes that we allow/handle.
+#[derive(Hash, Eq, PartialEq, From, Clone, Debug)]
+pub struct KeyEvent {
+    modifier: KeyModifier,
+    code: KeyCode,
+}
 
-impl FromStr for Key {
-    type Err = anyhow::Error;
+#[derive(Hash, Eq, PartialEq, From, Clone, Debug, Display, FromStr)]
+#[display(style = "lowercase")]
+enum KeyModifier {
+    Alt,
+    Ctrl,
+    #[from_str(ignore)]
+    None,
+}
+
+#[derive(Hash, Eq, PartialEq, From, Clone, Debug, Display, FromStr)]
+#[display(style = "lowercase")]
+enum KeyCode {
+    Esc,
+    Enter,
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    BackTab,
+    Backspace,
+    Delete,
+    Insert,
+    Tab,
+    Space,
+
+    #[display("{0}")]
+    Char(char),
+
+    // Parse only values 1 to 12
+    #[from_str(regex = "f(?<0>[1-9]|1[0-2])")]
+    #[display("f{0}")]
+    F(u8),
+}
+
+impl str::FromStr for KeyEvent {
+    type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let event = match s.split_once('+') {
-            Some((s1, s2)) => {
-                let mut event = parse_code(s2)?;
-                event.modifiers.insert(parse_modifier(s1)?);
-                event
-            }
-            None => parse_code(s)?,
+        let (code, modifier) = match s.split_once('+') {
+            Some((modifier, code)) => (code.parse()?, modifier.parse()?),
+            None => (s.parse()?, KeyModifier::None),
         };
-        Ok(Key(event))
+        Ok(Self { modifier, code })
     }
 }
 
-fn parse_modifier(s: &str) -> Result<KeyModifiers> {
-    Ok(match s {
-        "alt" => KeyModifiers::ALT,
-        "ctrl" => KeyModifiers::CONTROL,
-        invalid => bail!("Invalid key modifier provided in keybinding: {}", invalid),
-    })
+impl fmt::Display for KeyEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.modifier == KeyModifier::None {
+            write!(f, "{}", self.code)?;
+        } else {
+            write!(f, "{}+{}", self.modifier, self.code)?;
+        }
+        Ok(())
+    }
 }
 
-fn parse_code(s: &str) -> Result<KeyEvent> {
-    let code = match s {
-        "esc" => KeyCode::Esc,
-        "enter" => KeyCode::Enter,
-        "left" => KeyCode::Left,
-        "right" => KeyCode::Right,
-        "up" => KeyCode::Up,
-        "down" => KeyCode::Down,
-        "home" => KeyCode::Home,
-        "end" => KeyCode::End,
-        "pageup" => KeyCode::PageUp,
-        "pagedown" => KeyCode::PageDown,
-        "backtab" => KeyCode::BackTab,
-        "backspace" => KeyCode::Backspace,
-        "del" => KeyCode::Delete,
-        "delete" => KeyCode::Delete,
-        "insert" => KeyCode::Insert,
-        "ins" => KeyCode::Insert,
-        "f1" => KeyCode::F(1),
-        "f2" => KeyCode::F(2),
-        "f3" => KeyCode::F(3),
-        "f4" => KeyCode::F(4),
-        "f5" => KeyCode::F(5),
-        "f6" => KeyCode::F(6),
-        "f7" => KeyCode::F(7),
-        "f8" => KeyCode::F(8),
-        "f9" => KeyCode::F(9),
-        "f10" => KeyCode::F(10),
-        "f11" => KeyCode::F(11),
-        "f12" => KeyCode::F(12),
-        "space" => KeyCode::Char(' '),
-        "tab" => KeyCode::Tab,
-        c if c.len() == 1 => KeyCode::Char(c.chars().next().unwrap()),
-        invalid => bail!("Invalid key code provided in keybinding: {}", invalid),
-    };
-    Ok(KeyEvent::from(code))
+impl TryFrom<CKeyEvent> for KeyEvent {
+    type Error = Error;
+    fn try_from(key: CKeyEvent) -> std::result::Result<Self, Self::Error> {
+        let code = key.code.try_into()?;
+        let modifier = key.modifiers.try_into()?;
+        Ok(Self { modifier, code })
+    }
+}
+
+impl TryFrom<CKeyModifiers> for KeyModifier {
+    type Error = Error;
+    fn try_from(value: CKeyModifiers) -> std::result::Result<Self, Self::Error> {
+        Ok(match value {
+            CKeyModifiers::ALT => Self::Alt,
+            CKeyModifiers::CONTROL => Self::Ctrl,
+            CKeyModifiers::NONE => Self::None,
+            // TODO: shouldn't use debug output for display output
+            _ => bail!("Invalid modifier key: {:?}", value),
+        })
+    }
+}
+
+impl TryFrom<CKeyCode> for KeyCode {
+    type Error = Error;
+    fn try_from(value: CKeyCode) -> std::result::Result<Self, Self::Error> {
+        Ok(match value {
+            CKeyCode::Esc => KeyCode::Esc,
+            CKeyCode::Enter => KeyCode::Enter,
+            CKeyCode::Left => KeyCode::Left,
+            CKeyCode::Right => KeyCode::Right,
+            CKeyCode::Up => KeyCode::Up,
+            CKeyCode::Down => KeyCode::Down,
+            CKeyCode::Home => KeyCode::Home,
+            CKeyCode::End => KeyCode::End,
+            CKeyCode::PageUp => KeyCode::PageUp,
+            CKeyCode::PageDown => KeyCode::PageDown,
+            CKeyCode::BackTab => KeyCode::BackTab,
+            CKeyCode::Backspace => KeyCode::Backspace,
+            CKeyCode::Delete => KeyCode::Delete,
+            CKeyCode::Insert => KeyCode::Insert,
+            CKeyCode::F(c) => KeyCode::F(c),
+            CKeyCode::Tab => KeyCode::Tab,
+            CKeyCode::Char(' ') => KeyCode::Space,
+            CKeyCode::Char(c) => KeyCode::Char(c),
+            // TODO: shouldn't use debug output for display output
+            _ => bail!("Invalid key code: {:?}", value),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_lowercase_key() -> Result<()> {
-        assert_eq!("k".parse::<Key>()?, Key(KeyCode::Char('k').into()));
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_uppercase_key() -> Result<()> {
-        assert_eq!("G".parse::<Key>()?, Key(KeyCode::Char('G').into()));
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_ctrl_modifier() -> Result<()> {
+    fn assert_eq_parse_display<T>(input_str: &str, expected: T)
+    where
+        T: str::FromStr + fmt::Display + PartialEq + fmt::Debug,
+        <T as str::FromStr>::Err: fmt::Debug,
+    {
+        // Test FromStr
         assert_eq!(
-            "ctrl+c".parse::<Key>()?,
-            Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL))
+            expected,
+            // TODO: non-ideal unwrap here
+            input_str.parse().unwrap(),
+            "Expected the input string '{}' to be parsed into {:?}",
+            input_str,
+            expected
         );
-        // TODO: passes test, but doesn't practically work in all terminals
+
+        // Test Display
         assert_eq!(
-            "ctrl+S".parse::<Key>()?,
-            Key(KeyEvent::new(KeyCode::Char('S'), KeyModifiers::CONTROL))
+            input_str,
+            expected.to_string(),
+            "Expected the expected {:?} to be displayed as string '{}'",
+            expected,
+            input_str
         );
+    }
+
+    #[test]
+    fn test_valid_function_keys() -> Result<()> {
+        assert_eq_parse_display("f1", KeyCode::F(1));
+        assert_eq_parse_display("f12", KeyCode::F(12));
         Ok(())
     }
 
     #[test]
-    fn test_parse_alt_modifier() -> Result<()> {
-        assert_eq!(
-            "alt+z".parse::<Key>()?,
-            Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::ALT))
-        );
-        Ok(())
+    #[should_panic]
+    fn test_invalid_function_keys() {
+        let _: KeyCode = "f0".parse().unwrap();
+        let _: KeyCode = "f13".parse().unwrap();
     }
 
     #[test]
-    fn test_parse_invalid_modifiers() {
-        assert!("shift+a".parse::<Key>().is_err());
-        assert!("super+a".parse::<Key>().is_err());
-        assert!("alt+shift+a".parse::<Key>().is_err());
-        assert!("alt+ctrl+a".parse::<Key>().is_err());
+    fn test_valid_modifiers() {
+        assert_eq_parse_display(
+            "c",
+            KeyEvent {
+                modifier: KeyModifier::None,
+                code: KeyCode::Char('c'),
+            },
+        );
+
+        assert_eq_parse_display(
+            "alt+P",
+            KeyEvent {
+                modifier: KeyModifier::Alt,
+                code: KeyCode::Char('P'),
+            },
+        );
+
+        assert_eq_parse_display(
+            "ctrl+c",
+            KeyEvent {
+                modifier: KeyModifier::Ctrl,
+                code: KeyCode::Char('c'),
+            },
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_modifiers() {
+        let _: KeyModifier = "none".parse().unwrap();
+        let _: KeyModifier = "shift".parse().unwrap();
+        let _: KeyModifier = "super".parse().unwrap();
+        let _: KeyModifier = "alt+ctrl".parse().unwrap();
     }
 }

@@ -1,7 +1,7 @@
 mod keybindings;
 mod style;
 
-pub use keybindings::{Key, Keybindings, Operations};
+pub use keybindings::{KeyEvent, Keybindings, Operations};
 pub use style::Styles;
 
 use crate::command::Command;

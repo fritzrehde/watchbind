@@ -1,7 +1,7 @@
 mod key;
 mod operations;
 
-pub use key::Key;
+pub use key::KeyEvent;
 pub use operations::{Operation, Operations};
 
 use anyhow::{bail, Result};
@@ -9,10 +9,10 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Keybindings(HashMap<Key, Operations>);
+pub struct Keybindings(HashMap<KeyEvent, Operations>);
 
 impl Keybindings {
-    pub fn get_operations(&self, key: &Key) -> Option<&Operations> {
+    pub fn get_operations(&self, key: &KeyEvent) -> Option<&Operations> {
         self.0.get(key)
     }
 }
