@@ -5,7 +5,7 @@ pub use state::State;
 
 use crate::command::Command;
 use crate::config::Config;
-use crate::config::{KeyEvent as CKeyEvent, Keybindings};
+use crate::config::{KeyEvent, Keybindings};
 use anyhow::Result;
 use crossterm::event::{self, Event::Key};
 use std::{
@@ -16,7 +16,7 @@ use std::{
 use terminal_manager::{Terminal, TerminalManager};
 
 pub enum Event {
-    KeyPressed(CKeyEvent),
+    KeyPressed(KeyEvent),
     CommandOutput(Result<String>),
 }
 
@@ -110,7 +110,10 @@ fn poll_execute_command(
 
 fn poll_key_events(tx: Sender<Event>, keybindings: Keybindings) {
     thread::spawn(move || loop {
+        // TODO: remove unwrap
         if let Key(key_event) = event::read().unwrap() {
+            log::debug!("Key pressed: {:?}", key_event);
+
             if let Ok(key) = key_event.try_into() {
                 if keybindings.get_operations(&key).is_some() {
                     tx.send(Event::KeyPressed(key)).unwrap();

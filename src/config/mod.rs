@@ -10,9 +10,10 @@ use clap::Parser;
 use indoc::indoc;
 use keybindings::StringKeybindings;
 use serde::Deserialize;
-use std::{fs::read_to_string, time::Duration};
+use std::{fs::read_to_string, path::PathBuf, time::Duration};
 
 pub struct Config {
+    pub log_file: Option<PathBuf>,
     pub command: Command,
     pub watch_rate: Duration,
     pub styles: Styles,
@@ -40,6 +41,7 @@ impl TryFrom<TomlConfig> for Config {
     fn try_from(toml: TomlConfig) -> Result<Self, Self::Error> {
         let default = TomlConfig::default();
         Ok(Self {
+            log_file: toml.log_file,
             command: match toml.command {
                 Some(command) => Command::new(command),
                 None => bail!("A command must be provided via command line or config file"),
@@ -70,6 +72,7 @@ impl TryFrom<TomlConfig> for Config {
 
 #[derive(Deserialize)]
 pub struct TomlConfig {
+    log_file: Option<PathBuf>,
     command: Option<String>,
     interval: Option<f64>,
     fg: Option<String>,
@@ -119,6 +122,7 @@ impl TomlConfig {
     // self is favored
     fn merge(self, other: Self) -> Self {
         Self {
+            log_file: self.log_file.or(other.log_file),
             command: self.command.or(other.command),
             interval: self.interval.or(other.interval),
             fg: self.fg.or(other.fg),
@@ -141,6 +145,7 @@ impl TomlConfig {
 impl From<ClapConfig> for TomlConfig {
     fn from(clap: ClapConfig) -> Self {
         Self {
+            log_file: clap.log_file,
             command: clap.command.map(|s| s.join(" ")),
             interval: clap.interval,
             fg: clap.fg,
@@ -193,6 +198,10 @@ impl Default for TomlConfig {
 #[derive(Parser)]
 #[clap(version, about)]
 pub struct ClapConfig {
+    /// Enable logging, and write logs to file.
+    #[arg(short, long, value_name = "FILE")]
+    log_file: Option<PathBuf>,
+
     /// Command to execute periodically
     #[arg(trailing_var_arg(true))]
     command: Option<Vec<String>>,
