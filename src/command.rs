@@ -23,12 +23,13 @@ pub struct Command {
 
 impl FromStr for Command {
     type Err = Error;
-    fn from_str(command: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(command: &str) -> Result<Self, Self::Err> {
         let mut command = command.to_owned();
         let is_blocking = !command.ends_with(" &");
-        if command.ends_with(" &") {
+        if !is_blocking {
             command.truncate(command.len() - " &".len());
         }
+
         Ok(Self {
             command,
             is_blocking,
@@ -37,17 +38,6 @@ impl FromStr for Command {
 }
 
 impl Command {
-    pub fn new(mut command: String) -> Self {
-        let is_blocking = !command.ends_with(" &");
-        if command.ends_with(" &") {
-            command.truncate(command.len() - " &".len());
-        }
-        Self {
-            command,
-            is_blocking,
-        }
-    }
-
     pub fn is_blocking(&self) -> bool {
         self.is_blocking
     }
@@ -135,7 +125,8 @@ mod tests {
     fn test_executing_echo_command() -> Result<()> {
         let (_, rx) = std::sync::mpsc::channel();
         let echo_cmd = r#"echo "hello world""#.to_owned();
-        let output_lines = Command::new(echo_cmd).capture_output(&rx)?;
+        let command: Command = echo_cmd.parse()?;
+        let output_lines = command.capture_output(&rx)?;
         // assert_eq!(output_lines, vec!["hello world".to_owned()]);
         assert_eq!(output_lines, "hello world\n");
         Ok(())
@@ -145,7 +136,8 @@ mod tests {
     fn test_multiline_output() -> Result<()> {
         let (_, rx) = std::sync::mpsc::channel();
         let cmd = r#"printf "one\ntwo\n""#.to_owned();
-        let output_lines = Command::new(cmd).capture_output(&rx)?;
+        let command: Command = cmd.parse()?;
+        let output_lines = command.capture_output(&rx)?;
         // assert_eq!(output_lines, vec!["hello world".to_owned()]);
         assert_eq!(output_lines, "one\ntwo\n");
         Ok(())

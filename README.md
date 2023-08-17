@@ -126,8 +126,8 @@ Operation | Action
 :-- | :--
 exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
-cursor [down|up] \<N\> | Move cursor [down|up] N number of lines
-cursor [first|last] | Move cursor to the [first|last] line
+cursor \[down|up\] \<N\> | Move cursor \[down|up\] N number of lines
+cursor \[first|last\] | Move cursor to the \[first|last\] line
 select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
 unselect | Unselect line that cursor is currently on
 toggle-selection | Toggle selection of line that cursor is currently on
@@ -135,7 +135,7 @@ select-all | Select all lines
 unselect-all | Unselect all currently selected lines
 exec -- \<COMMAND\> | Execute shell command and block until command terminates
 exec -- \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
-help-[show|hide|toggle] | [Show|Hide|Toggle] the help menu that shows all activated keybindings
+help-\[show|hide|toggle\] | \[Show|Hide|Toggle\] the help menu that shows all activated keybindings
 
 The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be separated by a newline in `LINES`.
@@ -198,11 +198,11 @@ Finally, we want to remove our the selection of the now removed lines, so we cal
 
 If you want to use pipes in your command on the command line, make sure to escape the pipe symbol like so:
 ```
-watchbind exec -- ls \| grep "test"
+watchbind ls \| grep "test"
 ```
 or put quotes around the command
 ```
-watchbind exec -- "ls | grep test"
+watchbind "ls | grep test"
 ```
 Otherwise, the shell will think you want to pipe the output of `watchbind exec -- ls` to `grep test`.
 
@@ -212,12 +212,12 @@ The commands you bind to keys will be executed in a subshell using `sh -c`.
 
 This means you can run a command like 
 ```
-watchbind --bind "enter:notify-send \$LINES" exec -- ls
+watchbind --bind "enter:notify-send \$LINES" ls
 ```
 and the environment variable `$LINES` will contain the line the cursor is currently on.
 
 But note that 
 ```
-watchbind --bind "enter:notify-send $LINES" exec -- ls
+watchbind --bind "enter:notify-send $LINES" ls
 ```
 will not work as expected, because `$LINES` will be replaced in the shell you are running the `watchbind` command from.

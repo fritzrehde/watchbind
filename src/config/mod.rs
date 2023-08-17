@@ -43,7 +43,7 @@ impl TryFrom<TomlConfig> for Config {
         Ok(Self {
             log_file: toml.log_file,
             command: match toml.command {
-                Some(command) => Command::new(command),
+                Some(command) => command.parse()?,
                 None => bail!("A command must be provided via command line or config file"),
             },
             watch_rate: Duration::from_secs_f64(
