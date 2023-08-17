@@ -17,6 +17,8 @@ enum KeyModifier {
     Alt,
     Ctrl,
     #[from_str(ignore)]
+    Shift,
+    #[from_str(ignore)]
     None,
 }
 
@@ -85,7 +87,18 @@ impl TryFrom<CKeyEvent> for KeyEvent {
     type Error = Error;
     fn try_from(key: CKeyEvent) -> std::result::Result<Self, Self::Error> {
         let code = key.code.try_into()?;
-        let modifier = key.modifiers.try_into()?;
+        let mut modifier = key.modifiers.try_into()?;
+
+        // We never internally save our modifier as Shift, because we don't
+        // want the user to have to specify e.g. "shift+G" instead of just "G".
+        // Therefore, we remove the Shift modifier if the code is uppercase
+        // anyways.
+        if let KeyCode::Char(char) = code {
+            if char.is_uppercase() && modifier == KeyModifier::Shift {
+                modifier = KeyModifier::None;
+            }
+        };
+
         Ok(Self { modifier, code })
     }
 }
@@ -96,6 +109,7 @@ impl TryFrom<CKeyModifiers> for KeyModifier {
         Ok(match value {
             CKeyModifiers::ALT => Self::Alt,
             CKeyModifiers::CONTROL => Self::Ctrl,
+            CKeyModifiers::SHIFT => Self::Shift,
             CKeyModifiers::NONE => Self::None,
             // TODO: shouldn't use debug output for display output
             _ => bail!("Invalid modifier key: {:?}", value),
