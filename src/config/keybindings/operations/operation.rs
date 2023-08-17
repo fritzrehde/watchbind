@@ -1,32 +1,45 @@
 use crate::command::Command;
 use crate::ui::{RequestedAction, State};
-use anyhow::{Context, Result};
-use std::str::FromStr;
+use anyhow::Result;
+use parse_display::{Display, FromStr};
 
-#[derive(Clone)]
+#[derive(Clone, FromStr, Display)]
+#[display(style = "kebab-case")]
 pub enum Operation {
     Exit,
     Reload,
-    ToggleHelpMenu,
+    Help,
+
+    #[display("cursor {0}")]
     MoveCursor(MoveCursor),
+
+    #[display("{0}")]
     SelectLine(SelectOperation),
+
+    #[display("exec -- {0}")]
     Execute(Command),
 }
 
 // TODO: add support for goto nth line
-#[derive(Clone)]
+#[derive(Clone, FromStr, Display)]
+#[display(style = "lowercase")]
 pub enum MoveCursor {
+    #[display("down {0}")]
     Down(usize),
+
+    #[display("up {0}")]
     Up(usize),
+
     First,
     Last,
 }
 
-#[derive(Clone)]
+#[derive(Clone, FromStr, Display)]
+#[display(style = "kebab-case")]
 pub enum SelectOperation {
     Select,
     Unselect,
-    Toggle,
+    ToggleSelection,
     SelectAll,
     UnselectAll,
 }
@@ -40,10 +53,10 @@ impl Operation {
             Self::MoveCursor(MoveCursor::Last) => state.last(),
             Self::SelectLine(SelectOperation::Select) => state.select(),
             Self::SelectLine(SelectOperation::Unselect) => state.unselect(),
-            Self::SelectLine(SelectOperation::Toggle) => state.select_toggle(),
+            Self::SelectLine(SelectOperation::ToggleSelection) => state.select_toggle(),
             Self::SelectLine(SelectOperation::SelectAll) => state.select_all(),
             Self::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-            Self::ToggleHelpMenu => state.toggle_help_menu(),
+            Self::Help => state.toggle_help_menu(),
             Self::Reload => return Ok(RequestedAction::Reload),
             Self::Exit => return Ok(RequestedAction::Exit),
             Self::Execute(command) => {
@@ -54,59 +67,6 @@ impl Operation {
             }
         };
         Ok(RequestedAction::Continue)
-    }
-}
-
-impl FromStr for Operation {
-    type Err = anyhow::Error;
-    fn from_str(src: &str) -> Result<Self, Self::Err> {
-        // TODO: consider creating type "StepSize"
-        let parse_steps = |steps: &str| {
-            steps.parse().with_context(|| {
-                format!("Invalid step size \"{steps}\" provided in keybinding: \"{src}\"")
-            })
-        };
-        Ok(match src.split_whitespace().collect::<Vec<&str>>()[..] {
-            ["exit"] => Self::Exit,
-            ["reload"] => Self::Reload,
-            ["help"] => Self::ToggleHelpMenu,
-            ["down"] => Self::MoveCursor(MoveCursor::Down(1)),
-            ["up"] => Self::MoveCursor(MoveCursor::Up(1)),
-            ["down", steps] => Self::MoveCursor(MoveCursor::Down(parse_steps(steps)?)),
-            ["up", steps] => Self::MoveCursor(MoveCursor::Up(parse_steps(steps)?)),
-            ["first"] => Self::MoveCursor(MoveCursor::First),
-            ["last"] => Self::MoveCursor(MoveCursor::Last),
-            ["select"] => Self::SelectLine(SelectOperation::Select),
-            ["unselect"] => Self::SelectLine(SelectOperation::Unselect),
-            ["select-toggle"] => Self::SelectLine(SelectOperation::Toggle),
-            ["select-all"] => Self::SelectLine(SelectOperation::SelectAll),
-            ["unselect-all"] => Self::SelectLine(SelectOperation::UnselectAll),
-            _ => Self::Execute(Command::new(src.to_owned())),
-        })
-    }
-}
-
-// TODO: find cleaner/less boilerplate way using special crate
-impl std::fmt::Display for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string = match self {
-            Self::MoveCursor(MoveCursor::Down(steps)) => format!("move cursor down by {steps}"),
-            Self::MoveCursor(MoveCursor::Up(steps)) => format!("move cursor down by {steps}"),
-            Self::MoveCursor(MoveCursor::First) => format!("move cursor to first line"),
-            Self::MoveCursor(MoveCursor::Last) => format!("move cursor to last line"),
-            Self::SelectLine(SelectOperation::Select) => format!("select the current line"),
-            Self::SelectLine(SelectOperation::Unselect) => format!("unselect the current line"),
-            Self::SelectLine(SelectOperation::Toggle) => {
-                format!("toggle selection of current line")
-            }
-            Self::SelectLine(SelectOperation::SelectAll) => format!("select all lines"),
-            Self::SelectLine(SelectOperation::UnselectAll) => format!("unselect all lines"),
-            Self::ToggleHelpMenu => format!("toggle the help menu"),
-            Self::Reload => format!("reload input command"),
-            Self::Exit => format!("quit/exit"),
-            Self::Execute(command) => format!("execute \"{command}\""),
-        };
-        write!(f, "{}", string)
     }
 }
 

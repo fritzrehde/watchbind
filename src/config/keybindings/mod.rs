@@ -4,7 +4,7 @@ mod operations;
 pub use key::KeyEvent;
 pub use operations::{Operation, Operations};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -23,7 +23,13 @@ impl TryFrom<StringKeybindings> for Keybindings {
         let keybindings = value
             .0
             .into_iter()
-            .map(|(key, ops)| Ok((key.parse()?, ops.try_into()?)))
+            .map(|(key, ops)| {
+                Ok((
+                    key.parse()
+                        .with_context(|| format!("Invalid KeyEvent: {}", key))?,
+                    ops.try_into()?,
+                ))
+            })
             .collect::<Result<_>>()?;
         Ok(Self(keybindings))
     }

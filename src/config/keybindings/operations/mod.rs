@@ -2,7 +2,7 @@ mod operation;
 
 pub use operation::Operation;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use derive_more::IntoIterator;
 
 #[derive(Clone, IntoIterator)]
@@ -13,7 +13,11 @@ impl TryFrom<Vec<String>> for Operations {
     fn try_from(vec: Vec<String>) -> Result<Self, Self::Error> {
         let operations = vec
             .into_iter()
-            .map(|op| op.parse())
+            .map(|op| {
+                op.parse()
+                    .with_context(|| format!("Invalid Operation: {}", op))
+                    .map_err(anyhow::Error::from)
+            })
             .collect::<Result<_>>()?;
         Ok(Self(operations))
     }

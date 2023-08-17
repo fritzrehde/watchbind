@@ -176,17 +176,17 @@ impl Default for TomlConfig {
 			"q" = [ "exit" ]
 			"r" = [ "reload" ]
 			"?" = [ "help" ]
-			"space" = [ "select-toggle", "down" ]
-			"v" = [ "select-toggle" ]
+			"space" = [ "toggle-selection", "cursor down 1" ]
+			"v" = [ "toggle-selection" ]
 			"esc" = [ "unselect-all" ]
-			"down" = [ "down" ]
-			"up" = [ "up" ]
-			"j" = [ "down" ]
-			"k" = [ "up" ]
-			"g" = [ "first" ]
-			"G" = [ "last" ]
+			"down" = [ "cursor down 1" ]
+			"up" = [ "cursor up 1" ]
+			"j" = [ "cursor down 1" ]
+			"k" = [ "cursor up 1" ]
+			"g" = [ "cursor first" ]
+			"G" = [ "cursor last" ]
 		"#};
-        toml::from_str(toml).expect("default toml config file should be correct")
+        toml::from_str(toml).expect("Default toml config file should be correct")
     }
 }
 

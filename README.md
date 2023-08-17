@@ -126,19 +126,17 @@ Operation | Action
 :-- | :--
 exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
-down | Go down one line (i.e. move cursor to the next line)
-down \<STEPS\> | Go down STEPS number of lines
-up | Go up one line (i.e. move cursor to the previous line)
-up \<STEPS\> | Go up STEPS number of lines
-first | Go to the first line
-last | Go to the last line
+cursor down \<STEPS\> | Move cursor down STEPS number of lines
+cursor up \<STEPS\> | Move cursor up STEPS number of lines
+cursor first | Move cursor to the first line
+cursor last | Move cursor to the last line
 select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
 unselect | Unselect line that cursor is currently on
-select-toggle | Toggle selection of line that cursor is currently on
+toggle-selection | Toggle selection of line that cursor is currently on
 select-all | Select all lines
 unselect-all | Unselect all currently selected lines
-\<COMMAND\> | Execute shell command and block until command terminates
-\<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
+exec -- \<COMMAND\> | Execute shell command and block until command terminates
+exec -- \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
 
 The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be separated by a newline in `LINES`.
@@ -190,7 +188,7 @@ Therefore, five different lines, at the same indices as the deleted five lines, 
 To solve this problem, the following keybinding format is recommended for keybindings that transform the input:
 ```toml
 [keybindings]
-"KEY" = [ "DELETE-OP", "reload", "unselect-all" ]
+"KEY" = [ "exec -- DELETE-OP", "reload", "unselect-all" ]
 ```
 
 First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).

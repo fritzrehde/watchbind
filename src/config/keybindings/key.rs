@@ -1,4 +1,4 @@
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use crossterm::event::{KeyCode as CKeyCode, KeyEvent as CKeyEvent, KeyModifiers as CKeyModifiers};
 use derive_more::From;
 use parse_display::{Display, FromStr};
@@ -53,8 +53,18 @@ impl str::FromStr for KeyEvent {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (code, modifier) = match s.split_once('+') {
-            Some((modifier, code)) => (code.parse()?, modifier.parse()?),
-            None => (s.parse()?, KeyModifier::None),
+            Some((modifier, code)) => (
+                code.parse()
+                    .with_context(|| format!("Invalid KeyCode: {}", code))?,
+                modifier
+                    .parse()
+                    .with_context(|| format!("Invalid KeyModifier: {}", modifier))?,
+            ),
+            None => (
+                s.parse()
+                    .with_context(|| format!("Invalid KeyCode: {}", s))?,
+                KeyModifier::None,
+            ),
         };
         Ok(Self { modifier, code })
     }

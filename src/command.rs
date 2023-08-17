@@ -1,29 +1,40 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Error, Result};
 use core::time::Duration;
+use parse_display::Display;
 use std::{
     process::{self, Output, Stdio},
+    str::FromStr,
     sync::mpsc::Receiver,
     thread,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Display)]
+#[display("{command}")]
 pub struct Command {
     // TODO: remove pub
     pub command: String,
     is_blocking: bool,
 }
 
-// TODO: find cleaner/less boilerplate way using special crate
-impl std::fmt::Display for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.command)
-    }
-}
-
 // enum Event {
 // 	Reload,
 // 	OutputLines(Result<Vec<String>>),
 // }
+
+impl FromStr for Command {
+    type Err = Error;
+    fn from_str(command: &str) -> std::result::Result<Self, Self::Err> {
+        let mut command = command.to_owned();
+        let is_blocking = !command.ends_with(" &");
+        if command.ends_with(" &") {
+            command.truncate(command.len() - " &".len());
+        }
+        Ok(Self {
+            command,
+            is_blocking,
+        })
+    }
+}
 
 impl Command {
     pub fn new(mut command: String) -> Self {
