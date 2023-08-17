@@ -180,7 +180,7 @@ impl Default for TomlConfig {
 			"ctrl+c" = [ "exit" ]
 			"q" = [ "exit" ]
 			"r" = [ "reload" ]
-			"?" = [ "help" ]
+			"?" = [ "help-toggle" ]
 			"space" = [ "toggle-selection", "cursor down 1" ]
 			"v" = [ "toggle-selection" ]
 			"esc" = [ "unselect-all" ]

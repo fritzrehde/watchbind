@@ -211,6 +211,14 @@ impl State {
         }
     }
 
+    pub fn show_help_menu(&mut self) {
+        self.show_help_menu = true;
+    }
+
+    pub fn hide_help_menu(&mut self) {
+        self.show_help_menu = false;
+    }
+
     pub fn toggle_help_menu(&mut self) {
         self.show_help_menu = !self.show_help_menu;
     }

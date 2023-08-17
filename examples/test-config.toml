@@ -9,6 +9,7 @@ field-separator = ","
 header-lines = 1
 
 [keybindings]
+"esc" = [ "unselect-all", "help-hide" ]
 "q" = [ "exit" ]
 "j" = [ "cursor down 1" ]
 "A" = [ "select-all" ]

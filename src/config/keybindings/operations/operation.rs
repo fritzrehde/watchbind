@@ -8,7 +8,9 @@ use parse_display::{Display, FromStr};
 pub enum Operation {
     Exit,
     Reload,
-    Help,
+    HelpShow,
+    HelpHide,
+    HelpToggle,
 
     #[display("cursor {0}")]
     MoveCursor(MoveCursor),
@@ -56,7 +58,9 @@ impl Operation {
             Self::SelectLine(SelectOperation::ToggleSelection) => state.select_toggle(),
             Self::SelectLine(SelectOperation::SelectAll) => state.select_all(),
             Self::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-            Self::Help => state.toggle_help_menu(),
+            Self::HelpShow => state.show_help_menu(),
+            Self::HelpHide => state.hide_help_menu(),
+            Self::HelpToggle => state.toggle_help_menu(),
             Self::Reload => return Ok(RequestedAction::Reload),
             Self::Exit => return Ok(RequestedAction::Exit),
             Self::Execute(command) => {
