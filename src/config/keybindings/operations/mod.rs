@@ -4,8 +4,9 @@ pub use operation::Operation;
 
 use anyhow::{Context, Result};
 use derive_more::IntoIterator;
+use itertools::Itertools;
 
-#[derive(Clone, IntoIterator)]
+#[derive(Clone, IntoIterator, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Operations(#[into_iterator(ref)] Vec<Operation>);
 
 impl TryFrom<Vec<String>> for Operations {
@@ -26,12 +27,7 @@ impl TryFrom<Vec<String>> for Operations {
 // TODO: find cleaner/less boilerplate way using special crate
 impl std::fmt::Display for Operations {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let formatted_operations = self
-            .0
-            .iter()
-            .map(|op| format!("\"{op}\""))
-            .collect::<Vec<String>>()
-            .join(", ");
+        let formatted_operations = self.0.iter().map(|op| format!("\"{}\"", op)).join(", ");
         write!(f, "[ {} ]", formatted_operations)
     }
 }

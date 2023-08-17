@@ -3,7 +3,7 @@ use crate::ui::{RequestedAction, State};
 use anyhow::Result;
 use parse_display::{Display, FromStr};
 
-#[derive(Clone, FromStr, Display)]
+#[derive(Clone, FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display(style = "kebab-case")]
 pub enum Operation {
     Exit,
@@ -21,7 +21,7 @@ pub enum Operation {
 }
 
 // TODO: add support for goto nth line
-#[derive(Clone, FromStr, Display)]
+#[derive(Clone, FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display(style = "lowercase")]
 pub enum MoveCursor {
     #[display("down {0}")]
@@ -34,7 +34,7 @@ pub enum MoveCursor {
     Last,
 }
 
-#[derive(Clone, FromStr, Display)]
+#[derive(Clone, FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display(style = "kebab-case")]
 pub enum SelectOperation {
     Select,

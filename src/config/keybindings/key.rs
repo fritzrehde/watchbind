@@ -5,13 +5,13 @@ use parse_display::{Display, FromStr};
 use std::{fmt, str};
 
 /// The specific combinations of modifiers and key codes that we allow/handle.
-#[derive(Hash, Eq, PartialEq, From, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug)]
 pub struct KeyEvent {
     modifier: KeyModifier,
     code: KeyCode,
 }
 
-#[derive(Hash, Eq, PartialEq, From, Clone, Debug, Display, FromStr)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
 #[display(style = "lowercase")]
 enum KeyModifier {
     Alt,
@@ -22,7 +22,7 @@ enum KeyModifier {
     None,
 }
 
-#[derive(Hash, Eq, PartialEq, From, Clone, Debug, Display, FromStr)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
 #[display(style = "lowercase")]
 enum KeyCode {
     Esc,

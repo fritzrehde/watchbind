@@ -5,8 +5,11 @@ pub use key::KeyEvent;
 pub use operations::{Operation, Operations};
 
 use anyhow::{bail, Context, Result};
+use itertools::Itertools;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::io::Write;
+use std::{collections::HashMap, fmt};
+use tabwriter::TabWriter;
 
 #[derive(Clone)]
 pub struct Keybindings(HashMap<KeyEvent, Operations>);
@@ -14,6 +17,25 @@ pub struct Keybindings(HashMap<KeyEvent, Operations>);
 impl Keybindings {
     pub fn get_operations(&self, key: &KeyEvent) -> Option<&Operations> {
         self.0.get(key)
+    }
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<()> {
+        let mut tw = TabWriter::new(vec![]);
+        for (key, operations) in self.0.iter().sorted() {
+            writeln!(&mut tw, "{}:\t{}", key, operations)?;
+        }
+        tw.flush()?;
+
+        let written = String::from_utf8(tw.into_inner()?)?;
+        f.write_str(&written)?;
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Keybindings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt(f).map_err(|_| fmt::Error)
     }
 }
 

@@ -8,7 +8,7 @@ use std::{
     thread,
 };
 
-#[derive(Clone, Display)]
+#[derive(Clone, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display("{command}")]
 pub struct Command {
     // TODO: remove pub

@@ -7,7 +7,7 @@ use lines::Lines;
 use ratatui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Span, Spans},
+    text::Text,
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
@@ -21,12 +21,17 @@ pub struct State {
     first_index: usize,
     // TODO: deprecate in future
     table_state: TableState,
-    // help_menu_body: Vec<String>,
     show_help_menu: bool,
+    help_menu_body: String,
 }
 
 impl State {
-    pub fn new(header_lines: usize, field_separator: Option<String>, styles: Styles) -> Self {
+    pub fn new(
+        header_lines: usize,
+        field_separator: Option<String>,
+        styles: Styles,
+        help_menu_body: String,
+    ) -> Self {
         Self {
             lines: Lines::new(field_separator, styles.clone(), header_lines),
             selected: vec![],
@@ -35,6 +40,7 @@ impl State {
             first_index: header_lines,
             table_state: TableState::default(),
             show_help_menu: false,
+            help_menu_body,
         }
     }
 
@@ -71,10 +77,9 @@ impl State {
     fn render_help_menu<B: Backend>(&mut self, frame: &mut Frame<B>) {
         let area = centered_rect(50, 50, frame.size());
 
-        let text = vec![
-            Spans::from(Span::raw("TODO:")),
-            Spans::from(Span::raw("Show all defined keybindings here.")),
-        ];
+        // TODO: cloning here seems unnecessary
+        let text: Text = self.help_menu_body.clone().into();
+
         // TODO: don't trim
         let paragraph = Paragraph::new(text)
             .block(Block::default().title("help").borders(Borders::ALL))
