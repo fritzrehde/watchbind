@@ -19,24 +19,28 @@ impl Keybindings {
         self.0.get(key)
     }
 
-    // TODO: shouldn't need this helper method, maybe split into writing to string and then formatting with elastic tabstops
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<()> {
-        let mut tw = TabWriter::new(vec![]);
+    /// Write formatted version (insert elastic tabstops) to a buffer.
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        let mut tw = TabWriter::new(writer);
         for (key, operations) in self.0.iter().sorted() {
-            writeln!(&mut tw, "{}:\t{}", key, operations)?;
+            writeln!(tw, "{}:\t{}", key, operations)?;
         }
         tw.flush()?;
-
-        let written = String::from_utf8(tw.into_inner()?)?;
-        f.write_str(&written)?;
-
         Ok(())
+    }
+
+    fn fmt(&self) -> Result<String> {
+        let mut buffer = vec![];
+        self.write(&mut buffer)?;
+        let written = String::from_utf8(buffer)?;
+        Ok(written)
     }
 }
 
 impl fmt::Display for Keybindings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.fmt(f).map_err(|_| fmt::Error)
+        let formatted = self.fmt().map_err(|_| fmt::Error)?;
+        f.write_str(&formatted)
     }
 }
 

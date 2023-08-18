@@ -12,7 +12,6 @@ pub struct HelpMenu {
     vertical_scroll_state: ScrollbarState,
 }
 
-// TODO: make the "cursor moving" a trait
 // TODO: scrollbar should be hidden if not necessary; currently it's always shown
 
 impl HelpMenu {

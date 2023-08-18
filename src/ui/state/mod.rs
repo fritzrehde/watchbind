@@ -90,6 +90,8 @@ impl State {
 
     // API for both Lines and Help Menu
 
+    // TODO: make the "cursor moving" a trait; this is a performance bottleneck, since we always have to match the current mode/state; ideally, we just transition to a state, and then never call any matches until we transition to the next state; the hard part is that we don't have distinct states, since they both still need each other in render all
+
     pub fn move_down(&mut self, steps: usize) {
         match self.mode {
             Mode::Normal => self.lines.move_cursor_down(steps),

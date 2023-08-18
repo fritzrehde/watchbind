@@ -64,13 +64,15 @@ impl Lines {
         let formatted: Vec<Option<String>> = match &self.field_separator {
             Some(separator) => {
                 // TODO: cleaner syntax
+                // Write elastic tabstops
                 let mut tw = TabWriter::new(vec![]);
-                write!(&mut tw, "{}", lines.replace(separator, "\t"))?;
+                write!(tw, "{}", lines.replace(separator, "\t"))?;
                 tw.flush()?;
 
                 String::from_utf8(tw.into_inner()?)?
                     .lines()
-                    .map(|line| Some(line.to_owned()))
+                    .map(str::to_owned)
+                    .map(Some)
                     .collect()
             }
             None => lines.lines().map(|_| None).collect(),
@@ -113,7 +115,7 @@ impl Lines {
         self.adjust_cursor_style(old, new);
     }
 
-    fn get_cursor_position(&mut self) -> Option<usize> {
+    fn get_cursor_position(&self) -> Option<usize> {
         self.cursor_index
     }
 
@@ -197,7 +199,7 @@ impl Lines {
 
     // Getting selected lines
 
-    fn get_line_under_cursor(&mut self) -> Option<String> {
+    fn get_line_under_cursor(&self) -> Option<String> {
         if let Some(i) = self.get_cursor_position() {
             self.get_unformatted(i)
         } else {
@@ -205,7 +207,7 @@ impl Lines {
         }
     }
 
-    pub fn get_selected_lines(&mut self) -> Option<String> {
+    pub fn get_selected_lines(&self) -> Option<String> {
         if self.selected.contains(&true) {
             let lines: String = izip!(self.unformatted(), self.selected.iter())
                 .filter_map(|(line, &selected)| selected.then(|| line.to_owned()))
