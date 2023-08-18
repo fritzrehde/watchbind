@@ -6,14 +6,13 @@ use ratatui::{
 };
 
 pub struct HelpMenu {
-    show_help_menu: bool,
-    help_menu_body: String,
+    is_shown: bool,
+    body: String,
     vertical_scroll_index: usize,
     vertical_scroll_state: ScrollbarState,
 }
 
 // TODO: make the "cursor moving" a trait
-
 // TODO: scrollbar should be hidden if not necessary; currently it's always shown
 
 impl HelpMenu {
@@ -21,17 +20,17 @@ impl HelpMenu {
         HelpMenu {
             vertical_scroll_state: ScrollbarState::default()
                 .content_length(help_menu_body.lines().count() as u16),
-            show_help_menu: false,
-            help_menu_body,
+            is_shown: false,
+            body: help_menu_body,
             vertical_scroll_index: 0,
         }
     }
 
     pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
-        if self.show_help_menu {
+        if self.is_shown {
             let area = centered_rect(50, 50, frame.size());
 
-            let text: Text = self.help_menu_body.as_str().into();
+            let text: Text = self.body.as_str().into();
 
             // Render the paragraph with the updated scroll state
             let paragraph = Paragraph::new(text)
@@ -57,6 +56,8 @@ impl HelpMenu {
         self.vertical_scroll_state = self.vertical_scroll_state.position(index as u16);
     }
 
+    // Moving
+
     pub fn move_down(&mut self, steps: usize) {
         // TODO: The lines might be wrapped, so we might actually have more indexes than, and therefore don't know what the last index is
         // TODO: Ideally, we only need to scroll if help content doesn't fit onto screen. But we don't know what fits on the screen currently, because we don't know if text got wrapped to the next line
@@ -75,17 +76,19 @@ impl HelpMenu {
         // TODO: The lines might be wrapped, so we might actually have more indexes than, and therefore don't know what the last index is
     }
 
+    // Showing and hiding
+
     pub fn show(&mut self) {
-        self.show_help_menu = true;
+        self.is_shown = true;
     }
 
     pub fn hide(&mut self) {
-        self.show_help_menu = false;
+        self.is_shown = false;
         self.update_vertical_scroll_index(0);
     }
 
     pub fn is_shown(&self) -> bool {
-        self.show_help_menu
+        self.is_shown
     }
 }
 

@@ -41,7 +41,7 @@ impl State {
     // API for Lines
 
     pub fn update_lines(&mut self, new_lines: String) -> Result<()> {
-        self.lines.update(new_lines)
+        self.lines.update_lines(new_lines)
     }
 
     pub fn get_selected_lines(&mut self) -> Option<String> {
