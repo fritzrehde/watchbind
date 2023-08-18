@@ -117,7 +117,7 @@ fn poll_key_events(tx: Sender<Event>, keybindings: Keybindings) {
     thread::spawn(move || loop {
         // TODO: remove unwrap
         if let Key(key_event) = event::read().unwrap() {
-            log::debug!("Key pressed: {:?}", key_event);
+            // log::info!("Key pressed: {:?}", key_event);
 
             if let Ok(key) = key_event.try_into() {
                 if keybindings.get_operations(&key).is_some() {

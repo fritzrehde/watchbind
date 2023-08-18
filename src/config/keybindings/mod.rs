@@ -19,6 +19,7 @@ impl Keybindings {
         self.0.get(key)
     }
 
+    // TODO: shouldn't need this helper method, maybe split into writing to string and then formatting with elastic tabstops
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<()> {
         let mut tw = TabWriter::new(vec![]);
         for (key, operations) in self.0.iter().sorted() {

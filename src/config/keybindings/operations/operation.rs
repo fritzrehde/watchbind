@@ -49,13 +49,13 @@ pub enum SelectOperation {
 impl Operation {
     pub fn execute(&self, state: &mut State) -> Result<RequestedAction> {
         match self {
-            Self::MoveCursor(MoveCursor::Down(steps)) => state.down(*steps),
-            Self::MoveCursor(MoveCursor::Up(steps)) => state.up(*steps),
-            Self::MoveCursor(MoveCursor::First) => state.first(),
-            Self::MoveCursor(MoveCursor::Last) => state.last(),
+            Self::MoveCursor(MoveCursor::Down(steps)) => state.move_down(*steps),
+            Self::MoveCursor(MoveCursor::Up(steps)) => state.move_up(*steps),
+            Self::MoveCursor(MoveCursor::First) => state.move_to_first(),
+            Self::MoveCursor(MoveCursor::Last) => state.move_to_last(),
             Self::SelectLine(SelectOperation::Select) => state.select(),
             Self::SelectLine(SelectOperation::Unselect) => state.unselect(),
-            Self::SelectLine(SelectOperation::ToggleSelection) => state.select_toggle(),
+            Self::SelectLine(SelectOperation::ToggleSelection) => state.toggle_selection(),
             Self::SelectLine(SelectOperation::SelectAll) => state.select_all(),
             Self::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
             Self::HelpShow => state.show_help_menu(),
