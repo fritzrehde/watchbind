@@ -2,7 +2,7 @@ mod line;
 
 pub use line::Line;
 
-use crate::config::Styles;
+use crate::config::{FieldSeparator, Styles};
 use anyhow::Result;
 use itertools::izip;
 use ratatui::{
@@ -11,14 +11,13 @@ use ratatui::{
     widgets::{Cell, Row, Table, TableState},
     Frame,
 };
-use std::{cmp::max, io::Write};
-use tabwriter::TabWriter;
+use std::cmp::max;
 
 pub struct Lines {
     pub lines: Vec<Line>,
     pub selected: Vec<bool>,
     pub styles: Styles,
-    pub field_separator: Option<String>,
+    pub field_separator: Option<FieldSeparator>,
     pub index_after_header_lines: usize,
     pub cursor_index: Option<usize>,
     // TODO: deprecate in future
@@ -26,7 +25,11 @@ pub struct Lines {
 }
 
 impl Lines {
-    pub fn new(field_separator: Option<String>, styles: Styles, header_lines: usize) -> Self {
+    pub fn new(
+        field_separator: Option<FieldSeparator>,
+        styles: Styles,
+        header_lines: usize,
+    ) -> Self {
         Self {
             lines: vec![],
             selected: vec![],
@@ -60,21 +63,15 @@ impl Lines {
         frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
     }
 
+    // TODO: might be better suited as a new() method or similar
     pub fn update_lines(&mut self, lines: String) -> Result<()> {
         let formatted: Vec<Option<String>> = match &self.field_separator {
-            Some(separator) => {
-                // TODO: cleaner syntax
-                // Write elastic tabstops
-                let mut tw = TabWriter::new(vec![]);
-                write!(tw, "{}", lines.replace(separator, "\t"))?;
-                tw.flush()?;
-
-                String::from_utf8(tw.into_inner()?)?
-                    .lines()
-                    .map(str::to_owned)
-                    .map(Some)
-                    .collect()
-            }
+            Some(separator) => separator
+                .format_string_as_table(&lines)?
+                .lines()
+                .map(str::to_owned)
+                .map(Some)
+                .collect(),
             None => lines.lines().map(|_| None).collect(),
         };
 

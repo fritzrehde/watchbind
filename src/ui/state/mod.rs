@@ -2,7 +2,7 @@ mod help_menu;
 mod lines;
 
 use self::{help_menu::HelpMenu, lines::Lines};
-use crate::config::Styles;
+use crate::config::{FieldSeparator, Styles};
 use anyhow::Result;
 use ratatui::{backend::Backend, Frame};
 
@@ -22,7 +22,7 @@ enum Mode {
 impl State {
     pub fn new(
         header_lines: usize,
-        field_separator: Option<String>,
+        field_separator: Option<FieldSeparator>,
         styles: Styles,
         help_menu_body: String,
     ) -> Self {

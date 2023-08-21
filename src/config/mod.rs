@@ -1,6 +1,8 @@
+mod fields;
 mod keybindings;
 mod style;
 
+pub use fields::FieldSeparator;
 pub use keybindings::{KeyEvent, Keybindings, Operations};
 pub use style::Styles;
 
@@ -20,7 +22,7 @@ pub struct Config {
     pub keybindings: Keybindings,
     pub header_lines: usize,
     // TODO: turn into own type
-    pub field_separator: Option<String>,
+    pub field_separator: Option<FieldSeparator>,
 }
 
 impl Config {
@@ -103,8 +105,8 @@ pub struct TomlConfig {
     #[serde(rename = "header-lines")]
     header_lines: Option<usize>,
 
-    #[serde(rename = "field-seperator")]
-    field_separator: Option<String>,
+    #[serde(rename = "field-separator")]
+    field_separator: Option<FieldSeparator>,
 
     keybindings: Option<StringKeybindings>,
 }
@@ -260,7 +262,7 @@ pub struct ClapConfig {
 
     /// Field separator
     #[arg(short = 's', long = "field-separator", value_name = "STRING")]
-    field_separator: Option<String>,
+    field_separator: Option<FieldSeparator>,
 
     // /// Print only these specified fields to the UI
     // #[arg(short = 'f', long = "fields", value_name = "STRING")]
