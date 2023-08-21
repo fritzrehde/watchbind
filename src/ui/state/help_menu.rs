@@ -1,5 +1,5 @@
 use ratatui::{
-    prelude::{Alignment, Backend, Constraint, Direction, Layout, Rect},
+    prelude::{Alignment, Backend, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
@@ -39,12 +39,18 @@ impl HelpMenu {
                 // scroll offset for each axis: (y, x)
                 .scroll((self.vertical_scroll_index as u16, 0));
 
+            // Render the scrollbar next to the paragraph
             frame.render_widget(paragraph, area);
 
-            // Render the scrollbar next to the paragraph
             frame.render_stateful_widget(
-                Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
-                area,
+                Scrollbar::default()
+                    .orientation(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .end_symbol(None),
+                area.inner(&Margin {
+                    vertical: 1,
+                    horizontal: 0,
+                }),
                 &mut self.vertical_scroll_state,
             );
         }

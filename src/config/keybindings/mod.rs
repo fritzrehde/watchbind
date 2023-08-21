@@ -20,7 +20,7 @@ impl Keybindings {
     }
 
     /// Write formatted version (insert elastic tabstops) to a buffer.
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn write<W: Write>(&self, writer: W) -> Result<()> {
         let mut tw = TabWriter::new(writer);
         for (key, operations) in self.0.iter().sorted() {
             writeln!(tw, "{}:\t{}", key, operations)?;

@@ -27,7 +27,7 @@ impl State {
         help_menu_body: String,
     ) -> Self {
         Self {
-            lines: Lines::new(field_separator, styles.clone(), header_lines),
+            lines: Lines::new(field_separator, styles, header_lines),
             help_menu: HelpMenu::new(help_menu_body),
             mode: Mode::default(),
         }
