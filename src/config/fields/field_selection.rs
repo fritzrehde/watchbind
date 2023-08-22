@@ -19,7 +19,7 @@ impl FromStr for FieldSelections {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ranges = s
-            .split(",")
+            .split(',')
             .map(|s| {
                 let field: FieldSelection = s.parse()?;
                 let range: RangeInclusive<usize> = field.into();
@@ -52,13 +52,13 @@ impl FieldSelections {
 impl FromStr for FieldSelection {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (start, end) = match s.split('-').collect::<Vec<_>>().as_slice() {
-            &[x] => {
+        let (start, end) = match *s.splitn(2, '-').collect::<Vec<_>>().as_slice() {
+            [x] => {
                 let x_parsed = x.parse::<usize>()?;
                 (x_parsed, Some(x_parsed))
             }
-            &[x, ""] => (x.parse::<usize>()?, None),
-            &[x, y] => (x.parse::<usize>()?, Some(y.parse::<usize>()?)),
+            [x, ""] => (x.parse::<usize>()?, None),
+            [x, y] => (x.parse::<usize>()?, Some(y.parse::<usize>()?)),
             _ => bail!(
                 "Failed to parse \"{}\" as field selection, expected format is a|a-b|a-",
                 s

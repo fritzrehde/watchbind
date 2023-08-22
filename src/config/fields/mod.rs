@@ -52,8 +52,9 @@ impl TableFormatter for &str {
                             line.split(separator)
                                 .enumerate()
                                 // TODO: seems inefficient, try applying selection to whole line at a time
-                                .filter(|(idx, _)| selections.contains(*idx))
-                                .map(|(_, field)| field)
+                                .filter_map(|(idx, field)| {
+                                    selections.contains(idx).then_some(field)
+                                })
                                 .join("\t")
                         })
                         .join("\n"),
