@@ -73,6 +73,7 @@ impl TryFrom<TomlConfig> for Config {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TomlConfig {
     log_file: Option<PathBuf>,
     command: Option<String>,
