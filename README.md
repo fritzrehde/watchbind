@@ -14,13 +14,16 @@
 - [Features](#features)
 - [Installation](#installation)
 - [Customizations](#customizations)
+  - [Keybindings](#customizations)
+  - [Formatting with Field Separators and Selections](#formatting-with-field-separators-and-selections)
+  - [Styling](#styling)
 - [Tips](#tips)
 
 ## Features
 
-- **Customizable**: all keybindings and styles (colors and boldness) are customizable
-- **Flexible**: specify settings using cli options, a toml config file, or both
-- **Speed**: written completely in rust with speed in mind
+- **Customizability**: All keybindings and styles (colors and boldness) are customizable.
+- **Flexibility**: You can specify settings using CLI options, a TOML config file, or both.
+- **Speed**: Written in Rust with speed and efficiency in mind.
 
 ## Installation
 
@@ -37,16 +40,16 @@ cargo install watchbind
 ## Customizations
 
 There are several ways to customize the settings:
-1. A toml config file, specified with `watchbind --config-file <FILE>`, overrides all default settings (Example: [test-config.toml](examples/test-config.toml)).
-2. The command-line options override all other settings (i.e. all toml and default settings).
+1. A TOML config file, specified with `watchbind --config-file <FILE>`, overrides all default settings ([examples/](examples/)).
+2. The command-line options override all other settings (i.e. all TOML and default settings).
 
-All ways of configuring `watchbind` (toml and cli options) can be used at the same time, and `watchbind` will automatically figure out which settings to use according to the above hierarchy.
+All ways of configuring `watchbind` (TOML and CLI options) can be used at the same time, and `watchbind` will automatically figure out which settings to use according to the above hierarchy.
 
-Personally, I recommend using the cli options for small one liners and a toml config file for more complex scripts.
+Personally, I recommend using the CLI options for small one liners and a TOML config file for more complex scripts.
 
 ### Keybindings
 
-#### Via command-line arguments
+#### Via Command-Line Arguments
 
 On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` is a list of operations `OP` that are bound to `KEY`.
 One `KEY` can be bound to multiple operations, therefore, the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
@@ -54,9 +57,9 @@ The operations are separated by `+` and executed in succession (one after the ot
 
 **TLDR**: operations are separated by `+`, keybindings are separated by `,`
 
-#### Via toml config file
+#### Via TOML Config File
 
-In a toml config file, specify keybindings like so:
+In a TOML config file, specify keybindings like so:
 ```toml
 [keybindings]
 "KEY" = [ "OP" ]
@@ -67,11 +70,13 @@ In a toml config file, specify keybindings like so:
 ]
 ```
 
-This syntax differs from the command-line syntax because using the toml array feature is more expressive and more native to the toml file format.
+This syntax differs from the command-line syntax because using the TOML array feature is more expressive and more native to the TOML file format.
 Furthermore, this allows you to use the `+` character in your commands.
 It also doesn't require escaping shell specific characters like `$` in  (read more [in this section](#subshell)).
 
-You can find some keybinding examples in [`test-config.toml`](examples/test-config.toml).
+You can find some keybinding examples in the [`examples/`](examples/) directory.
+
+#### Keys
 
 All supported `KEY` values:
 ```
@@ -120,14 +125,16 @@ tab
 <any single character>
 ```
 
+#### Operations
+
 All supported `OP` values:
 
 Operation | Action
 :-- | :--
 exit | Quit watchbind
 reload | Reload the input command manually, resets interval timer
-cursor \[down|up\] \<N\> | Move cursor \[down|up\] N number of lines
-cursor \[first|last\] | Move cursor to the \[first|last\] line
+cursor \[down\|up\] \<N\> | Move cursor \[down\|up\] N number of lines
+cursor \[first\|last\] | Move cursor to the \[first\|last\] line
 select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
 unselect | Unselect line that cursor is currently on
 toggle-selection | Toggle selection of line that cursor is currently on
@@ -135,17 +142,32 @@ select-all | Select all lines
 unselect-all | Unselect all currently selected lines
 exec -- \<COMMAND\> | Execute shell command and block until command terminates
 exec -- \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
-help-\[show|hide|toggle\] | \[Show|Hide|Toggle\] the help menu that shows all activated keybindings
+help-\[show\|hide\|toggle\] | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings
 
 The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
 If multiple lines are selected, they will be separated by a newline in `LINES`.
 
-### Style
+### Formatting with Field Separators and Selections
+
+`watchbind` supports some extra formatting features reminiscent of the Unix `cut` command:
+
+- **Field Separators**:
+Define a separator/delimiter to segment your command's output into distinct fields.
+Each separator will be replaced with an [elastic tabstop](https://nick-gravgaard.com/elastic-tabstops/), resulting in a "table"-like structure, similar to the `cut -d \<SEPARATOR\> -t` command.
+
+- **Field Selections**:
+Choose only specific fields to display.
+You can specify a comma-separated list of the indexes (starting at index 1) for individual fields (`X`), ranges (`X-Y`), or the capture of all fields from X onwards (`X-`).
+For instance, the field selection `1,3-4,6-` will display the first, third and fourth fields, as well as all fields from the sixth onwards.
+
+**Important**: The `LINES` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
+
+### Styling
 
 Foreground colors, background colors and boldness of the line the cursor is on, the header lines and all other lines can be customized.
 
 To see all available fields you can customize, run `watchbind -h`.
-The names of the customization fields from the command-line options (e.g. `--cursor-fg blue`) are the same in the toml config file (e.g. `cursor-fg = "blue"`).
+The names of the customization fields from the command-line options (e.g. `--cursor-fg blue`) are the same in the TOML config file (e.g. `cursor-fg = "blue"`).
 
 All supported `COLOR` values:
 ```

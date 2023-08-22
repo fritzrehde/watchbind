@@ -2,7 +2,8 @@ mod line;
 
 pub use line::Line;
 
-use crate::config::{FieldSeparator, Styles};
+use crate::config::Styles;
+use crate::config::{Fields, TableFormatter};
 use anyhow::Result;
 use itertools::izip;
 use ratatui::{
@@ -17,7 +18,7 @@ pub struct Lines {
     pub lines: Vec<Line>,
     pub selected: Vec<bool>,
     pub styles: Styles,
-    pub field_separator: Option<FieldSeparator>,
+    pub fields: Fields,
     pub index_after_header_lines: usize,
     pub cursor_index: Option<usize>,
     // TODO: deprecate in future
@@ -25,15 +26,11 @@ pub struct Lines {
 }
 
 impl Lines {
-    pub fn new(
-        field_separator: Option<FieldSeparator>,
-        styles: Styles,
-        header_lines: usize,
-    ) -> Self {
+    pub fn new(fields: Fields, styles: Styles, header_lines: usize) -> Self {
         Self {
             lines: vec![],
             selected: vec![],
-            field_separator,
+            fields,
             cursor_index: None,
             styles,
             index_after_header_lines: header_lines,
@@ -65,14 +62,9 @@ impl Lines {
 
     // TODO: might be better suited as a new() method or similar
     pub fn update_lines(&mut self, lines: String) -> Result<()> {
-        let formatted: Vec<Option<String>> = match &self.field_separator {
-            Some(separator) => separator
-                .format_string_as_table(&lines)?
-                .lines()
-                .map(str::to_owned)
-                .map(Some)
-                .collect(),
-            None => lines.lines().map(|_| None).collect(),
+        let formatted: Vec<Option<String>> = match lines.as_str().format_as_table(&self.fields)? {
+            Some(formatted) => formatted.lines().map(str::to_owned).map(Some).collect(),
+            None => vec![None; lines.lines().count()],
         };
 
         self.lines = izip!(lines.lines(), formatted)

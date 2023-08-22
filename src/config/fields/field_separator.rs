@@ -1,11 +1,12 @@
 use anyhow::Result;
+use derive_more::AsRef;
 use parse_display::FromStr;
 use serde::Deserialize;
 use std::io::Write;
 use tabwriter::TabWriter;
 
 // TODO: could also be char, but that makes it more restrictive
-#[derive(Deserialize, FromStr, Clone)]
+#[derive(Deserialize, FromStr, Clone, AsRef)]
 pub struct FieldSeparator(String);
 
 impl FieldSeparator {

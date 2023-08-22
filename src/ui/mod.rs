@@ -40,7 +40,7 @@ fn run(terminal: &mut Terminal, config: Config) -> Result<()> {
     let (reload_tx, reload_rx) = mpsc::sync_channel(1);
     let mut state = State::new(
         config.header_lines,
-        config.field_separator,
+        config.fields,
         config.styles,
         config.keybindings.to_string(),
     );

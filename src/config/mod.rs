@@ -2,15 +2,16 @@ mod fields;
 mod keybindings;
 mod style;
 
-pub use fields::FieldSeparator;
+pub use fields::{Fields, TableFormatter};
 pub use keybindings::{KeyEvent, Keybindings, Operations};
 pub use style::Styles;
 
+use self::fields::{FieldSelections, FieldSeparator};
+use self::keybindings::StringKeybindings;
 use crate::command::Command;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
-use keybindings::StringKeybindings;
 use serde::Deserialize;
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
 
@@ -21,8 +22,7 @@ pub struct Config {
     pub styles: Styles,
     pub keybindings: Keybindings,
     pub header_lines: usize,
-    // TODO: turn into own type
-    pub field_separator: Option<FieldSeparator>,
+    pub fields: Fields,
 }
 
 impl Config {
@@ -67,7 +67,7 @@ impl TryFrom<TomlConfig> for Config {
                 .expect("default")
                 .try_into()?,
             header_lines: toml.header_lines.unwrap_or(0),
-            field_separator: toml.field_separator,
+            fields: Fields::try_new(toml.field_separator, toml.field_selections)?,
         })
     }
 }
@@ -108,6 +108,9 @@ pub struct TomlConfig {
     #[serde(rename = "field-separator")]
     field_separator: Option<FieldSeparator>,
 
+    #[serde(rename = "fields")]
+    field_selections: Option<FieldSelections>,
+
     keybindings: Option<StringKeybindings>,
 }
 
@@ -139,6 +142,7 @@ impl TomlConfig {
             selected_bg: self.selected_bg.or(other.selected_bg),
             header_lines: self.header_lines.or(other.header_lines),
             field_separator: self.field_separator.or(other.field_separator),
+            field_selections: self.field_selections.or(other.field_selections),
             keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
         }
     }
@@ -162,6 +166,7 @@ impl From<ClapConfig> for TomlConfig {
             selected_bg: clap.selected_bg,
             header_lines: clap.header_lines,
             field_separator: clap.field_separator,
+            field_selections: clap.field_selections,
             keybindings: clap.keybindings.map(|vec| vec.into()),
         }
     }
@@ -260,17 +265,17 @@ pub struct ClapConfig {
     #[arg(long = "header-lines", value_name = "N")]
     header_lines: Option<usize>,
 
-    /// Field separator
+    /// Field separator [possible values: any string]
     #[arg(short = 's', long = "field-separator", value_name = "STRING")]
     field_separator: Option<FieldSeparator>,
 
-    // /// Print only these specified fields to the UI
-    // #[arg(short = 'f', long = "fields", value_name = "STRING")]
-    // fields: Option<String>,
+    /// Field selections/ranges (comma-separated), e.g., `X`, `X-Y`, `X-` (field indexes start at 1).
+    #[arg(short = 'f', long = "fields", value_name = "LIST")]
+    field_selections: Option<FieldSelections>,
 
     // TODO: replace with StringKeybindings once clap supports parsing into HashMap
     // TODO: known clap bug: replace with ClapKeybindings once supported
-    /// Comma-separated list of keybindings in the format KEY:OP[+OP]*[,KEY:OP[+OP]*]*
-    #[arg(short = 'b', long = "bind", value_name = "KEYBINDINGS", value_delimiter = ',', value_parser = keybindings::parse_str)]
+    /// Keybindings as comma-separated `KEY:OP[+OP]*` pairs, e.g., `q:select+exit,r:reload`.
+    #[arg(short = 'b', long = "bind", value_name = "LIST", value_delimiter = ',', value_parser = keybindings::parse_str)]
     keybindings: Option<Vec<(String, Vec<String>)>>,
 }
