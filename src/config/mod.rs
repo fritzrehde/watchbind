@@ -121,7 +121,7 @@ impl TomlConfig {
             &read_to_string(config_file)
                 .with_context(|| format!("Failed to read configuration from {config_file}"))?,
         )
-        .with_context(|| format!("Failed to parse toml from {config_file}"))?;
+        .with_context(|| format!("Failed to parse TOML from {config_file}"))?;
         Ok(config)
     }
 

@@ -112,7 +112,15 @@ impl Command {
 
 fn check_stderr(output: &Output) -> Result<()> {
     if !output.status.success() {
-        bail!(String::from_utf8(output.stderr.clone()).unwrap());
+        let status_code_str = match output.status.code() {
+            Some(code) => code.to_string(),
+            None => "unknown".to_owned(),
+        };
+        bail!(
+            "Process exited with status code: {} and stderr:\n{}",
+            status_code_str,
+            String::from_utf8(output.stderr.clone())?
+        );
     }
     Ok(())
 }
@@ -127,7 +135,6 @@ mod tests {
         let echo_cmd = r#"echo "hello world""#.to_owned();
         let command: Command = echo_cmd.parse()?;
         let output_lines = command.capture_output(&rx)?;
-        // assert_eq!(output_lines, vec!["hello world".to_owned()]);
         assert_eq!(output_lines, "hello world\n");
         Ok(())
     }
@@ -138,7 +145,6 @@ mod tests {
         let cmd = r#"printf "one\ntwo\n""#.to_owned();
         let command: Command = cmd.parse()?;
         let output_lines = command.capture_output(&rx)?;
-        // assert_eq!(output_lines, vec!["hello world".to_owned()]);
         assert_eq!(output_lines, "one\ntwo\n");
         Ok(())
     }
