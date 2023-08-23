@@ -23,7 +23,7 @@
 
 - **Customizability**: All keybindings and styles (colors and boldness) are customizable.
 - **Flexibility**: You can specify settings using CLI options, a TOML config file, or both.
-- **Speed**: Written in Rust with speed and efficiency in mind.
+- **Speed**: Written in asynchronous Rust with [Tokio](https://tokio.rs/).
 
 ## Installation
 
@@ -51,11 +51,14 @@ Personally, I recommend using the CLI options for small one liners and a TOML co
 
 #### Via Command-Line Arguments
 
-On the command line, you can specify keybindings with the option `--bind "KEY:OPS[,KEY:OPS]*"`, where `OPS` is a list of operations `OP` that are bound to `KEY`.
+On the command line, you can specify a comma-separated list of keybindings, where each keybinding is in the format `KEY:OP[+OP]*`.
 One `KEY` can be bound to multiple operations, therefore, the syntax for each list of operations (`OPS`) is `OP[+OP]*`.
 The operations are separated by `+` and executed in succession (one after the other).
 
-**TLDR**: operations are separated by `+`, keybindings are separated by `,`
+**TLDR**:
+- Keybindings list is separated by `,`
+- A keybinding is a pair of key and (multiple) operations separated by `:`
+- Multiple operations are separated by `+`
 
 #### Via TOML Config File
 

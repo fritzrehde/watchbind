@@ -5,9 +5,10 @@ use crate::command::{AsyncResult, Command};
 use crate::config::Config;
 use crate::config::{KeyEvent, Keybindings};
 use anyhow::Result;
-use crossterm::event::Event::Key;
+use crossterm::event::Event as CrosstermEvent;
 use crossterm::event::EventStream;
 use futures::{future::FutureExt, StreamExt};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_manager::TerminalManager;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -15,9 +16,11 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 pub use state::State;
 
+/// All events that are handled in our main UI/IO loop.
 pub enum Event {
-    KeyPressed(KeyEvent),
     CommandOutput(Result<String>),
+    KeyPressed(KeyEvent),
+    TerminalResized,
 }
 
 pub enum RequestedAction {
@@ -65,18 +68,16 @@ impl UI {
             self.config.styles,
             help_menu_body,
         );
+        let keybindings = Arc::new(self.config.keybindings);
 
-        tokio::task::spawn(poll_execute_command(
+        tokio::spawn(poll_execute_command(
             self.config.watch_rate,
             self.config.command,
             reload_rx,
             event_tx.clone(),
         ));
 
-        tokio::task::spawn(poll_terminal_events(
-            event_tx.clone(),
-            self.config.keybindings.clone(),
-        ));
+        tokio::spawn(poll_terminal_events(event_tx.clone(), keybindings.clone()));
 
         'main: loop {
             terminal.draw(|frame| state.draw(frame))?;
@@ -87,7 +88,7 @@ impl UI {
                     state.update_lines(lines?)?;
                 }
                 Some(Event::KeyPressed(key)) => {
-                    if let Some(ops) = self.config.keybindings.get_operations(&key) {
+                    if let Some(ops) = keybindings.get_operations(&key) {
                         for op in ops {
                             match op.execute(&mut state).await? {
                                 RequestedAction::Exit => break 'main,
@@ -114,6 +115,9 @@ impl UI {
                         }
                     }
                 }
+                Some(Event::TerminalResized) => {
+                    // Reload the UI
+                }
                 _ => {}
             }
         }
@@ -122,7 +126,7 @@ impl UI {
     }
 }
 
-/// Continiously executes the command in a loop, separated by sleeps of
+/// Continuously executes the command in a loop, separated by sleeps of
 /// watch_rate duration. Additionally, can be signalled to reload the execution
 /// of the command, which simply wakes up this thread sooner.
 /// The stdout of successful executions is sent back to the main thread.
@@ -169,27 +173,38 @@ async fn poll_execute_command(
     log::info!("Shutting down command executor task");
 }
 
-/// Continiously listens for terminal-related events (key presses and resizings).
-/// Sends relevant events back to the main thread.
-async fn poll_terminal_events(tx: Sender<Event>, keybindings: Keybindings) {
+/// Continuously listens for terminal-related events, and sends relevant events
+/// back to the main thread.
+/// For key events, only those that are part of a keybinding are sent.
+/// For terminal resizing, we always notify.
+async fn poll_terminal_events(tx: Sender<Event>, keybindings: Arc<Keybindings>) {
     // TODO: don't listen for events when blocked, isn't displayed anyways
     let mut reader = EventStream::new();
 
     loop {
         let event = reader.next().fuse();
 
-        // TODO: optimize, only send the keys we have mapped in the keybindings. might as well send the operation to be performed directly
-
-        if let Some(Ok(Key(key_event))) = event.await {
-            log::debug!("Key pressed: {:?}", key_event);
-
-            if let Ok(key) = key_event.try_into() {
-                if keybindings.get_operations(&key).is_some() {
-                    let Ok(_) = tx.send(Event::KeyPressed(key)).await else {
-                        break;
-                    };
+        match event.await {
+            Some(Ok(CrosstermEvent::Key(key_event))) => {
+                if let Ok(key) = key_event.try_into() {
+                    if keybindings.get_operations(&key).is_some() {
+                        // Ideally, we would send the &Operations directly, instead
+                        // of only sending the key event, which the main thread
+                        // then as to look-up again in the Keybindings hashmap,
+                        // but sending references is impossible/requires a lot of
+                        // synchronization overhead.
+                        if tx.send(Event::KeyPressed(key)).await.is_err() {
+                            break;
+                        };
+                    }
                 }
             }
+            Some(Ok(CrosstermEvent::Resize(_, _))) => {
+                if tx.send(Event::TerminalResized).await.is_err() {
+                    break;
+                };
+            }
+            _ => {}
         }
     }
 
