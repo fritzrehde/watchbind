@@ -47,7 +47,7 @@ pub enum SelectOperation {
 }
 
 impl Operation {
-    pub fn execute(&self, state: &mut State) -> Result<RequestedAction> {
+    pub async fn execute(&self, state: &mut State) -> Result<RequestedAction> {
         match self {
             Self::MoveCursor(MoveCursor::Down(steps)) => state.move_down(*steps),
             Self::MoveCursor(MoveCursor::Up(steps)) => state.move_up(*steps),
@@ -64,8 +64,9 @@ impl Operation {
             Self::Reload => return Ok(RequestedAction::Reload),
             Self::Exit => return Ok(RequestedAction::Exit),
             Self::Execute(command) => {
-                command.execute(state.get_selected_lines())?;
+                command.execute(state.get_selected_lines()).await?;
                 if command.is_blocking() {
+                    // Command execution was blocking until now, so clear event buffer.
                     return Ok(RequestedAction::Unblock);
                 }
             }

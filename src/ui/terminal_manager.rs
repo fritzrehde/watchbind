@@ -36,3 +36,10 @@ impl TerminalManager {
         Ok(())
     }
 }
+
+impl Drop for TerminalManager {
+    fn drop(&mut self) {
+        // TODO: remove unwrap
+        self.restore().unwrap();
+    }
+}

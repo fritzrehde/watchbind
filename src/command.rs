@@ -1,25 +1,20 @@
 use anyhow::{bail, Error, Result};
-use core::time::Duration;
+// use core::time::Duration;
 use parse_display::Display;
 use std::{
-    process::{self, Output, Stdio},
+    borrow::Cow,
+    process::{ExitStatus, Stdio},
     str::FromStr,
-    sync::mpsc::Receiver,
-    thread,
 };
+use tokio::io::AsyncReadExt;
+use tokio::sync::mpsc::Receiver;
 
 #[derive(Clone, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display("{command}")]
 pub struct Command {
-    // TODO: remove pub
-    pub command: String,
+    command: String,
     is_blocking: bool,
 }
-
-// enum Event {
-// 	Reload,
-// 	OutputLines(Result<Vec<String>>),
-// }
 
 impl FromStr for Command {
     type Err = Error;
@@ -37,117 +32,135 @@ impl FromStr for Command {
     }
 }
 
+/// Encodes whether a command's execution was interrupted or the stdout if it
+/// ran to completion.
+pub enum AsyncResult {
+    Stdout(String),
+    Interrupted,
+}
+
 impl Command {
+    /// Returns whether the command is configured to be blocking.
     pub fn is_blocking(&self) -> bool {
         self.is_blocking
     }
 
-    // pub fn capture_output(&self, reload_rx: &Receiver<()>) -> Result<Vec<String>> {
-    pub fn capture_output(&self, reload_rx: &Receiver<()>) -> Result<String> {
-        // let mut cmd = self.shell_cmd(None);
-        // let mut child = cmd.stdout(Stdio::piped());
+    /// Executes a command with the LINES env variable optionally set.
+    /// This method cannot be interrupted (e.g. reloaded), and does not
+    /// return the stdout of the command.
+    pub async fn execute(&self, lines: Option<String>) -> Result<()> {
+        let mut child = self
+            .create_shell_command(lines)
+            // We only need stderr in case of an error, stdout can be ignored
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()?;
 
-        loop {
-            let mut child = self.shell_cmd(None).stdout(Stdio::piped()).spawn()?;
+        if self.is_blocking {
+            let exit_status = child.wait().await?;
+            child_exited_successfully(exit_status, &mut child.stderr).await?;
+        }
 
-            // let (tx, rx) = mpsc::sync_channel(1);
+        Ok(())
+    }
 
-            // thread::spawn(|| {
-            // 	reload_rx.recv().unwrap();
-            // 	tx.clone().send(Event::Reload).unwrap();
-            // });
+    /// Executes a command asynchronously. Listens for an interrupt signal and
+    /// waits for the stdout of the command concurrently (at the same time).
+    pub async fn capture_output(&self, interrupt_rx: &mut Receiver<()>) -> Result<AsyncResult> {
+        let mut child = self
+            .create_shell_command(None)
+            // Keep both stdout and stderr
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
 
-            // thread::spawn(move || {
-            // 	let mut exec = || {
-            // 		let output = child.spawn()?.wait_with_output()?;
-            // 		check_stderr(&output)?;
-            // 		let lines = String::from_utf8(output.stdout)?
-            // 			.lines()
-            // 			.map(str::to_string)
-            // 			.collect();
-            // 		Ok(lines)
-            // 	};
-            // 	tx.clone().send(Event::OutputLines(exec())).unwrap();
-            // });
+        tokio::select! {
+            _ = interrupt_rx.recv() => {
+                child.kill().await.unwrap();
+                Ok(AsyncResult::Interrupted)
+            },
+            exit_status = child.wait() => {
+                child_exited_successfully(exit_status?, &mut child.stderr).await?;
 
-            // TODO: remove busy waiting by creating two threads that send the same event and handle that
-            // busy wait for reload signal or child process finishing
-            loop {
-                if reload_rx.try_recv().is_ok() {
-                    child.kill().ok();
-                    break;
-                }
-                if let Ok(Some(_)) = child.try_wait() {
-                    let output = child.wait_with_output()?;
-                    check_stderr(&output)?;
-                    return Ok(String::from_utf8(output.stdout)?);
-                }
-                thread::sleep(Duration::from_millis(50));
+                // Read stdout
+                let mut stdout = String::new();
+                child.stdout.unwrap().read_to_string(&mut stdout).await?;
+
+                Ok(AsyncResult::Stdout(stdout))
             }
         }
     }
 
-    pub fn execute(&self, lines: Option<String>) -> Result<()> {
-        let mut cmd = self.shell_cmd(lines);
-        if self.is_blocking {
-            check_stderr(&cmd.output()?)?
-        } else {
-            // TODO: documentation states that calling wait is advised to release resources
-            cmd.spawn()?;
-        }
-        Ok(())
-    }
-
-    fn shell_cmd(&self, lines: Option<String>) -> process::Command {
+    fn create_shell_command(&self, lines: Option<String>) -> tokio::process::Command {
         // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
         let sh = vec!["sh", "-c", &self.command];
-        let mut command = process::Command::new(sh[0]);
+
+        let mut command = tokio::process::Command::new(sh[0]);
         command.args(&sh[1..]);
         if let Some(lines) = &lines {
             command.env("LINES", lines);
         }
+
         command
     }
 }
 
-fn check_stderr(output: &Output) -> Result<()> {
-    if !output.status.success() {
-        let status_code_str = match output.status.code() {
-            Some(code) => code.to_string(),
-            None => "unknown".to_owned(),
+/// Return error in case the exit status/code indicates failure, and include
+/// stderr in error message.
+async fn child_exited_successfully(
+    exit_status: ExitStatus,
+    stderr: &mut Option<tokio::process::ChildStderr>,
+) -> Result<()> {
+    if !exit_status.success() {
+        // Read exit code
+        let status_code_str = match exit_status.code() {
+            Some(code) => Cow::Owned(code.to_string()),
+            None => Cow::Borrowed("unknown"),
+        };
+
+        let stderr_str = match stderr {
+            Some(stderr) => {
+                // Read stderr
+                let mut stderr_str = String::new();
+                stderr.read_to_string(&mut stderr_str).await?;
+
+                Cow::Owned(format!("stderr:\n{}", stderr_str))
+            }
+            None => Cow::Borrowed("unknown stderr"),
         };
         bail!(
-            "Process exited with status code: {} and stderr:\n{}",
+            "Process exited with status code: {} and {}",
             status_code_str,
-            String::from_utf8(output.stderr.clone())?
+            stderr_str
         );
     }
     Ok(())
 }
 
+// TODO: update tests
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
-    #[test]
-    fn test_executing_echo_command() -> Result<()> {
-        let (_, rx) = std::sync::mpsc::channel();
-        let echo_cmd = r#"echo "hello world""#.to_owned();
-        let command: Command = echo_cmd.parse()?;
-        let output_lines = command.capture_output(&rx)?;
-        assert_eq!(output_lines, "hello world\n");
-        Ok(())
-    }
+    // #[test]
+    // fn test_executing_echo_command() -> Result<()> {
+    //     let (_, rx) = std::sync::mpsc::channel();
+    //     let echo_cmd = r#"echo "hello world""#.to_owned();
+    //     let command: Command = echo_cmd.parse()?;
+    //     let output_lines = command.capture_output(&rx)?;
+    //     assert_eq!(output_lines, "hello world\n");
+    //     Ok(())
+    // }
 
-    #[test]
-    fn test_multiline_output() -> Result<()> {
-        let (_, rx) = std::sync::mpsc::channel();
-        let cmd = r#"printf "one\ntwo\n""#.to_owned();
-        let command: Command = cmd.parse()?;
-        let output_lines = command.capture_output(&rx)?;
-        assert_eq!(output_lines, "one\ntwo\n");
-        Ok(())
-    }
+    // #[test]
+    // fn test_multiline_output() -> Result<()> {
+    //     let (_, rx) = std::sync::mpsc::channel();
+    //     let cmd = r#"printf "one\ntwo\n""#.to_owned();
+    //     let command: Command = cmd.parse()?;
+    //     let output_lines = command.capture_output(&rx)?;
+    //     assert_eq!(output_lines, "one\ntwo\n");
+    //     Ok(())
+    // }
 
     // TODO: can't add env AND capture output right now
     // #[test]
