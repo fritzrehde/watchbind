@@ -9,6 +9,8 @@ use std::{
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc::Receiver;
 
+use crate::ui::InterruptSignal;
+
 #[derive(Clone, Display, PartialEq, PartialOrd, Eq, Ord)]
 #[display("{command}")]
 pub struct Command {
@@ -20,6 +22,7 @@ impl FromStr for Command {
     type Err = Error;
     fn from_str(command: &str) -> Result<Self, Self::Err> {
         let mut command = command.to_owned();
+        // TODO: do next 4 lines in one lines
         let is_blocking = !command.ends_with(" &");
         if !is_blocking {
             command.truncate(command.len() - " &".len());
@@ -49,8 +52,7 @@ impl Command {
     /// This method cannot be interrupted (e.g. reloaded), and does not
     /// return the stdout of the command.
     pub async fn execute(&self, lines: Option<String>) -> Result<()> {
-        let mut child = self
-            .create_shell_command(lines)
+        let mut child = create_shell_command(&self.command, lines)
             // We only need stderr in case of an error, stdout can be ignored
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -65,10 +67,12 @@ impl Command {
     }
 
     /// Executes a command asynchronously. Listens for an interrupt signal and
-    /// waits for the stdout of the command concurrently (at the same time).
-    pub async fn capture_output(&self, interrupt_rx: &mut Receiver<()>) -> Result<AsyncResult> {
-        let mut child = self
-            .create_shell_command(None)
+    /// waits for the stdout of the command concurrently.
+    pub async fn capture_output(
+        &self,
+        interrupt_rx: &mut Receiver<InterruptSignal>,
+    ) -> Result<AsyncResult> {
+        let mut child = create_shell_command(&self.command, None)
             // Keep both stdout and stderr
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -90,19 +94,19 @@ impl Command {
             }
         }
     }
+}
 
-    fn create_shell_command(&self, lines: Option<String>) -> tokio::process::Command {
-        // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-        let sh = vec!["sh", "-c", &self.command];
+fn create_shell_command(command: &str, lines: Option<String>) -> tokio::process::Command {
+    // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
+    let sh = vec!["sh", "-c", command];
 
-        let mut command = tokio::process::Command::new(sh[0]);
-        command.args(&sh[1..]);
-        if let Some(lines) = &lines {
-            command.env("LINES", lines);
-        }
-
-        command
+    let mut command = tokio::process::Command::new(sh[0]);
+    command.args(&sh[1..]);
+    if let Some(lines) = &lines {
+        command.env("LINES", lines);
     }
+
+    command
 }
 
 /// Return error in case the exit status/code indicates failure, and include
@@ -135,6 +139,38 @@ async fn child_exited_successfully(
         );
     }
     Ok(())
+}
+
+pub struct ExecutableCommand {
+    command: tokio::process::Command,
+    is_blocking: bool,
+}
+
+impl ExecutableCommand {
+    pub fn new(command: &Command, lines: Option<String>) -> Self {
+        let is_blocking = command.is_blocking;
+        let mut command = create_shell_command(&command.command, lines);
+
+        // We only need stderr in case of an error, stdout can be ignored
+        command.stdout(Stdio::null());
+        command.stderr(Stdio::piped());
+
+        Self {
+            command,
+            is_blocking,
+        }
+    }
+
+    pub async fn execute(&mut self) -> Result<()> {
+        let mut child = self.command.spawn()?;
+
+        // TODO: remove, should always be blocking
+        if self.is_blocking {
+            let exit_status = child.wait().await?;
+            child_exited_successfully(exit_status, &mut child.stderr).await?;
+        }
+        Ok(())
+    }
 }
 
 // TODO: update tests

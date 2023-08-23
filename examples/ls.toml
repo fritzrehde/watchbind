@@ -5,7 +5,6 @@ cursor-fg = "black"
 cursor-bg = "blue"
 cursor-bold = true
 selected-bg = "red"
-# field-separator = ","
 header-lines = 1
 
 [keybindings]
@@ -21,6 +20,11 @@ header-lines = 1
   "cursor up 1"
 ]
 "k" = [ "cursor up 1" ]
-"l" = [ "exec -- dunstify \"Printing $LINES\"", "reload", "unselect-all" ]
+"l" = [ "exec -- notify-send \"Printing $LINES\"", "reload", "exec -- sleep 3", "unselect-all" ]
 "s" = [ "exec -- sleep 3" ]
-"S" = [ "exec -- sleep 3 &" ]
+"S" = [ "exec -- ( sleep 3; notify-send \"Hello world\" ) &" ]
+"p" = [
+  "exec -- notify-send \"Executing echo\"",
+  "exec -- echo \"Trying to overwrite watchbind's lines with stdout\"",
+  "exec -- echo \"Trying to overwrite watchbind's lines with stderr\" >&2"
+]

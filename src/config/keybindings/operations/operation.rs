@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, ExecutableCommand};
 use crate::ui::{RequestedAction, State};
 use anyhow::Result;
 use parse_display::{Display, FromStr};
@@ -61,14 +61,20 @@ impl Operation {
             Self::HelpShow => state.show_help_menu(),
             Self::HelpHide => state.hide_help_menu(),
             Self::HelpToggle => state.toggle_help_menu(),
-            Self::Reload => return Ok(RequestedAction::Reload),
+            Self::Reload => return Ok(RequestedAction::ReloadCommand),
             Self::Exit => return Ok(RequestedAction::Exit),
             Self::Execute(command) => {
-                command.execute(state.get_selected_lines()).await?;
+                // TODO: get_selected_lines is sync and computationally intensive, maybe use spawn_blocking
+
+                let mut executable_command =
+                    ExecutableCommand::new(command, state.get_selected_lines());
+
                 if command.is_blocking() {
-                    // Command execution was blocking until now, so clear event buffer.
-                    return Ok(RequestedAction::Unblock);
+                    return Ok(RequestedAction::ExecuteBlockingSubcommand(
+                        executable_command,
+                    ));
                 }
+                executable_command.execute().await?;
             }
         };
         Ok(RequestedAction::Continue)
