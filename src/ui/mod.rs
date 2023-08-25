@@ -214,7 +214,7 @@ impl UI {
                     if let Event::CommandOutput(lines) = event {
                         self.state.update_lines(lines?)?;
 
-                        if let ControlFlow::Exit = self.done_blocking().await? {
+                        if let ControlFlow::Exit = self.conclude_blocking().await? {
                             break 'event_loop;
                         }
                     }
@@ -230,7 +230,7 @@ impl UI {
                         Event::SubcommandCompleted(result) => {
                             result?;
 
-                            if let ControlFlow::Exit = self.done_blocking().await? {
+                            if let ControlFlow::Exit = self.conclude_blocking().await? {
                                 break 'event_loop;
                             }
                         }
@@ -305,7 +305,7 @@ impl UI {
     /// The current blocking state is now over. However, this doesn't guarantee
     /// that we transition to the unblocked state, because we might still have
     /// to execute remaining blocking operations.
-    async fn done_blocking(&mut self) -> Result<ControlFlow> {
+    async fn conclude_blocking(&mut self) -> Result<ControlFlow> {
         // Since we are coming from a blocking state, we need to delete all
         // events we received while we were blocking.
         clear_buffer(&mut self.channels.event_rx);

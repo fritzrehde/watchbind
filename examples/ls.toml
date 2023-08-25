@@ -1,4 +1,4 @@
-command = "ls -la"
+watched-command = "ls -la"
 interval = 3.0
 bold = false
 cursor-fg = "black"

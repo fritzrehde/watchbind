@@ -44,7 +44,7 @@ impl TryFrom<TomlConfig> for Config {
         let default = TomlConfig::default();
         Ok(Self {
             log_file: toml.log_file,
-            command: match toml.command {
+            command: match toml.watched_command {
                 Some(command) => command.parse()?,
                 None => bail!("A command must be provided via command line or config file"),
             },
@@ -76,7 +76,10 @@ impl TryFrom<TomlConfig> for Config {
 #[serde(deny_unknown_fields)]
 pub struct TomlConfig {
     log_file: Option<PathBuf>,
-    command: Option<String>,
+
+    #[serde(rename = "watched-command")]
+    watched_command: Option<String>,
+
     interval: Option<f64>,
     fg: Option<String>,
     bg: Option<String>,
@@ -129,7 +132,7 @@ impl TomlConfig {
     fn merge(self, other: Self) -> Self {
         Self {
             log_file: self.log_file.or(other.log_file),
-            command: self.command.or(other.command),
+            watched_command: self.watched_command.or(other.watched_command),
             interval: self.interval.or(other.interval),
             fg: self.fg.or(other.fg),
             bg: self.bg.or(other.bg),
@@ -153,7 +156,7 @@ impl From<ClapConfig> for TomlConfig {
     fn from(clap: ClapConfig) -> Self {
         Self {
             log_file: clap.log_file,
-            command: clap.command.map(|s| s.join(" ")),
+            watched_command: clap.watched_command.map(|s| s.join(" ")),
             interval: clap.interval,
             fg: clap.fg,
             bg: clap.bg,
@@ -210,9 +213,9 @@ pub struct ClapConfig {
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
 
-    /// Command to execute periodically
+    /// Command to watch by executing periodically
     #[arg(trailing_var_arg(true))]
-    command: Option<Vec<String>>,
+    watched_command: Option<Vec<String>>,
 
     /// TOML config file path
     #[arg(short, long, value_name = "FILE")]

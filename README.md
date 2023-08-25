@@ -37,6 +37,13 @@ The [releases page](https://github.com/fritzrehde/watchbind/releases) contains p
 cargo install watchbind
 ```
 
+## How it works
+
+Watchbind is a command-line tool that aims to help you build custom TUIs from static CLI commands very easily.
+It works by specifying a "watched command" that outputs some lines to stdout that you want to observe.
+Then, we make this static output **dynamic** by re-executing it at a specified watch rate, and we make the TUI **interactive** through custom keybindings that can operate on the individual output lines.
+
+
 ## Customizations
 
 There are several ways to customize the settings:
@@ -135,7 +142,7 @@ All supported `OP` values:
 Operation | Action
 :-- | :--
 exit | Quit watchbind
-reload | Reload the input command manually, resets interval timer
+reload | Reload the watched command manually, resets interval timer
 cursor \[down\|up\] \<N\> | Move cursor \[down\|up\] N number of lines
 cursor \[first\|last\] | Move cursor to the \[first\|last\] line
 select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
@@ -196,16 +203,16 @@ light_cyan
 
 ### Keybindings on selected lines that delete some of the input lines
 
-I define "deleting input lines" as executing a keybinding that changes the length of the input command's output.
+I define "deleting input lines" as executing a keybinding that changes the length of the watched command's output.
 In other words:
-If, after executing a keybinding, the input command generates an output longer or shorter than before the keybinding, then that keybinding deletes input lines.
+If, after executing a keybinding, the watched command generates an output longer or shorter than before the keybinding, then that keybinding deletes input lines.
 
 Why is this definition important?
 Because the selected lines are only stored as indices and, therefore, have no association to the actual lines displayed in watchbind.
 
 Here's an example that demonstrates what problems this can cause:
 You select five lines and then, through a keybinding, execute a command that deletes these five lines.
-The next time your input command is called, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
+The next time your watched command is executed, it will output five lines less (that are displayed in watchbind), since the five lines have been deleted.
 The problem is that the indices of the deleted lines will still be marked as selected.
 Therefore, five different lines, at the same indices as the deleted five lines, will now be selected, which is probably unwanted.
 
@@ -216,16 +223,16 @@ To solve this problem, the following keybinding format is recommended for keybin
 ```
 
 First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).
-Then, we want to see the updated output of the input command that doesn't contain the deleted lines anymore, so we `reload`.
+Then, we want to see the updated output of the watched command that doesn't contain the deleted lines anymore, so we `reload`.
 Finally, we want to remove our the selection of the now removed lines, so we call `unselect-all`.
 
 ### Piping
 
-If you want to use pipes in your command on the command line, make sure to escape the pipe symbol like so:
+If you want to use pipes in your watched command on the command-line, make sure to escape the pipe symbol like so:
 ```
 watchbind ls \| grep "test"
 ```
-or put quotes around the command
+or put quotes around the watched command
 ```
 watchbind "ls | grep test"
 ```
