@@ -7,10 +7,10 @@ license-file = "LICENSE.md"
 documentation = "https://github.com/fritzrehde/watchbind"
 homepage = "https://github.com/fritzrehde/watchbind"
 repository = "https://github.com/fritzrehde/watchbind"
-description = "A cli menu for periodically watching a program's output and executing commands on its lines through keybindings"
+description = "A CLI menu for periodically watching a program's output and executing commands on its lines through keybindings"
 
 [dependencies]
-clap = { version = "4.3.22", default-features = false, features = ["std", "help", "cargo", "derive", "error-context"] }
+clap = { version = "4.4.0", default-features = false, features = ["std", "help", "cargo", "derive", "error-context"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 toml = { version = "0.7.6", default-features = false, features = ["parse"] }
 ratatui = "0.22.0"
