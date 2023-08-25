@@ -16,7 +16,7 @@ impl TryFrom<Vec<String>> for Operations {
             .into_iter()
             .map(|op| {
                 op.parse()
-                    .with_context(|| format!("Invalid Operation: {}", op))
+                    .with_context(|| format!("Failed to parse operation: {}", op))
                     .map_err(anyhow::Error::from)
             })
             .collect::<Result<_>>()?;

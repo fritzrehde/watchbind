@@ -177,7 +177,7 @@ impl UI {
     /// Run the main event loop indefinitely until an Exit request is received.
     async fn run(mut self, polling_state: PollingState) -> Result<()> {
         // Launch polling tasks
-        tokio::spawn(poll_execute_command(
+        tokio::spawn(poll_execute_watched_command(
             self.watch_rate,
             polling_state.watched_command,
             polling_state.reload_rx,
@@ -310,16 +310,20 @@ impl UI {
         // events we received while we were blocking.
         clear_buffer(&mut self.channels.event_rx);
 
-        // If there are any remaining operations, execute them.
         match self.remaining_operations.take() {
             Some(RemainingOperations {
                 key,
                 remaining_index,
             }) => {
+                // Execute any remaining operations.
                 self.handle_key_event_given_starting_index(key, remaining_index)
                     .await
             }
-            None => Ok(ControlFlow::Continue),
+            None => {
+                // Given no more remaining operations, we can unblock.
+                self.blocking_state = BlockingState::Unblocked;
+                Ok(ControlFlow::Continue)
+            }
         }
     }
 
@@ -337,7 +341,7 @@ pub struct InterruptSignal;
 /// watch_rate duration. Additionally, can be signalled to reload the execution
 /// of the command, which simply wakes up this thread sooner.
 /// The stdout of successful executions is sent back to the main thread.
-async fn poll_execute_command(
+async fn poll_execute_watched_command(
     watch_rate: Duration,
     command: Command,
     mut reload_rx: Receiver<InterruptSignal>,
