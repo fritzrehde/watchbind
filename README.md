@@ -56,7 +56,7 @@ One `KEY` can be bound to multiple operations, therefore, the syntax for each li
 The operations are separated by `+` and executed in succession (one after the other).
 
 **TLDR**:
-- Keybindings list is separated by `,`
+- Individual keybindings are separated by `,`
 - A keybinding is a pair of key and (multiple) operations separated by `:`
 - Multiple operations are separated by `+`
 

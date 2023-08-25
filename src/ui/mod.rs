@@ -16,21 +16,55 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 pub use state::State;
 
 pub struct UI {
+    blocking_state: BlockingState,
     terminal_manager: TerminalManager,
     state: State,
-    command: Command,
     watch_rate: Duration,
     keybindings: Arc<Keybindings>,
+    remaining_operations: Option<RemainingOperations>,
+    channels: Channels,
+}
+
+/// After having blocked, there might be some remaining operations, that
+/// were originally requested, which we still have to execute.
+#[derive(Debug)]
+struct RemainingOperations {
+    /// The key that is mapped to the remaining operations. Saving this is
+    /// more (memory) efficient than copying the an partial Operations type.
+    key: KeyEvent,
+    /// The index in the Operations vector where the remaining operations start.
+    remaining_index: usize,
+}
+
+/// All mpsc channels we save in the UI.
+struct Channels {
+    event_tx: Sender<Event>,
+    event_rx: Receiver<Event>,
+    /// We don't store the receivers for the reload and subcommand channels,
+    /// because their ownership is passed to the polling tasks.
+    reload_tx: Sender<InterruptSignal>,
+    subcommand_tx: Sender<ExecutableCommand>,
+}
+
+/// Contains all the state that we cannot save in UI directly, because by being
+/// passed to polling tasks it would leave the UI in a partially moved state,
+/// preventing us from calling methods on it.
+struct PollingState {
+    // TODO: name it watched_command everywhere
+    watched_command: Command,
+    reload_rx: Receiver<InterruptSignal>,
+    subcommand_rx: Receiver<ExecutableCommand>,
 }
 
 /// Events that are handled in our main UI/IO loop.
-pub enum Event {
+enum Event {
     CommandOutput(Result<String>),
     SubcommandCompleted(Result<()>),
     KeyPressed(KeyEvent),
     TerminalResized,
 }
 
+// TODO: maybe move to operations module
 /// Actions that executed subcommands (coming from keybindings) can request.
 pub enum RequestedAction {
     /// Continue the execution normally
@@ -44,8 +78,9 @@ pub enum RequestedAction {
 }
 
 // TODO: use rust type state pattern
+/// Whether or not the app is currently blocking (new events).
 /// The app is blocked when blocking commands are executing.
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum BlockingState {
     #[default]
     Unblocked,
@@ -53,17 +88,8 @@ enum BlockingState {
     BlockedExecutingSubcommand,
 }
 
-impl BlockingState {
-    /// When we unblock, we need to delete all events that occurred while
-    /// we were blocking.
-    fn unblock(&mut self, event_rx: &mut Receiver<Event>) {
-        clear_buffer(event_rx);
-        *self = BlockingState::Unblocked;
-    }
-}
-
-/// Draws the UI. Convenient macro to prevent having to require borrowing
-/// self completely, which causes borrow-checker problems.
+/// Draws the UI. Prevents code duplication, because making this a method would
+/// require borrowing self completely, which causes borrow-checker problems.
 macro_rules! draw {
     ($self:expr) => {
         $self
@@ -73,14 +99,34 @@ macro_rules! draw {
     };
 }
 
+/// Save all remaining operations, if there are any. Used as macro to prevent
+/// borrow-checking problems.
+macro_rules! save_remaining_operations {
+    ($self:expr, $key:expr, $remaining_index:expr, $operations:expr) => {
+        if $remaining_index < $operations.len() {
+            $self.remaining_operations = Some(RemainingOperations {
+                key: $key,
+                remaining_index: $remaining_index,
+            });
+        }
+    };
+}
+
+/// Control flow action to be taken after executing operations.
+enum ControlFlow {
+    Exit,
+    Continue,
+}
+
 impl UI {
     /// Initiates the user interface.
     pub async fn start(config: Config) -> Result<()> {
-        UI::new(config)?.run().await?;
+        let (ui, polling_state) = UI::new(config)?;
+        ui.run(polling_state).await?;
         Ok(())
     }
 
-    fn new(config: Config) -> Result<Self> {
+    fn new(config: Config) -> Result<(Self, PollingState)> {
         let terminal_manager = TerminalManager::new()?;
 
         let help_menu_body = config.keybindings.to_string();
@@ -91,112 +137,195 @@ impl UI {
             help_menu_body,
         );
 
-        Ok(Self {
+        /// The event buffer capacity is restricted to 100 (seems to be a
+        /// common default in Tokio) to prevent the message queue from growing
+        /// to the point of memory exhaustion.
+        const EVENT_BUFFER_CAPACITY: usize = 100;
+        let (event_tx, event_rx) = mpsc::channel(EVENT_BUFFER_CAPACITY);
+
+        /// The polling tasks/threads are mostly waiting for signals from the
+        /// main event loop, and perform a single action on arrival of a
+        /// message. Therefore, the receiving polling tasks should never
+        /// receive more than 1 task.
+        const POLLING_TASKS_BUFFER_CAPACITY: usize = 1;
+        let (reload_tx, reload_rx) = mpsc::channel(POLLING_TASKS_BUFFER_CAPACITY);
+        let (subcommand_tx, subcommand_rx) = mpsc::channel(POLLING_TASKS_BUFFER_CAPACITY);
+
+        let ui = Self {
+            blocking_state: BlockingState::default(),
             terminal_manager,
             state,
-            command: config.command,
             watch_rate: config.watch_rate,
             keybindings: Arc::new(config.keybindings),
-        })
+            remaining_operations: None,
+            channels: Channels {
+                event_tx,
+                event_rx,
+                reload_tx,
+                subcommand_tx,
+            },
+        };
+        let polling_state = PollingState {
+            watched_command: config.command,
+            reload_rx,
+            subcommand_rx,
+        };
+
+        Ok((ui, polling_state))
     }
 
-    async fn run(mut self) -> Result<()> {
-        // TODO: fine tune the buffer size, explain why 100
-        let (event_tx, mut event_rx) = mpsc::channel(100);
-        // TODO: explain why the buffer is 1 here
-        let (reload_tx, reload_rx) = mpsc::channel(1);
-        let (subcommand_tx, subcommand_rx) = mpsc::channel(1);
-
-        let mut blocking_state = BlockingState::default();
-
+    /// Run the main event loop indefinitely until an Exit request is received.
+    async fn run(mut self, polling_state: PollingState) -> Result<()> {
         // Launch polling tasks
         tokio::spawn(poll_execute_command(
             self.watch_rate,
-            self.command,
-            reload_rx,
-            event_tx.clone(),
+            polling_state.watched_command,
+            polling_state.reload_rx,
+            self.channels.event_tx.clone(),
         ));
-        tokio::spawn(poll_execute_subcommands(subcommand_rx, event_tx.clone()));
+        tokio::spawn(poll_execute_subcommands(
+            polling_state.subcommand_rx,
+            self.channels.event_tx.clone(),
+        ));
         tokio::spawn(poll_terminal_events(
             self.keybindings.clone(),
-            event_tx.clone(),
+            self.channels.event_tx.clone(),
         ));
 
         'event_loop: loop {
             draw!(self)?;
 
-            match blocking_state {
-                BlockingState::BlockedReloadingCommand => match event_rx.recv().await {
-                    Some(Event::CommandOutput(lines)) => {
+            let Some(event) = self.channels.event_rx.recv().await else {
+                break 'event_loop;
+            };
+
+            // Handle events that are handled the same in every state.
+            if let Event::TerminalResized = &event {
+                // Reload the UI
+                continue 'event_loop;
+            }
+            // Note: all states also handle Event::CommandOutput very similarly,
+            // but taking lines out of event here leaves event in a partially
+            // moved state, preventing further usage. Therefore, we tolerate
+            // the code duplication below for now.
+
+            match self.blocking_state {
+                BlockingState::BlockedReloadingCommand => {
+                    if let Event::CommandOutput(lines) = event {
                         self.state.update_lines(lines?)?;
-                        blocking_state.unblock(&mut event_rx);
+
+                        if let ControlFlow::Exit = self.done_blocking().await? {
+                            break 'event_loop;
+                        }
                     }
-                    Some(Event::TerminalResized) => {} // Reload the UI,
-                    _ => {}
-                },
-                BlockingState::BlockedExecutingSubcommand => match event_rx.recv().await {
-                    // When we are blocked waiting for the subcommand to finish
-                    // executing, we still process the stdout of the main
-                    // command, but crucially don't exit our current state.
-                    Some(Event::CommandOutput(lines)) => {
-                        self.state.update_lines(lines?)?;
-                    }
-                    Some(Event::SubcommandCompleted(result)) => {
-                        result?;
-                        blocking_state.unblock(&mut event_rx);
-                    }
-                    Some(Event::TerminalResized) => {} // Reload the UI,
-                    _ => {}
-                },
-                BlockingState::Unblocked => {
-                    match event_rx.recv().await {
-                        Some(Event::CommandOutput(lines)) => {
+                }
+                BlockingState::BlockedExecutingSubcommand => {
+                    match event {
+                        Event::CommandOutput(lines) => {
+                            // We handle new output lines, but don't exit the
+                            // blocking state, since we still have to wait for
+                            // our subcommand to complete.
                             self.state.update_lines(lines?)?;
                         }
-                        Some(Event::KeyPressed(key)) => {
-                            if let Some(ops) = self.keybindings.get_operations(&key) {
-                                // TODO: idea: pop from the front, so blocking commands can take the rest to execute after finishing blocking
-                                for op in ops {
-                                    log::debug!("Executing op: {}", op);
+                        Event::SubcommandCompleted(result) => {
+                            result?;
 
-                                    match op.execute(&mut self.state).await? {
-                                        RequestedAction::Exit => break 'event_loop,
-                                        RequestedAction::ReloadCommand => {
-                                            // Send the command execution an interrupt
-                                            // signal causing the execution to be
-                                            // reloaded.
-                                            if reload_tx.send(InterruptSignal).await.is_err() {
-                                                break 'event_loop;
-                                            }
-                                            blocking_state = BlockingState::BlockedReloadingCommand;
-                                            // TODO: by leaving this for loop, we are ignoring/forgetting to execute the remaining operations => save remaining operations for execution after we finished blocking
-                                            continue 'event_loop;
-                                        }
-                                        RequestedAction::ExecuteBlockingSubcommand(subcommand) => {
-                                            if subcommand_tx.send(subcommand).await.is_err() {
-                                                break 'event_loop;
-                                            }
-                                            blocking_state =
-                                                BlockingState::BlockedExecutingSubcommand;
-                                            // TODO: by leaving this for loop, we are ignoring/forgetting to execute the remaining operations => save remaining operations for execution after we finished blocking
-                                            continue 'event_loop;
-                                        }
-                                        RequestedAction::Continue => {}
-                                    };
-
-                                    // Redraw the UI after each operation's execution.
-                                    draw!(self)?;
-                                }
+                            if let ControlFlow::Exit = self.done_blocking().await? {
+                                break 'event_loop;
                             }
                         }
-                        Some(Event::TerminalResized) => {} // Reload the UI,
                         _ => {}
                     }
                 }
+                BlockingState::Unblocked => match event {
+                    Event::CommandOutput(lines) => {
+                        self.state.update_lines(lines?)?;
+                    }
+                    Event::KeyPressed(key) => {
+                        if let ControlFlow::Exit = self.handle_key_event(key).await? {
+                            break 'event_loop;
+                        }
+                    }
+                    _ => {}
+                },
             }
         }
 
         Ok(())
+    }
+
+    /// Executes the operations associated with a key event, but starting at the
+    /// given index in the operations iterator. If we encounter any blocking
+    /// operations, we update the remaining operations.
+    async fn handle_key_event_given_starting_index(
+        &mut self,
+        key: KeyEvent,
+        starting_index: usize,
+    ) -> Result<ControlFlow> {
+        if let Some(ops) = self.keybindings.get_operations(&key) {
+            for (idx, op) in ops.into_iter().enumerate().skip(starting_index) {
+                match op.execute(&mut self.state).await? {
+                    RequestedAction::Exit => return Ok(ControlFlow::Exit),
+                    RequestedAction::ReloadCommand => {
+                        // Send the command execution an interrupt signal
+                        // causing the execution to be reloaded.
+                        if self.channels.reload_tx.send(InterruptSignal).await.is_err() {
+                            return Ok(ControlFlow::Exit);
+                        }
+
+                        save_remaining_operations!(self, key, idx + 1, ops);
+                        self.blocking_state = BlockingState::BlockedReloadingCommand;
+
+                        return Ok(ControlFlow::Continue);
+                    }
+                    RequestedAction::ExecuteBlockingSubcommand(subcommand) => {
+                        // Send executable command to dedicated task.
+                        if self.channels.subcommand_tx.send(subcommand).await.is_err() {
+                            return Ok(ControlFlow::Exit);
+                        }
+
+                        save_remaining_operations!(self, key, idx + 1, ops);
+                        self.blocking_state = BlockingState::BlockedExecutingSubcommand;
+
+                        return Ok(ControlFlow::Continue);
+                    }
+                    RequestedAction::Continue => {
+                        // Redraw the UI between the execution of each
+                        // non-blocking operation.
+                        draw!(self)?;
+                    }
+                };
+            }
+
+            self.blocking_state = BlockingState::Unblocked;
+        }
+        Ok(ControlFlow::Continue)
+    }
+
+    /// The current blocking state is now over. However, this doesn't guarantee
+    /// that we transition to the unblocked state, because we might still have
+    /// to execute remaining blocking operations.
+    async fn done_blocking(&mut self) -> Result<ControlFlow> {
+        // Since we are coming from a blocking state, we need to delete all
+        // events we received while we were blocking.
+        clear_buffer(&mut self.channels.event_rx);
+
+        // If there are any remaining operations, execute them.
+        match self.remaining_operations.take() {
+            Some(RemainingOperations {
+                key,
+                remaining_index,
+            }) => {
+                self.handle_key_event_given_starting_index(key, remaining_index)
+                    .await
+            }
+            None => Ok(ControlFlow::Continue),
+        }
+    }
+
+    /// Execute the operations associated with a key event.
+    async fn handle_key_event(&mut self, key: KeyEvent) -> Result<ControlFlow> {
+        self.handle_key_event_given_starting_index(key, 0).await
     }
 }
 

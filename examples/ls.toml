@@ -20,7 +20,7 @@ header-lines = 1
   "cursor up 1"
 ]
 "k" = [ "cursor up 1" ]
-"l" = [ "exec -- notify-send \"Printing $LINES\"", "reload", "exec -- sleep 3", "unselect-all" ]
+"l" = [ "exec -- notify-send \"Printing $LINES\"", "reload", "exec -- sleep 1", "unselect-all" ]
 "s" = [ "exec -- sleep 3" ]
 "S" = [ "exec -- ( sleep 3; notify-send \"Hello world\" ) &" ]
 "p" = [

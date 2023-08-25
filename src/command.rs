@@ -141,6 +141,7 @@ async fn child_exited_successfully(
     Ok(())
 }
 
+#[derive(Debug)]
 pub struct ExecutableCommand {
     command: tokio::process::Command,
     is_blocking: bool,
