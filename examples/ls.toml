@@ -21,6 +21,7 @@ header-lines = 1
 ]
 "k" = [ "cursor up 1" ]
 "l" = [ "exec -- notify-send \"Printing $LINES\"", "reload", "exec -- sleep 1", "unselect-all" ]
+# "n" = [ "exec -- touch $(mktemp new_file_XXXXXX.txt)", "exec -- notify-send test" ]
 "s" = [ "exec -- sleep 3" ]
 "S" = [ "exec -- ( sleep 3; notify-send \"Hello world\" ) &" ]
 "p" = [
