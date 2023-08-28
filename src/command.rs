@@ -1,117 +1,362 @@
-use anyhow::{bail, Error, Result};
-// use core::time::Duration;
-use parse_display::Display;
+use crate::ui::{EnvVariables, InterruptSignal};
+use anyhow::{bail, Result};
 use std::{
     borrow::Cow,
+    collections::HashMap,
+    ops::Deref,
     process::{ExitStatus, Stdio},
-    str::FromStr,
+    sync::Arc,
+    time::Duration,
 };
-use tokio::io::AsyncReadExt;
+use tokio::process::Command as TokioCommand;
 use tokio::sync::mpsc::Receiver;
+use tokio::{io::AsyncReadExt, sync::Mutex};
 
-use crate::ui::InterruptSignal;
+// Type-States
 
-#[derive(Clone, Display, PartialEq, PartialOrd, Eq, Ord)]
-#[display("{command}")]
-pub struct Command {
-    command: String,
-    is_blocking: bool,
+#[derive(Clone)]
+pub struct NonBlocking;
+#[derive(Clone)]
+pub struct Blocking;
+
+#[derive(Clone)]
+pub struct WithoutEnv;
+#[derive(Clone)]
+pub struct WithEnv {
+    env_variables: Arc<Mutex<EnvVariables>>,
 }
 
-impl FromStr for Command {
-    type Err = Error;
-    fn from_str(command: &str) -> Result<Self, Self::Err> {
-        let mut command = command.to_owned();
-        // TODO: do next 4 lines in one lines
-        let is_blocking = !command.ends_with(" &");
-        if !is_blocking {
-            command.truncate(command.len() - " &".len());
-        }
+#[derive(Clone)]
+pub struct NoOutput;
+#[derive(Clone)]
+pub struct WithOutput;
 
-        Ok(Self {
+#[derive(Clone)]
+pub struct NonInterruptible;
+pub struct Interruptible {
+    pub interrupt_rx: Receiver<InterruptSignal>,
+}
+
+// Advantages of the Type-State Builder Pattern:
+// 1. We don't have any option/enum (an alternative configuration strategy)
+// checking overhead at runtime.
+// 2. We can guarantee that we handled all possible Command "variants"
+// (combination of config options), that we use, at compile-time.
+// 3. Arguably, this also results in separated, cleaner code.
+
+/// A Command offering customization of the blocking behaviour, the input
+/// environment variables, whether the output is captured and whether the
+/// execution can be interrupted. Utilizes the type-state builder pattern to
+/// enforce these configurations at compile-time.
+// #[derive(Clone)]
+pub struct CommandBuilder<B = NonBlocking, E = WithoutEnv, O = NoOutput, I = NonInterruptible> {
+    command: String,
+    blocking: B,
+    output: O,
+    interruptible: I,
+    env: E,
+    tokio_command: TokioCommandBuilder,
+}
+
+// TODO: impl default trait so we don't have to duplicate this
+impl CommandBuilder {
+    pub fn new(command: String) -> Self {
+        let sh = ["sh", "-c", &command];
+        let mut process = TokioCommand::new(sh[0]);
+        process.args(&sh[1..]);
+        process.stdout(Stdio::null());
+        process.stderr(Stdio::null());
+
+        CommandBuilder {
+            // TODO: i think we don't even need command anymore, just the tokiocommand
             command,
-            is_blocking,
-        })
+            blocking: NonBlocking,
+            output: NoOutput,
+            interruptible: NonInterruptible,
+            env: WithoutEnv,
+            tokio_command: Default::default(),
+        }
     }
 }
 
-/// Encodes whether a command's execution was interrupted or the stdout if it
+/// Since we can't save a tokio::process::Command permanently and just clone it
+/// on new executions (it doesn't implement Clone), we store most of what's
+/// necessary to contruct it.
+#[derive(Default, Clone)]
+struct TokioCommandBuilder {
+    stdout: StdioClonable,
+    stderr: StdioClonable,
+}
+
+// TODO: this should be known at compile-time as well, not have a match statement
+#[derive(Default, Clone)]
+enum StdioClonable {
+    Piped,
+    #[default]
+    Null,
+}
+
+impl From<&StdioClonable> for Stdio {
+    fn from(value: &StdioClonable) -> Self {
+        match value {
+            StdioClonable::Piped => Stdio::piped(),
+            StdioClonable::Null => Stdio::null(),
+        }
+    }
+}
+
+// Provide methods for the builder pattern
+impl<B, E, O, I> CommandBuilder<B, E, O, I> {
+    pub fn blocking(mut self) -> CommandBuilder<Blocking, E, O, I> {
+        // When we wait for the command to complete, we want to analyze the
+        // exit status and stderr afterwards.
+        self.tokio_command.stderr = StdioClonable::Piped;
+
+        CommandBuilder {
+            command: self.command,
+            blocking: Blocking,
+            output: self.output,
+            interruptible: self.interruptible,
+            env: self.env,
+            tokio_command: self.tokio_command,
+        }
+    }
+
+    pub fn with_env(
+        self,
+        env_variables: Arc<Mutex<EnvVariables>>,
+    ) -> CommandBuilder<B, WithEnv, O, I> {
+        CommandBuilder {
+            command: self.command,
+            blocking: self.blocking,
+            output: self.output,
+            interruptible: self.interruptible,
+            env: WithEnv { env_variables },
+            tokio_command: self.tokio_command,
+        }
+    }
+
+    pub fn with_output(mut self) -> CommandBuilder<B, E, WithOutput, I> {
+        // Required for obtaining stdout from child process.
+        self.tokio_command.stdout = StdioClonable::Piped;
+
+        CommandBuilder {
+            command: self.command,
+            blocking: self.blocking,
+            output: WithOutput,
+            interruptible: self.interruptible,
+            env: self.env,
+            tokio_command: self.tokio_command,
+        }
+    }
+
+    pub fn interruptible(
+        self,
+        interrupt_rx: Receiver<InterruptSignal>,
+    ) -> CommandBuilder<B, E, O, Interruptible> {
+        CommandBuilder {
+            command: self.command,
+            blocking: self.blocking,
+            output: self.output,
+            interruptible: Interruptible { interrupt_rx },
+            env: self.env,
+            tokio_command: self.tokio_command,
+        }
+    }
+}
+
+impl<B, O, I> CommandBuilder<B, WithoutEnv, O, I> {
+    async fn create_shell_command(&self) -> TokioCommand {
+        // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
+        let sh = ["sh", "-c", &self.command];
+
+        let mut command = TokioCommand::new(sh[0]);
+
+        command.args(&sh[1..]);
+        command.stdout(&self.tokio_command.stdout);
+        command.stderr(&self.tokio_command.stderr);
+
+        command
+    }
+}
+
+impl<B, O, I> CommandBuilder<B, WithEnv, O, I> {
+    async fn create_shell_command(&self) -> TokioCommand {
+        // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
+        let sh = ["sh", "-c", &self.command];
+
+        let mut command = TokioCommand::new(sh[0]);
+
+        command.args(&sh[1..]);
+        command.stdout(&self.tokio_command.stdout);
+        command.stderr(&self.tokio_command.stderr);
+
+        let env_variables: HashMap<_, _> = self.env.env_variables.lock().await.deref().into();
+        command.envs(env_variables);
+
+        command
+    }
+}
+
+// TODO: remove code duplication
+// TODO: see where we can make it even more generic
+
+impl CommandBuilder<NonBlocking, WithoutEnv, NoOutput, NonInterruptible> {
+    pub async fn execute(&self) -> Result<()> {
+        self.create_shell_command().await.spawn()?;
+
+        // create_shell_command(&self.command)
+        //     // We only need stderr in case of an error, stdout can be ignored
+        //     .stdout(Stdio::null())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
+
+        Ok(())
+    }
+}
+
+impl CommandBuilder<NonBlocking, WithEnv, NoOutput, NonInterruptible> {
+    pub async fn execute(&self) -> Result<()> {
+        self.create_shell_command().await.spawn()?;
+
+        // let env_variables = self.env.env_variables.lock().await.deref().into();
+        // create_shell_command_with_env(&self.command, env_variables)
+        //     // We only need stderr in case of an error, stdout can be ignored
+        //     .stdout(Stdio::null())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
+
+        Ok(())
+    }
+}
+
+impl CommandBuilder<Blocking, WithEnv, NoOutput, NonInterruptible> {
+    pub async fn execute(&self) -> Result<()> {
+        let mut child = self.create_shell_command().await.spawn()?;
+
+        // let env_variables = self.env.env_variables.lock().await.deref().into();
+        // let mut child = create_shell_command_with_env(&self.command, env_variables)
+        //     // We only need stderr in case of an error, stdout can be ignored
+        //     .stdout(Stdio::null())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
+
+        let exit_status = child.wait().await?;
+        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+
+        Ok(())
+    }
+}
+
+impl CommandBuilder<Blocking, WithoutEnv, WithOutput, NonInterruptible> {
+    pub async fn execute(&self) -> Result<String> {
+        let mut child = self.create_shell_command().await.spawn()?;
+
+        // let mut child = create_shell_command(&self.command)
+        //     // Keep both stdout and stderr
+        //     .stdout(Stdio::piped())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
+
+        let exit_status = child.wait().await?;
+        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+
+        // Read stdout
+        let mut stdout = String::new();
+        child.stdout.unwrap().read_to_string(&mut stdout).await?;
+
+        Ok(stdout)
+    }
+}
+
+impl CommandBuilder<Blocking, WithEnv, WithOutput, NonInterruptible> {
+    pub async fn execute(&self) -> Result<String> {
+        let mut child = self.create_shell_command().await.spawn()?;
+
+        // let env_variables = self.env.env_variables.lock().await.deref().into();
+        // let mut child = create_shell_command_with_env(&self.command, env_variables)
+        //     // Keep both stdout and stderr
+        //     .stdout(Stdio::piped())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
+
+        let exit_status = child.wait().await?;
+        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+
+        // Read stdout
+        let mut stdout = String::new();
+        child.stdout.unwrap().read_to_string(&mut stdout).await?;
+
+        Ok(stdout)
+    }
+}
+
+/// Encodes whether a command's execution was interrupted, or the stdout if it
 /// ran to completion.
-pub enum AsyncResult {
+pub enum ExecutionResult {
     Stdout(String),
     Interrupted,
 }
 
-impl Command {
-    /// Returns whether the command is configured to be blocking.
-    pub fn is_blocking(&self) -> bool {
-        self.is_blocking
-    }
+// TODO: find better name
+/// The async call was woken up due to this reason.
+pub enum WasWoken {
+    ReceivedInterrupt,
+    ChannelClosed,
+}
 
-    /// Executes a command with the LINES env variable optionally set.
-    /// This method cannot be interrupted (e.g. reloaded), and does not
-    /// return the stdout of the command.
-    pub async fn execute(&self, lines: Option<String>) -> Result<()> {
-        let mut child = create_shell_command(&self.command, lines)
-            // We only need stderr in case of an error, stdout can be ignored
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()?;
+impl CommandBuilder<Blocking, WithEnv, WithOutput, Interruptible> {
+    pub async fn execute(&mut self) -> Result<ExecutionResult> {
+        let mut child = self.create_shell_command().await.spawn()?;
 
-        if self.is_blocking {
-            let exit_status = child.wait().await?;
-            child_exited_successfully(exit_status, &mut child.stderr).await?;
-        }
+        // let env_variables = self.env.env_variables.lock().await.deref().into();
 
-        Ok(())
-    }
-
-    /// Executes a command asynchronously. Listens for an interrupt signal and
-    /// waits for the stdout of the command concurrently.
-    pub async fn capture_output(
-        &self,
-        interrupt_rx: &mut Receiver<InterruptSignal>,
-    ) -> Result<AsyncResult> {
-        let mut child = create_shell_command(&self.command, None)
-            // Keep both stdout and stderr
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        // let mut child = create_shell_command_with_env(&self.command, env_variables)
+        //     // Keep both stdout and stderr
+        //     .stdout(Stdio::piped())
+        //     .stderr(Stdio::piped())
+        //     .spawn()?;
 
         tokio::select! {
-            _ = interrupt_rx.recv() => {
-                child.kill().await.unwrap();
-                Ok(AsyncResult::Interrupted)
+            _ = self.interruptible.interrupt_rx.recv() => {
+                child.kill().await?;
+                Ok(ExecutionResult::Interrupted)
             },
             exit_status = child.wait() => {
-                child_exited_successfully(exit_status?, &mut child.stderr).await?;
+                assert_child_exited_successfully(exit_status?, &mut child.stderr).await?;
 
                 // Read stdout
                 let mut stdout = String::new();
+                // TODO: remove unwrap()
                 child.stdout.unwrap().read_to_string(&mut stdout).await?;
 
-                Ok(AsyncResult::Stdout(stdout))
+                Ok(ExecutionResult::Stdout(stdout))
             }
         }
     }
 }
 
-fn create_shell_command(command: &str, lines: Option<String>) -> tokio::process::Command {
-    // TODO: optimize: save ["sh", "-c", cmd] in hashmap to avoid reallocation
-    let sh = vec!["sh", "-c", command];
-
-    let mut command = tokio::process::Command::new(sh[0]);
-    command.args(&sh[1..]);
-    if let Some(lines) = &lines {
-        command.env("LINES", lines);
+impl<B, E, O> CommandBuilder<B, E, O, Interruptible> {
+    /// Waits indefinitely for an interrupt signal.
+    pub async fn wait_for_interrupt(&mut self) -> WasWoken {
+        match self.interruptible.interrupt_rx.recv().await {
+            Some(InterruptSignal) => WasWoken::ReceivedInterrupt,
+            None => WasWoken::ChannelClosed,
+        }
     }
 
-    command
+    /// Waits for an interrupt signal up to a given timeout duration.
+    pub async fn wait_for_interrupt_within_timeout(&mut self, timeout: Duration) -> WasWoken {
+        match tokio::time::timeout(timeout, self.interruptible.interrupt_rx.recv()).await {
+            Ok(None) => WasWoken::ChannelClosed,
+            Ok(Some(InterruptSignal)) | Err(_) => WasWoken::ReceivedInterrupt,
+        }
+    }
 }
 
 /// Return error in case the exit status/code indicates failure, and include
 /// stderr in error message.
-async fn child_exited_successfully(
+async fn assert_child_exited_successfully(
     exit_status: ExitStatus,
     stderr: &mut Option<tokio::process::ChildStderr>,
 ) -> Result<()> {
@@ -133,45 +378,12 @@ async fn child_exited_successfully(
             None => Cow::Borrowed("unknown stderr"),
         };
         bail!(
-            "Process exited with status code: {} and {}",
+            "Process exited with status code: {} and stderr: {}",
             status_code_str,
             stderr_str
         );
     }
     Ok(())
-}
-
-#[derive(Debug)]
-pub struct ExecutableCommand {
-    command: tokio::process::Command,
-    is_blocking: bool,
-}
-
-impl ExecutableCommand {
-    pub fn new(command: &Command, lines: Option<String>) -> Self {
-        let is_blocking = command.is_blocking;
-        let mut command = create_shell_command(&command.command, lines);
-
-        // We only need stderr in case of an error, stdout can be ignored
-        command.stdout(Stdio::null());
-        command.stderr(Stdio::piped());
-
-        Self {
-            command,
-            is_blocking,
-        }
-    }
-
-    pub async fn execute(&mut self) -> Result<()> {
-        let mut child = self.command.spawn()?;
-
-        // TODO: remove, should always be blocking
-        if self.is_blocking {
-            let exit_status = child.wait().await?;
-            child_exited_successfully(exit_status, &mut child.stderr).await?;
-        }
-        Ok(())
-    }
 }
 
 // TODO: update tests

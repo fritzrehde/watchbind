@@ -1,59 +1,73 @@
+use std::sync::Arc;
+
 use ratatui::{
     prelude::{Alignment, Backend, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
 };
+use tokio::sync::Mutex;
+
+use super::EnvVariables;
 
 pub struct HelpMenu {
-    is_shown: bool,
-    body: String,
+    env_variables: Arc<Mutex<EnvVariables>>,
+    keybindings_str: String,
+    env_variables_str: String,
     vertical_scroll_index: usize,
     vertical_scroll_state: ScrollbarState,
 }
 
 // TODO: scrollbar should be hidden if not necessary; currently it's always shown
+// TODO: we should display a mapping of all set EnvVariables (with their actual values)
 
 impl HelpMenu {
-    pub fn new(help_menu_body: String) -> Self {
+    pub fn new(keybindings_str: String, env_variables: Arc<Mutex<EnvVariables>>) -> Self {
         HelpMenu {
-            vertical_scroll_state: ScrollbarState::default()
-                .content_length(help_menu_body.lines().count() as u16),
-            is_shown: false,
-            body: help_menu_body,
+            // vertical_scroll_state: ScrollbarState::default()
+            //     .content_length(keybindings_str.lines().count() as u16),
+            env_variables,
+            keybindings_str,
+            env_variables_str: String::default(),
+            vertical_scroll_state: ScrollbarState::default(),
             vertical_scroll_index: 0,
         }
     }
 
     pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
-        if self.is_shown {
-            let area = centered_rect(50, 50, frame.size());
+        // TODO: maybe in the future, when we add more features for manipulating ENV variable state, we have to fetch the new
+        let area = centered_rect(50, 50, frame.size());
 
-            let text: Text = self.body.as_str().into();
+        let rendered_text = format!(
+            "ENV VARIABLES:\n{}\nKEYBINDINGS:\n{}\n",
+            self.env_variables_str, self.keybindings_str
+        );
 
-            // Render the paragraph with the updated scroll state
-            let paragraph = Paragraph::new(text)
-                .block(Block::default().title("help").borders(Borders::ALL))
-                .alignment(Alignment::Left)
-                .wrap(Wrap { trim: true })
-                // scroll offset for each axis: (y, x)
-                .scroll((self.vertical_scroll_index as u16, 0));
+        // let text: Text = self.keybindings_str.as_str().into();
+        let text: Text = rendered_text.into();
 
-            // Render the scrollbar next to the paragraph
-            frame.render_widget(paragraph, area);
+        // Render the paragraph with the updated scroll state
+        let paragraph = Paragraph::new(text)
+            .block(Block::default().title("help").borders(Borders::ALL))
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: true })
+            // scroll offset for each axis: (y, x)
+            .scroll((self.vertical_scroll_index as u16, 0));
 
-            frame.render_stateful_widget(
-                Scrollbar::default()
-                    .orientation(ScrollbarOrientation::VerticalRight)
-                    .begin_symbol(None)
-                    .end_symbol(None),
-                area.inner(&Margin {
-                    vertical: 1,
-                    horizontal: 0,
-                }),
-                &mut self.vertical_scroll_state,
-            );
-        }
+        // Render the scrollbar next to the paragraph
+        frame.render_widget(paragraph, area);
+
+        frame.render_stateful_widget(
+            Scrollbar::default()
+                .orientation(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(None)
+                .end_symbol(None),
+            area.inner(&Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut self.vertical_scroll_state,
+        );
     }
 
     fn update_vertical_scroll_index(&mut self, index: usize) {
@@ -83,17 +97,21 @@ impl HelpMenu {
 
     // Showing and hiding
 
-    pub fn show(&mut self) {
-        self.is_shown = true;
+    // TODO: this assumption is INCORRECT!!! Either update this all the time or make sure the assumption holds
+
+    /// Update the internal string representation of the ENV variables. Our
+    /// current assumption is that once we are in the help menu, we cannot
+    /// manipulate the ENV variables until we return to the normal state. That
+    /// is why we only update the state here, and not everytime the help menu
+    /// is rendered.
+    pub async fn show(&mut self) {
+        // TODO: here, we would also have to set the vertical scroll length
+        let env_variables = self.env_variables.lock().await;
+        self.env_variables_str = env_variables.to_string();
     }
 
     pub fn hide(&mut self) {
-        self.is_shown = false;
         self.update_vertical_scroll_index(0);
-    }
-
-    pub fn is_shown(&self) -> bool {
-        self.is_shown
     }
 }
 

@@ -1,9 +1,11 @@
 mod state;
 mod terminal_manager;
 
-use crate::command::{AsyncResult, Command, ExecutableCommand};
-use crate::config::Config;
-use crate::config::{KeyEvent, Keybindings};
+use crate::command::{
+    Blocking, CommandBuilder, ExecutionResult, Interruptible, WasWoken, WithEnv, WithOutput,
+};
+use crate::config::KeyEvent;
+use crate::config::{Config, Keybindings};
 use anyhow::Result;
 use crossterm::event::Event as CrosstermEvent;
 use crossterm::event::EventStream;
@@ -14,6 +16,9 @@ use terminal_manager::TerminalManager;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 pub use state::State;
+pub use state::{EnvVariable, EnvVariables};
+
+pub type WatchedCommand = CommandBuilder<Blocking, WithEnv, WithOutput, Interruptible>;
 
 pub struct UI {
     blocking_state: BlockingState,
@@ -43,25 +48,22 @@ struct Channels {
     /// We don't store the receivers for the reload and subcommand channels,
     /// because their ownership is passed to the polling tasks.
     reload_tx: Sender<InterruptSignal>,
-    subcommand_tx: Sender<ExecutableCommand>,
 }
 
 /// Contains all the state that we cannot save in UI directly, because by being
 /// passed to polling tasks it would leave the UI in a partially moved state,
 /// preventing us from calling methods on it.
 struct PollingState {
-    // TODO: name it watched_command everywhere
-    watched_command: Command,
-    reload_rx: Receiver<InterruptSignal>,
-    subcommand_rx: Receiver<ExecutableCommand>,
+    watched_command: WatchedCommand,
 }
 
 /// Events that are handled in our main UI/IO loop.
-enum Event {
+pub enum Event {
     CommandOutput(Result<String>),
-    SubcommandCompleted(Result<()>),
     KeyPressed(KeyEvent),
     TerminalResized,
+    SubcommandCompleted(Result<()>),
+    SubcommandForEnvCompleted(Result<EnvVariables>),
 }
 
 // TODO: maybe move to operations module
@@ -70,9 +72,13 @@ pub enum RequestedAction {
     /// Continue the execution normally
     Continue,
     /// Reload/rerun the main command, while blocking.
-    ReloadCommand,
-    /// Execute a blocking subcommand on a worker thread, while blocking.
-    ExecuteBlockingSubcommand(ExecutableCommand),
+    ReloadWatchedCommand,
+    /// Signals that a blocking subcommand has started executing, so we
+    /// should block.
+    ExecutingBlockingSubcommand,
+    /// Signals that a blocking subcommand used to set env variables has
+    /// started executing, so we should block.
+    ExecutingBlockingSubcommandForEnv,
     /// Exit the application.
     Exit,
 }
@@ -84,8 +90,9 @@ pub enum RequestedAction {
 enum BlockingState {
     #[default]
     Unblocked,
-    BlockedReloadingCommand,
+    BlockedReloadingWatchedCommand,
     BlockedExecutingSubcommand,
+    BlockedExecutingSubcommandForEnv,
 }
 
 /// Draws the UI. Prevents code duplication, because making this a method would
@@ -121,20 +128,22 @@ enum ControlFlow {
 impl UI {
     /// Initiates the user interface.
     pub async fn start(config: Config) -> Result<()> {
-        let (ui, polling_state) = UI::new(config)?;
+        let (ui, polling_state) = UI::new(config).await?;
         ui.run(polling_state).await?;
         Ok(())
     }
 
-    fn new(config: Config) -> Result<(Self, PollingState)> {
+    async fn new(config: Config) -> Result<(Self, PollingState)> {
         let terminal_manager = TerminalManager::new()?;
 
-        let help_menu_body = config.keybindings.to_string();
+        let env_variables = EnvVariables::generate_initial(config.initial_env_variables).await?;
+        let keybindings_str = config.keybindings_parsed.to_string();
         let state = State::new(
             config.header_lines,
             config.fields,
             config.styles,
-            help_menu_body,
+            keybindings_str,
+            env_variables,
         );
 
         /// The event buffer capacity is restricted to 100 (seems to be a
@@ -149,26 +158,30 @@ impl UI {
         /// receive more than 1 task.
         const POLLING_TASKS_BUFFER_CAPACITY: usize = 1;
         let (reload_tx, reload_rx) = mpsc::channel(POLLING_TASKS_BUFFER_CAPACITY);
-        let (subcommand_tx, subcommand_rx) = mpsc::channel(POLLING_TASKS_BUFFER_CAPACITY);
+
+        let env_variables = state.get_env();
+        let keybindings = Keybindings::from_parsed(config.keybindings_parsed, &env_variables);
+
+        let polling_state = PollingState {
+            watched_command: CommandBuilder::new(config.watched_command)
+                .blocking()
+                .with_output()
+                .interruptible(reload_rx)
+                .with_env(env_variables.clone()),
+        };
 
         let ui = Self {
             blocking_state: BlockingState::default(),
             terminal_manager,
             state,
             watch_rate: config.watch_rate,
-            keybindings: Arc::new(config.keybindings),
+            keybindings: Arc::new(keybindings),
             remaining_operations: None,
             channels: Channels {
                 event_tx,
                 event_rx,
                 reload_tx,
-                subcommand_tx,
             },
-        };
-        let polling_state = PollingState {
-            watched_command: config.command,
-            reload_rx,
-            subcommand_rx,
         };
 
         Ok((ui, polling_state))
@@ -178,13 +191,8 @@ impl UI {
     async fn run(mut self, polling_state: PollingState) -> Result<()> {
         // Launch polling tasks
         tokio::spawn(poll_execute_watched_command(
-            self.watch_rate,
             polling_state.watched_command,
-            polling_state.reload_rx,
-            self.channels.event_tx.clone(),
-        ));
-        tokio::spawn(poll_execute_subcommands(
-            polling_state.subcommand_rx,
+            self.watch_rate,
             self.channels.event_tx.clone(),
         ));
         tokio::spawn(poll_terminal_events(
@@ -210,7 +218,7 @@ impl UI {
             // the code duplication below for now.
 
             match self.blocking_state {
-                BlockingState::BlockedReloadingCommand => {
+                BlockingState::BlockedReloadingWatchedCommand => {
                     if let Event::CommandOutput(lines) = event {
                         self.state.update_lines(lines?)?;
 
@@ -223,12 +231,28 @@ impl UI {
                     match event {
                         Event::CommandOutput(lines) => {
                             // We handle new output lines, but don't exit the
-                            // blocking state, since we still have to wait for
-                            // our subcommand to complete.
+                            // blocking state.
                             self.state.update_lines(lines?)?;
                         }
-                        Event::SubcommandCompleted(result) => {
-                            result?;
+                        Event::SubcommandCompleted(potential_error) => {
+                            potential_error?;
+
+                            if let ControlFlow::Exit = self.conclude_blocking().await? {
+                                break 'event_loop;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                BlockingState::BlockedExecutingSubcommandForEnv => {
+                    match event {
+                        Event::CommandOutput(lines) => {
+                            // We handle new output lines, but don't exit the
+                            // blocking state.
+                            self.state.update_lines(lines?)?;
+                        }
+                        Event::SubcommandForEnvCompleted(new_env_variables) => {
+                            self.state.set_env(new_env_variables?).await;
 
                             if let ControlFlow::Exit = self.conclude_blocking().await? {
                                 break 'event_loop;
@@ -264,9 +288,9 @@ impl UI {
     ) -> Result<ControlFlow> {
         if let Some(ops) = self.keybindings.get_operations(&key) {
             for (idx, op) in ops.into_iter().enumerate().skip(starting_index) {
-                match op.execute(&mut self.state).await? {
+                match op.execute(&mut self.state, &self.channels.event_tx).await? {
                     RequestedAction::Exit => return Ok(ControlFlow::Exit),
-                    RequestedAction::ReloadCommand => {
+                    RequestedAction::ReloadWatchedCommand => {
                         // Send the command execution an interrupt signal
                         // causing the execution to be reloaded.
                         if self.channels.reload_tx.send(InterruptSignal).await.is_err() {
@@ -274,18 +298,19 @@ impl UI {
                         }
 
                         save_remaining_operations!(self, key, idx + 1, ops);
-                        self.blocking_state = BlockingState::BlockedReloadingCommand;
+                        self.blocking_state = BlockingState::BlockedReloadingWatchedCommand;
 
                         return Ok(ControlFlow::Continue);
                     }
-                    RequestedAction::ExecuteBlockingSubcommand(subcommand) => {
-                        // Send executable command to dedicated task.
-                        if self.channels.subcommand_tx.send(subcommand).await.is_err() {
-                            return Ok(ControlFlow::Exit);
-                        }
-
+                    RequestedAction::ExecutingBlockingSubcommand => {
                         save_remaining_operations!(self, key, idx + 1, ops);
                         self.blocking_state = BlockingState::BlockedExecutingSubcommand;
+
+                        return Ok(ControlFlow::Continue);
+                    }
+                    RequestedAction::ExecutingBlockingSubcommandForEnv => {
+                        save_remaining_operations!(self, key, idx + 1, ops);
+                        self.blocking_state = BlockingState::BlockedExecutingSubcommandForEnv;
 
                         return Ok(ControlFlow::Continue);
                     }
@@ -342,18 +367,16 @@ pub struct InterruptSignal;
 /// of the command, which simply wakes up this thread sooner.
 /// The stdout of successful executions is sent back to the main thread.
 async fn poll_execute_watched_command(
+    mut watched_command: WatchedCommand,
     watch_rate: Duration,
-    command: Command,
-    mut reload_rx: Receiver<InterruptSignal>,
     event_tx: Sender<Event>,
 ) {
-    // TODO: don't run command when blocked, isn't displayed anyways
     loop {
         let start_time = Instant::now();
 
-        let output_lines_result = match command.capture_output(&mut reload_rx).await {
-            Ok(AsyncResult::Interrupted) => continue,
-            Ok(AsyncResult::Stdout(output_lines)) => Ok(output_lines),
+        let output_lines_result = match watched_command.execute().await {
+            Ok(ExecutionResult::Interrupted) => continue,
+            Ok(ExecutionResult::Stdout(output_lines)) => Ok(output_lines),
             Err(e) => Err(e),
         };
 
@@ -368,43 +391,23 @@ async fn poll_execute_watched_command(
         // If all senders (i.e. the main thread) have been dropped, we abort.
         if watch_rate == Duration::ZERO {
             // Wake up only when notified.
-            if reload_rx.recv().await.is_none() {
+            let WasWoken::ReceivedInterrupt = watched_command.wait_for_interrupt().await else {
                 break;
-            }
+            };
         } else {
             // Wake up at the earliest when notified through recv, or at
             // latest after the watch_rate timeout has passed.
             let timeout = watch_rate.saturating_sub(start_time.elapsed());
-            if let Ok(None) = tokio::time::timeout(timeout, reload_rx.recv()).await {
+            let WasWoken::ReceivedInterrupt = watched_command
+                .wait_for_interrupt_within_timeout(timeout)
+                .await
+            else {
                 break;
-            }
+            };
         }
     }
 
     log::info!("Shutting down command executor task");
-}
-
-/// Continuously waits for commands and executes them on arrival.
-/// Sends potential errors during execution back to the main thread.
-async fn poll_execute_subcommands(
-    mut new_command_rx: Receiver<ExecutableCommand>,
-    event_tx: Sender<Event>,
-) {
-    // Wait for a new task.
-    while let Some(mut command) = new_command_rx.recv().await {
-        // Execute command
-        let result = command.execute().await;
-
-        if event_tx
-            .send(Event::SubcommandCompleted(result))
-            .await
-            .is_err()
-        {
-            break;
-        };
-    }
-
-    log::info!("Shutting down subcommand executor task");
 }
 
 /// Continuously listens for terminal-related events, and sends relevant events

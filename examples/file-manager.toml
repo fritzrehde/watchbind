@@ -1,52 +1,63 @@
 # TODO: this file is experimental, and its syntax is not yet currently supported by watchbind, but serves as inspiration for future feature additions
 
-# Executed before the watched command is executed
-initial-state = [ "set-state PWD -- pwd" ]
+# Note: the `printf`s used in some commands are necessary to remove the newlines produced by their nested commands
 
-# All state variables are set as env variables in subshell where watched command is executed
-watched-command = '''ls "$PWD"'''
+# Executed before the watched command is executed
+initial-env = [ '''set-env pwd -- printf "$(pwd)"''' ]
+
+# All env variables are set as env variables in subshell where watched command is executed
+watched-command = '''echo "$pwd"; ls "$pwd"'''
+header-lines = 1
 
 # Since we reload after each operation that changes the output, a watch rate interval is not necessary.
 # But we enable need periodic reloads in case some other processes manipulated the filesystem.
-interval = 1
+interval = 3
 
 [keybindings]
 # Move cursor up and down
 "j" = [ "cursor down 1" ]
 "k" = [ "cursor up 1" ]
 
+# Delete (multiple) files
+"d" = [
+  '''exec -- echo "$lines" | xargs -I {} rm "$pwd/{}"''',
+  "reload"
+]
+
+# Open file (blocking)
+"o" = [ '''exec -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"''' ]
+
+# Open file (non-blocking in background)
+"O" = [ '''exec & -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"''' ]
+
+# Traverse out of directories
+"h" = [ 
+  # Set $pwd to the parent dir of current dir
+  '''set-env pwd -- printf "$(dirname "$pwd")"''',
+  "reload"
+]
+# Traverse into directories
+"l" = [ 
+  # Only update $pwd if it is a directory
+  '''set-env pwd -- new_pwd="$pwd/$line"; [ -d "$new_pwd" ] && pwd="$new_pwd"; printf "$pwd"''',
+  "reload"
+]
+
 # Create a new file (with random name)
 # "n" = [ "exec -- touch $(mktemp new_file_XXXXXX.txt)", "reload" ]
 
 # Create a new file
-"n" = [
-  "read-into NAME",
-  '''exec -- touch "$PWD/$NAME"''',
-  "unset-state NAME"
-]
-
-# Delete (multiple) files
-"d" = [ "exec -- echo $LINES | xargs rm", "reload" ]
+# "n" = [
+#   "read-into-env NAME",
+#   '''exec -- touch "$PWD/$NAME"''',
+#   "unset-env NAME"
+# ]
 
 # Rename a file
-"c" = [
-  # Read user input (in a TUI text field) into a state variable INPUT
-  "read-into NEW_NAME",
-  '''exec -- mv "$PWD/$LINE" "$PWD/$NEW_NAME"''',
-  # For performance reasons (creating different env variables for every different read creates overhead)
-  "unset-state NEW_NAME"
-]
-
-# Open file (blocking)
-"o" = [ "exec -- echo $LINES | xargs xdg-open" ]
-
-# Traverse into and out of directories
-"h" = [ 
-  # PWD = parent dir of current dir
-  '''set-state PWD -- (cd $PWD/..; pwd)''',
-  "reload"
-]
-"l" = [ 
-  '''set-state PWD -- echo "$PWD/$LINE"''',
-  "reload"
-]
+# "c" = [
+#   # Read user input (in a TUI text field) into a env variable INPUT
+#   "read-into NEW_NAME",
+#   '''exec -- mv "$PWD/$LINE" "$PWD/$NEW_NAME"''',
+#   # For performance reasons (creating different env variables for every different read creates overhead)
+#   "unset-env NEW_NAME"
+# ]

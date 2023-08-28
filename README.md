@@ -139,23 +139,29 @@ tab
 
 All supported `OP` values:
 
-Operation | Action
-:-- | :--
-exit | Quit watchbind
-reload | Reload the watched command manually, resets interval timer
-cursor \[down\|up\] \<N\> | Move cursor \[down\|up\] N number of lines
-cursor \[first\|last\] | Move cursor to the \[first\|last\] line
-select | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
-unselect | Unselect line that cursor is currently on
-toggle-selection | Toggle selection of line that cursor is currently on
-select-all | Select all lines
-unselect-all | Unselect all currently selected lines
-exec -- \<COMMAND\> | Execute shell command and block until command terminates
-exec -- \<COMMAND\> & | Execute shell command as background process, i.e. don't block until command terminates
-help-\[show\|hide\|toggle\] | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings
+<!-- Make table of toml config reference name,example,description -->
 
-The shell command `COMMAND` will be executed in a subshell that has the environment variable `LINES` set to all selected lines or, if none are selected, the line the cursor is currently on.
-If multiple lines are selected, they will be separated by a newline in `LINES`.
+
+Operation | Description
+:-- | :--
+`exit` | Quit watchbind
+`reload` | Reload the watched command manually, resets interval timer
+`cursor \[down\|up\] \<N\>` | Move cursor \[down\|up\] N number of lines
+`cursor \[first\|last\]` | Move cursor to the \[first\|last\] line
+`select` | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
+`unselect` | Unselect line that cursor is currently on
+`toggle-selection` | Toggle selection of line that cursor is currently on
+`select-all` | Select all lines
+`unselect-all` | Unselect all currently selected lines
+`exec -- \<CMD\>` | Execute `CMD` and block until termination
+`exec & -- \<CMD\>` | Execute `CMD` as background process, i.e. don't block until command terminates
+`set-env \<ENV\> -- \<CMD\>` | Blockingly execute `CMD`, and save its output to the environment variable `ENV`
+`unset-env \<ENV\> -- \<CMD\>` | Unsets environment variable `ENV`
+`help-\[show\|hide\|toggle\]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings
+
+All shell commands `CMD` will be executed in a subshell (i.e. `sh -c "CMD"`) that has the environment variable `line` set to the line the cursor is one and `lines` set to all selected lines or, if none are selected, the line the cursor is currently on.
+All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
+If multiple lines are selected, they will be separated by newlines in `lines`.
 
 ### Formatting with Field Separators and Selections
 
@@ -170,7 +176,7 @@ Choose only specific fields to display.
 You can specify a comma-separated list of the indexes (starting at index 1) for individual fields (`X`), ranges (`X-Y`), or the capture of all fields from X onwards (`X-`).
 For instance, the field selection `1,3-4,6-` will display the first, third and fourth fields, as well as all fields from the sixth onwards.
 
-**Important**: The `LINES` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
+**Important**: The `lines` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
 
 ### Styling
 
@@ -222,7 +228,7 @@ To solve this problem, the following keybinding format is recommended for keybin
 "KEY" = [ "exec -- DELETE-OP", "reload", "unselect-all" ]
 ```
 
-First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $LINES | xargs rm`).
+First, the selected lines are deleted using the `DELETE-OP` (e.g. `echo $lines | xargs rm`).
 Then, we want to see the updated output of the watched command that doesn't contain the deleted lines anymore, so we `reload`.
 Finally, we want to remove our the selection of the now removed lines, so we call `unselect-all`.
 
@@ -244,12 +250,12 @@ The commands you bind to keys will be executed in a subshell using `sh -c`.
 
 This means you can run a command like 
 ```
-watchbind --bind "enter:notify-send \$LINES" ls
+watchbind --bind "enter:notify-send \$lines" ls
 ```
-and the environment variable `$LINES` will contain the line the cursor is currently on.
+and the environment variable `$lines` will contain the line the cursor is currently on.
 
 But note that 
 ```
-watchbind --bind "enter:notify-send $LINES" ls
+watchbind --bind "enter:notify-send $lines" ls
 ```
-will not work as expected, because `$LINES` will be replaced in the shell you are running the `watchbind` command from.
+will not work as expected, because `$lines` will be replaced in the shell you are running the `watchbind` command from.

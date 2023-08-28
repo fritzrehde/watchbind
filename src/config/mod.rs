@@ -3,12 +3,13 @@ mod keybindings;
 mod style;
 
 pub use fields::{Fields, TableFormatter};
-pub use keybindings::{KeyEvent, Keybindings, Operations};
+pub use keybindings::{
+    KeyEvent, Keybindings, Operation, OperationParsed, Operations, OperationsParsed,
+};
 pub use style::Styles;
 
 use self::fields::{FieldSelections, FieldSeparator};
-use self::keybindings::StringKeybindings;
-use crate::command::Command;
+use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
@@ -17,12 +18,14 @@ use std::{fs::read_to_string, path::PathBuf, time::Duration};
 
 pub struct Config {
     pub log_file: Option<PathBuf>,
-    pub command: Command,
+    pub watched_command: String,
     pub watch_rate: Duration,
     pub styles: Styles,
-    pub keybindings: Keybindings,
+    pub keybindings_parsed: KeybindingsParsed,
     pub header_lines: usize,
     pub fields: Fields,
+    // pub initial_env_variables: Vec<String>,
+    pub initial_env_variables: OperationsParsed,
 }
 
 impl Config {
@@ -44,8 +47,9 @@ impl TryFrom<TomlConfig> for Config {
         let default = TomlConfig::default();
         Ok(Self {
             log_file: toml.log_file,
-            command: match toml.watched_command {
-                Some(command) => command.parse()?,
+            initial_env_variables: toml.initial_env_variables.unwrap_or_default().try_into()?,
+            watched_command: match toml.watched_command {
+                Some(command) => command,
                 None => bail!("A command must be provided via command line or config file"),
             },
             watch_rate: Duration::from_secs_f64(
@@ -63,7 +67,7 @@ impl TryFrom<TomlConfig> for Config {
                 toml.header_bold.or(default.header_bold),
                 toml.selected_bg.or(default.selected_bg),
             )?,
-            keybindings: StringKeybindings::merge(toml.keybindings, default.keybindings)
+            keybindings_parsed: StringKeybindings::merge(toml.keybindings, default.keybindings)
                 .expect("default")
                 .try_into()?,
             header_lines: toml.header_lines.unwrap_or(0),
@@ -76,6 +80,9 @@ impl TryFrom<TomlConfig> for Config {
 #[serde(deny_unknown_fields)]
 pub struct TomlConfig {
     log_file: Option<PathBuf>,
+
+    #[serde(rename = "initial-env")]
+    initial_env_variables: Option<Vec<String>>,
 
     #[serde(rename = "watched-command")]
     watched_command: Option<String>,
@@ -132,6 +139,7 @@ impl TomlConfig {
     fn merge(self, other: Self) -> Self {
         Self {
             log_file: self.log_file.or(other.log_file),
+            initial_env_variables: self.initial_env_variables.or(other.initial_env_variables),
             watched_command: self.watched_command.or(other.watched_command),
             interval: self.interval.or(other.interval),
             fg: self.fg.or(other.fg),
@@ -156,6 +164,7 @@ impl From<ClapConfig> for TomlConfig {
     fn from(clap: ClapConfig) -> Self {
         Self {
             log_file: clap.log_file,
+            initial_env_variables: clap.initial_env_variables,
             watched_command: clap.watched_command.map(|s| s.join(" ")),
             interval: clap.interval,
             fg: clap.fg,
@@ -212,6 +221,10 @@ pub struct ClapConfig {
     /// Enable logging, and write logs to file.
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
+
+    /// Command to watch by executing periodically
+    #[arg(long = "initial-env", value_name = "LIST", value_delimiter = ',')]
+    initial_env_variables: Option<Vec<String>>,
 
     /// Command to watch by executing periodically
     #[arg(trailing_var_arg(true))]

@@ -2,16 +2,19 @@ mod key;
 mod operations;
 
 pub use key::KeyEvent;
-pub use operations::{Operation, Operations};
+pub use operations::{Operation, OperationParsed, Operations, OperationsParsed};
 
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use serde::Deserialize;
 use std::io::Write;
+use std::sync::Arc;
 use std::{collections::HashMap, fmt};
 use tabwriter::TabWriter;
+use tokio::sync::Mutex;
 
-#[derive(Clone)]
+use crate::ui::EnvVariables;
+
 pub struct Keybindings(HashMap<KeyEvent, Operations>);
 
 impl Keybindings {
@@ -19,11 +22,28 @@ impl Keybindings {
         self.0.get(key)
     }
 
+    pub fn from_parsed(
+        keybindings_parsed: KeybindingsParsed,
+        env_variables: &Arc<Mutex<EnvVariables>>,
+    ) -> Self {
+        Self(
+            keybindings_parsed
+                .0
+                .into_iter()
+                .map(|(key, ops)| (key, Operations::from_parsed(ops, env_variables)))
+                .collect(),
+        )
+    }
+}
+
+pub struct KeybindingsParsed(HashMap<KeyEvent, OperationsParsed>);
+
+impl KeybindingsParsed {
     /// Write formatted version (insert elastic tabstops) to a buffer.
     fn write<W: Write>(&self, writer: W) -> Result<()> {
         let mut tw = TabWriter::new(writer);
         for (key, operations) in self.0.iter().sorted() {
-            writeln!(tw, "{}:\t{}", key, operations)?;
+            writeln!(tw, "{}\t= {}", key, operations)?;
         }
         tw.flush()?;
         Ok(())
@@ -37,14 +57,14 @@ impl Keybindings {
     }
 }
 
-impl fmt::Display for Keybindings {
+impl fmt::Display for KeybindingsParsed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let formatted = self.fmt().map_err(|_| fmt::Error)?;
         f.write_str(&formatted)
     }
 }
 
-impl TryFrom<StringKeybindings> for Keybindings {
+impl TryFrom<StringKeybindings> for KeybindingsParsed {
     type Error = anyhow::Error;
     fn try_from(value: StringKeybindings) -> Result<Self, Self::Error> {
         let keybindings = value
@@ -91,12 +111,13 @@ impl From<ClapKeybindings> for StringKeybindings {
     }
 }
 
+// TODO: implement FromStr trait
 // TODO: replace with nom
 // TODO: parse to Vec<Keybinding> and provide from_str for keybinding
 pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
     let Some((key, operations)) = s.split_once(':') else {
-		bail!("invalid format: expected \"KEY:OP[+OP]*\", found \"{}\"", s);
-	};
+        bail!("invalid format: expected \"KEY:OP[+OP]*\", found \"{}\"", s);
+    };
 
     Ok((
         key.to_string(),

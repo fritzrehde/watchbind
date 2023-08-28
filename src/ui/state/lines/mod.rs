@@ -189,23 +189,23 @@ impl Lines {
     // Getting selected lines
 
     fn get_line_under_cursor(&self) -> Option<String> {
-        if let Some(i) = self.get_cursor_position() {
-            self.get_unformatted(i)
-        } else {
-            None
-        }
+        self.get_cursor_position()
+            .and_then(|i| self.get_unformatted(i))
     }
 
-    pub fn get_selected_lines(&self) -> Option<String> {
-        if self.selected.contains(&true) {
-            let lines: String = izip!(self.unformatted(), self.selected.iter())
-                .filter_map(|(line, &selected)| selected.then(|| line.to_owned()))
-                .collect::<Vec<String>>()
-                .join("\n");
-            Some(lines)
-        } else {
-            self.get_line_under_cursor()
-        }
+    // TODO: not pretty API, maybe make cursor_line and selected_lines distinct types
+    pub fn get_selected_lines(&self) -> Option<(String, String)> {
+        self.get_line_under_cursor().map(|cursor_line| {
+            let selected_lines = if self.selected.contains(&true) {
+                izip!(self.unformatted(), self.selected.iter())
+                    .filter_map(|(line, &selected)| selected.then(|| line.to_owned()))
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            } else {
+                cursor_line.clone()
+            };
+            (cursor_line, selected_lines)
+        })
     }
 
     // Formatting
