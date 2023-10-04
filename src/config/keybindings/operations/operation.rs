@@ -9,11 +9,11 @@ use tokio::sync::Mutex;
 
 // TODO: use some rust pattern (with types) instead of hardcoded Operation{,Parsed} variants
 
-#[derive(FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
-#[display(style = "kebab-case")]
 /// The version of Operation used for parsing and displaying. The reason we
 /// can't parse directly into Operation is because any operations that execute
 /// something need to receive access to the globally set environment variables.
+#[derive(FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
+#[display(style = "kebab-case")]
 pub enum OperationParsed {
     Exit,
     Reload,
