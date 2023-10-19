@@ -39,12 +39,7 @@ cargo install watchbind
 
 ### Distro Packages
 
-<details>
-  <summary>Packaging status</summary>
-
 [![Packaging status](https://repology.org/badge/vertical-allrepos/watchbind.svg)](https://repology.org/project/watchbind/versions)
-
-</details>
 
 #### Arch Linux
 
