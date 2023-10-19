@@ -37,6 +37,26 @@ The [releases page](https://github.com/fritzrehde/watchbind/releases) contains p
 cargo install watchbind
 ```
 
+### Distro Packages
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/watchbind.svg)](https://repology.org/project/watchbind/versions)
+
+#### Arch Linux
+
+`watchbind` can be installed from the [extra repository](https://archlinux.org/packages/extra/x86_64/watchbind) using [pacman](https://wiki.archlinux.org/title/Pacman):
+
+```sh
+pacman -S watchbind
+```
+
+#### Alpine Linux
+
+`watchbind` is available for [Alpine Edge](https://pkgs.alpinelinux.org/packages?name=watchbind&branch=edge). It can be installed via [apk](https://wiki.alpinelinux.org/wiki/Alpine_Package_Keeper) after enabling the [testing repository](https://wiki.alpinelinux.org/wiki/Repositories).
+
+```sh
+apk add watchbind
+```
+
 ## How it works
 
 Watchbind is a command-line tool that aims to help you build custom TUIs from static CLI commands very easily.
