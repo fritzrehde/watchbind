@@ -1,14 +1,12 @@
-use std::sync::Arc;
-
+use super::EnvVariables;
 use ratatui::{
     prelude::{Alignment, Backend, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
 };
+use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use super::EnvVariables;
 
 pub struct HelpMenu {
     env_variables: Arc<Mutex<EnvVariables>>,
@@ -43,7 +41,6 @@ impl HelpMenu {
             self.env_variables_str, self.keybindings_str
         );
 
-        // let text: Text = self.keybindings_str.as_str().into();
         let text: Text = rendered_text.into();
 
         // Render the paragraph with the updated scroll state
@@ -54,9 +51,9 @@ impl HelpMenu {
             // scroll offset for each axis: (y, x)
             .scroll((self.vertical_scroll_index as u16, 0));
 
-        // Render the scrollbar next to the paragraph
         frame.render_widget(paragraph, area);
 
+        // Render the scrollbar next to the paragraph
         frame.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)

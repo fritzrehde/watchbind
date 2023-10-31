@@ -2,15 +2,20 @@ mod env_variables;
 mod help_menu;
 mod lines;
 
-use std::sync::Arc;
-
 use self::{help_menu::HelpMenu, lines::Lines};
 use crate::config::{Fields, Styles};
 use anyhow::Result;
-use ratatui::{backend::Backend, Frame};
+use ratatui::{
+    backend::Backend,
+    prelude::{Alignment, Constraint, Direction, Layout},
+    text::Text,
+    widgets::{Block, Borders, Paragraph},
+    Frame,
+};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub use env_variables::{EnvVariable, EnvVariables};
-use tokio::sync::Mutex;
 
 pub struct State {
     mode: Mode,
@@ -44,7 +49,29 @@ impl State {
     }
 
     pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
-        self.lines.render(frame);
+        // TODO: only draw text input widget if currently in use
+        // TODO: don't limit the text input line height (usually 1) to 1, but let it grow to accomodate wrapping text input
+
+        // Split UI vertically into the lines (top) and the text-input (bottom)
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
+            .split(frame.size());
+
+        let lines_area = chunks[0];
+        let text_input_area = chunks[1];
+
+        // Render each component individually
+        self.lines.render(frame, lines_area);
+
+        // TODO: move rendering text input to own file
+        let text_input: Text = ":text input".into();
+        let paragraph = Paragraph::new(text_input)
+            .block(Block::new().borders(Borders::NONE))
+            .alignment(Alignment::Left);
+
+        frame.render_widget(paragraph, text_input_area);
+
         if let Mode::HelpMenu = self.mode {
             self.help_menu.render(frame);
         }
@@ -56,7 +83,7 @@ impl State {
         self.lines.update_lines(new_lines)
     }
 
-    pub fn get_cursor_line_and_selected_lines(&mut self) -> Option<(String, String)> {
+    fn get_cursor_line_and_selected_lines(&mut self) -> Option<(String, String)> {
         self.lines.get_selected_lines()
     }
 
@@ -71,7 +98,7 @@ impl State {
             ]
             .into_iter()
             .collect();
-            self.set_env(new_env_variables).await;
+            self.set_env_vars(new_env_variables).await;
         };
         Ok(())
     }
@@ -153,17 +180,28 @@ impl State {
         self.env_variables.clone()
     }
 
-    pub async fn set_env(&mut self, new_env_variables: EnvVariables) {
+    /// Merge new env variables with existing env variables.
+    pub async fn set_env_vars(&mut self, new_env_variables: EnvVariables) {
         let mut env_variables = self.env_variables.lock().await;
-        env_variables.merge_new_envs(new_env_variables);
+        env_variables.merge_new_env_variables(new_env_variables);
     }
 
-    pub async fn unset_env(&mut self, env: &EnvVariable) {
+    /// Unset an env variable.
+    pub async fn unset_env_var(&mut self, env_var: &EnvVariable) {
         let mut env_variables = self.env_variables.lock().await;
-        env_variables.unset_env(env)
+        env_variables.unset_env_variable(env_var)
     }
 
-    pub async fn read_into_env(&mut self, _env: &EnvVariable) {
-        todo!()
+    /// Sets an env variable to a string value.
+    pub async fn set_env_var(&mut self, env_var: &EnvVariable, value: String) {
+        let mut env_variables = self.env_variables.lock().await;
+        env_variables.add_env_variable(env_var.to_owned(), value);
+    }
+
+    /// Initiate reading user input into an env var by creating a UI text field.
+    /// This will return immediately instead of waiting for submission by the
+    /// user. Therefore, this does not add any new env variables yet.
+    pub async fn request_read_into_env(&self, env_var: &EnvVariable) {
+        let value = todo!();
     }
 }

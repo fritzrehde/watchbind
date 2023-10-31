@@ -15,6 +15,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 toml = { version = "0.7.6", default-features = false, features = ["parse"] }
 ratatui = "0.22.0"
 crossterm = { version = "0.27", features = ["events", "event-stream"] }
+tui-textarea = { version = "0.2.2", default-features = false, features = ["ratatui-crossterm"]}
 itertools = "0.11.0"
 anyhow = "1.0.75"
 indoc = "2.0.3"

@@ -11,6 +11,7 @@ pub use env_variable::EnvVariable;
 use itertools::Itertools;
 use tabwriter::TabWriter;
 
+/// A mapping of environment variables to string values.
 #[derive(Default, Debug)]
 pub struct EnvVariables(HashMap<EnvVariable, String>);
 
@@ -36,13 +37,17 @@ impl EnvVariables {
         Ok(Self(map))
     }
 
-    pub fn merge_new_envs(&mut self, env_variables: Self) {
+    pub fn merge_new_env_variables(&mut self, env_variables: Self) {
         self.0.extend(env_variables.0);
     }
 
     /// Unset/remove the specified environment variable.
-    pub fn unset_env(&mut self, env: &EnvVariable) {
-        self.0.remove(env);
+    pub fn unset_env_variable(&mut self, env_var: &EnvVariable) {
+        self.0.remove(env_var);
+    }
+
+    pub fn add_env_variable(&mut self, env_var: EnvVariable, value: String) {
+        self.0.insert(env_var, value);
     }
 
     /// Write formatted version (insert elastic tabstops) to a buffer.

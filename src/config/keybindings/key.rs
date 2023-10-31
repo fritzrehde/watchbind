@@ -11,9 +11,11 @@ pub struct KeyEvent {
     code: KeyCode,
 }
 
+// TODO: maybe make KeyModifier and KeyCode private, since they are implementation details
+
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
 #[display(style = "lowercase")]
-enum KeyModifier {
+pub enum KeyModifier {
     Alt,
     Ctrl,
     #[from_str(ignore)]
@@ -24,7 +26,7 @@ enum KeyModifier {
 
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
 #[display(style = "lowercase")]
-enum KeyCode {
+pub enum KeyCode {
     Esc,
     Enter,
     Left,

@@ -131,7 +131,7 @@ impl Operation {
 
                 // TODO: these clones are preventable by using Arc<> (I think Arc<Mutex> isn't required because executing them doesn't mutate them)
                 let blocking_cmd = blocking_cmd.clone();
-                let env_variable = env_variable.clone();
+                let env_variable = env_variable.to_owned();
                 let event_tx = event_tx.clone();
                 tokio::spawn(async move {
                     let result = blocking_cmd.execute().await.map(|output| {
@@ -148,8 +148,11 @@ impl Operation {
 
                 return Ok(RequestedAction::ExecutingBlockingSubcommandForEnv);
             }
-            Self::UnsetEnv(env) => state.unset_env(env).await,
-            Self::ReadIntoEnv(env) => state.read_into_env(env).await,
+            Self::UnsetEnv(env) => state.unset_env_var(env).await,
+            Self::ReadIntoEnv(env) => {
+                state.request_read_into_env(env).await;
+                return Ok(RequestedAction::UserInputTextfield);
+            }
         };
         Ok(RequestedAction::Continue)
     }
