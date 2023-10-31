@@ -41,8 +41,8 @@ pub struct Interruptible {
 // 1. We don't have any option/enum (an alternative configuration strategy)
 // checking overhead at runtime.
 // 2. We can guarantee that we handled all possible Command "variants"
-// (combination of config options), that we use, at compile-time.
-// 3. Arguably, this also results in separated, cleaner code.
+// (combination of config options) that we use, at compile-time.
+// 3. Arguably, this results in separated, cleaner code.
 
 /// A Command offering customization of the blocking behaviour, the input
 /// environment variables, whether the output is captured and whether the

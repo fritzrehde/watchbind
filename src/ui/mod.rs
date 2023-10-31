@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_manager::TerminalManager;
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tui_textarea::TextArea;
 
 pub use state::State;
 pub use state::{EnvVariable, EnvVariables};
@@ -22,6 +23,7 @@ pub type WatchedCommand = CommandBuilder<Blocking, WithEnv, WithOutput, Interrup
 
 pub struct UI {
     blocking_state: BlockingState,
+    key_input_state: KeyInputState,
     terminal_manager: TerminalManager,
     state: State,
     watch_rate: Duration,
@@ -30,37 +32,11 @@ pub struct UI {
     channels: Channels,
 }
 
-/// After having blocked, there might be some remaining operations, that
-/// were originally requested, which we still have to execute.
-#[derive(Debug)]
-struct RemainingOperations {
-    /// The key that is mapped to the remaining operations. Saving this is
-    /// more (memory) efficient than copying the an partial Operations type.
-    key: KeyEvent,
-    /// The index in the Operations vector where the remaining operations start.
-    remaining_index: usize,
-}
-
-/// All mpsc channels we save in the UI.
-struct Channels {
-    event_tx: Sender<Event>,
-    event_rx: Receiver<Event>,
-    /// We don't store the receivers for the reload and subcommand channels,
-    /// because their ownership is passed to the polling tasks.
-    reload_tx: Sender<InterruptSignal>,
-}
-
-/// Contains all the state that we cannot save in UI directly, because by being
-/// passed to polling tasks it would leave the UI in a partially moved state,
-/// preventing us from calling methods on it.
-struct PollingState {
-    watched_command: WatchedCommand,
-}
-
 /// Events that are handled in our main UI/IO loop.
 pub enum Event {
     CommandOutput(Result<String>),
     KeyPressed(KeyEvent),
+    // KeyPressed(crossterm::event::KeyEvent),
     TerminalResized,
     SubcommandCompleted(Result<()>),
     SubcommandForEnvCompleted(Result<EnvVariables>),
@@ -79,6 +55,9 @@ pub enum RequestedAction {
     /// Signals that a blocking subcommand used to set env variables has
     /// started executing, so we should block.
     ExecutingBlockingSubcommandForEnv,
+    /// Create a text field to receive user input. Waits for user to submit the
+    /// written input, or exit from text field.
+    UserInputTextfield,
     /// Exit the application.
     Exit,
 }
@@ -93,6 +72,53 @@ enum BlockingState {
     BlockedReloadingWatchedCommand,
     BlockedExecutingSubcommand,
     BlockedExecutingSubcommandForEnv,
+}
+
+// TODO: use rust type state pattern
+/// How input keys (from terminal manager) are treated.
+#[derive(Default)]
+enum KeyInputState {
+    /// Input keys are treated as keys to keybindings.
+    #[default]
+    Keybindings,
+    /// Input keys are treated as raw input into a text field.
+    Textfield,
+}
+
+/// After having blocked, there might be some remaining operations that
+/// were originally requested, which we still have to execute.
+#[derive(Debug)]
+struct RemainingOperations {
+    /// The key that is mapped to the remaining operations. Saving this is
+    /// more (memory) efficient than copying a partial Operations type.
+    key: KeyEvent,
+    /// The index in the Operations vector where the remaining operations start.
+    remaining_index: usize,
+}
+
+/// Control flow action in the main event loop to be taken after executing
+/// operations.
+enum ControlFlow {
+    Exit,
+    Continue,
+}
+
+/// All mpsc channels we save in the UI.
+struct Channels {
+    /// Event senders
+    event_tx: Sender<Event>,
+    /// Event receivers
+    event_rx: Receiver<Event>,
+    /// We don't store the receivers for the reload and subcommand channels,
+    /// because their ownership is passed to the polling tasks.
+    reload_tx: Sender<InterruptSignal>,
+}
+
+/// Contains all the state that we cannot save in UI directly, because passing
+/// said state to polling tasks would leave the UI in a partially moved state,
+/// preventing us from calling methods on it.
+struct PollingState {
+    watched_command: WatchedCommand,
 }
 
 /// Draws the UI. Prevents code duplication, because making this a method would
@@ -117,12 +143,6 @@ macro_rules! save_remaining_operations {
             });
         }
     };
-}
-
-/// Control flow action to be taken after executing operations.
-enum ControlFlow {
-    Exit,
-    Continue,
 }
 
 impl UI {
@@ -172,6 +192,7 @@ impl UI {
 
         let ui = Self {
             blocking_state: BlockingState::default(),
+            key_input_state: KeyInputState::default(),
             terminal_manager,
             state,
             watch_rate: config.watch_rate,
@@ -200,10 +221,14 @@ impl UI {
             self.channels.event_tx.clone(),
         ));
 
+        let mut text_area = TextArea::default();
+        text_area.lines();
+
         'event_loop: loop {
             draw!(self)?;
 
             let Some(event) = self.channels.event_rx.recv().await else {
+                // Channel has been closed.
                 break 'event_loop;
             };
 
@@ -212,6 +237,7 @@ impl UI {
                 // Reload the UI
                 continue 'event_loop;
             }
+
             // Note: all states also handle Event::CommandOutput very similarly,
             // but taking lines out of event here leaves event in a partially
             // moved state, preventing further usage. Therefore, we tolerate
@@ -226,6 +252,7 @@ impl UI {
                             break 'event_loop;
                         }
                     }
+                    // Ignore key pressed events
                 }
                 BlockingState::BlockedExecutingSubcommand => {
                     match event {
@@ -241,6 +268,7 @@ impl UI {
                                 break 'event_loop;
                             }
                         }
+                        // Ignore key pressed events
                         _ => {}
                     }
                 }
@@ -252,12 +280,13 @@ impl UI {
                             self.state.update_lines(lines?)?;
                         }
                         Event::SubcommandForEnvCompleted(new_env_variables) => {
-                            self.state.set_env(new_env_variables?).await;
+                            self.state.set_env_vars(new_env_variables?).await;
 
                             if let ControlFlow::Exit = self.conclude_blocking().await? {
                                 break 'event_loop;
                             }
                         }
+                        // Ignore key pressed events
                         _ => {}
                     }
                 }
@@ -280,49 +309,63 @@ impl UI {
 
     /// Executes the operations associated with a key event, but starting at the
     /// given index in the operations iterator. If we encounter any blocking
-    /// operations, we update the remaining operations.
+    /// operations, we save the remaining operations.
     async fn handle_key_event_given_starting_index(
         &mut self,
         key: KeyEvent,
         starting_index: usize,
     ) -> Result<ControlFlow> {
-        if let Some(ops) = self.keybindings.get_operations(&key) {
-            for (idx, op) in ops.into_iter().enumerate().skip(starting_index) {
-                match op.execute(&mut self.state, &self.channels.event_tx).await? {
-                    RequestedAction::Exit => return Ok(ControlFlow::Exit),
-                    RequestedAction::ReloadWatchedCommand => {
-                        // Send the command execution an interrupt signal
-                        // causing the execution to be reloaded.
-                        if self.channels.reload_tx.send(InterruptSignal).await.is_err() {
-                            return Ok(ControlFlow::Exit);
-                        }
+        match self.key_input_state {
+            KeyInputState::Keybindings => {
+                if let Some(ops) = self.keybindings.get_operations(&key) {
+                    for (idx, op) in ops.into_iter().enumerate().skip(starting_index) {
+                        match op.execute(&mut self.state, &self.channels.event_tx).await? {
+                            RequestedAction::Exit => return Ok(ControlFlow::Exit),
+                            RequestedAction::ReloadWatchedCommand => {
+                                // Send the command execution an interrupt signal
+                                // causing the execution to be reloaded.
+                                if self.channels.reload_tx.send(InterruptSignal).await.is_err() {
+                                    return Ok(ControlFlow::Exit);
+                                }
 
-                        save_remaining_operations!(self, key, idx + 1, ops);
-                        self.blocking_state = BlockingState::BlockedReloadingWatchedCommand;
+                                save_remaining_operations!(self, key, idx + 1, ops);
+                                self.blocking_state = BlockingState::BlockedReloadingWatchedCommand;
 
-                        return Ok(ControlFlow::Continue);
-                    }
-                    RequestedAction::ExecutingBlockingSubcommand => {
-                        save_remaining_operations!(self, key, idx + 1, ops);
-                        self.blocking_state = BlockingState::BlockedExecutingSubcommand;
+                                return Ok(ControlFlow::Continue);
+                            }
+                            RequestedAction::ExecutingBlockingSubcommand => {
+                                save_remaining_operations!(self, key, idx + 1, ops);
+                                self.blocking_state = BlockingState::BlockedExecutingSubcommand;
 
-                        return Ok(ControlFlow::Continue);
-                    }
-                    RequestedAction::ExecutingBlockingSubcommandForEnv => {
-                        save_remaining_operations!(self, key, idx + 1, ops);
-                        self.blocking_state = BlockingState::BlockedExecutingSubcommandForEnv;
+                                return Ok(ControlFlow::Continue);
+                            }
+                            RequestedAction::ExecutingBlockingSubcommandForEnv => {
+                                save_remaining_operations!(self, key, idx + 1, ops);
+                                self.blocking_state =
+                                    BlockingState::BlockedExecutingSubcommandForEnv;
 
-                        return Ok(ControlFlow::Continue);
+                                return Ok(ControlFlow::Continue);
+                            }
+                            RequestedAction::UserInputTextfield => {
+                                self.key_input_state = KeyInputState::Textfield;
+                            }
+                            RequestedAction::Continue => {
+                                // Redraw the UI between the execution of each
+                                // non-blocking operation.
+                                draw!(self)?;
+                            }
+                        };
                     }
-                    RequestedAction::Continue => {
-                        // Redraw the UI between the execution of each
-                        // non-blocking operation.
-                        draw!(self)?;
-                    }
-                };
+
+                    self.blocking_state = BlockingState::Unblocked;
+                }
             }
-
-            self.blocking_state = BlockingState::Unblocked;
+            KeyInputState::Textfield => {
+                // match key {
+                //     KeyEvent { code: KeyCode }
+                // }
+                todo!();
+            }
         }
         Ok(ControlFlow::Continue)
     }
@@ -354,6 +397,7 @@ impl UI {
 
     /// Execute the operations associated with a key event.
     async fn handle_key_event(&mut self, key: KeyEvent) -> Result<ControlFlow> {
+        // Start from 0 (first) by default
         self.handle_key_event_given_starting_index(key, 0).await
     }
 }
@@ -424,16 +468,19 @@ async fn poll_terminal_events(keybindings: Arc<Keybindings>, event_tx: Sender<Ev
         match event.await {
             Some(Ok(CrosstermEvent::Key(key_event))) => {
                 if let Ok(key) = key_event.try_into() {
-                    if keybindings.get_operations(&key).is_some() {
-                        // Ideally, we would send the &Operations directly, instead
-                        // of only sending the key event, which the main thread
-                        // then as to look-up again in the Keybindings hashmap,
-                        // but sending references is impossible/requires a lot of
-                        // synchronization overhead.
-                        if event_tx.send(Event::KeyPressed(key)).await.is_err() {
-                            break;
-                        };
-                    }
+                    // if keybindings.get_operations(&key).is_some() {
+                    //     // Ideally, we would send the &Operations directly, instead
+                    //     // of only sending the key event, which the main thread
+                    //     // then as to look-up again in the Keybindings hashmap,
+                    //     // but sending references is impossible/requires a lot of
+                    //     // synchronization overhead.
+                    //     if event_tx.send(Event::KeyPressed(key)).await.is_err() {
+                    //         break;
+                    //     };
+                    // }
+                    if event_tx.send(Event::KeyPressed(key)).await.is_err() {
+                        break;
+                    };
                 }
             }
             Some(Ok(CrosstermEvent::Resize(_, _))) => {

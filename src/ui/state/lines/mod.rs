@@ -1,6 +1,7 @@
 mod line;
 
 pub use line::Line;
+use ratatui::prelude::Rect;
 
 use crate::config::Styles;
 use crate::config::{Fields, TableFormatter};
@@ -38,7 +39,7 @@ impl Lines {
         }
     }
 
-    pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
+    pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>, area: Rect) {
         // TODO: do as much as possible in update_lines to improve performance
         let rows: Vec<Row> = izip!(&self.lines, &self.selected)
             .map(|(line, &selected)| {
@@ -57,7 +58,7 @@ impl Lines {
             .widths(&[Constraint::Length(1), Constraint::Percentage(100)])
             .column_spacing(0);
 
-        frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
+        frame.render_stateful_widget(table, area, &mut self.table_state);
     }
 
     // TODO: might be better suited as a new() method or similar
