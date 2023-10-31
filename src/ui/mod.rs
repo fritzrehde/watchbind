@@ -45,25 +45,37 @@ struct RemainingOperations {
 struct Channels {
     event_tx: Sender<Event>,
     event_rx: Receiver<Event>,
-    /// We don't store the receivers for the reload and subcommand channels,
-    /// because their ownership is passed to the polling tasks.
+
+    // We don't store the receivers for these channels,
+    // because their ownership is passed to the polling tasks.
     reload_tx: Sender<InterruptSignal>,
+    polling_tx: Sender<PollingCommand>,
 }
 
 /// Contains all the state that we cannot save in UI directly, because by being
 /// passed to polling tasks it would leave the UI in a partially moved state,
 /// preventing us from calling methods on it.
 struct PollingState {
+    /// The command of which the output is 'watched'.
     watched_command: WatchedCommand,
+    polling_rx: Receiver<PollingCommand>,
 }
 
 /// Events that are handled in our main UI/IO loop.
 pub enum Event {
+    /// The output of a completed command.
     CommandOutput(Result<String>),
+    /// A key has been pressed.
     KeyPressed(KeyEvent),
+    /// The terminal has been resized.
     TerminalResized,
+    /// A subcommand has finished executing.
     SubcommandCompleted(Result<()>),
+    /// The output of a completed subcommand, that should now be set to an
+    /// env variable.
     SubcommandForEnvCompleted(Result<EnvVariables>),
+    /// A TUI subcommand has finished executing.
+    TUISubcommandCompleted(Result<()>),
 }
 
 // TODO: maybe move to operations module
@@ -79,11 +91,16 @@ pub enum RequestedAction {
     /// Signals that a blocking subcommand used to set env variables has
     /// started executing, so we should block.
     ExecutingBlockingSubcommandForEnv,
+    /// Signals that watchbind's TUI needs to be hidden so the TUI subcommand
+    /// can be displayed. Notifies event's sender once TUI is finally hidden.
+    ExecutingTUISubcommand(Sender<()>),
     /// Exit the application.
     Exit,
 }
 
 // TODO: use rust type state pattern
+// TODO: split into Unblocked|Blocked and then reason why blocked
+
 /// Whether or not the app is currently blocking (new events).
 /// The app is blocked when blocking commands are executing.
 #[derive(Default, Debug)]
@@ -93,6 +110,7 @@ enum BlockingState {
     BlockedReloadingWatchedCommand,
     BlockedExecutingSubcommand,
     BlockedExecutingSubcommandForEnv,
+    BlockedExecutingTUISubcommand,
 }
 
 /// Draws the UI. Prevents code duplication, because making this a method would
@@ -146,18 +164,16 @@ impl UI {
             env_variables,
         );
 
-        /// The event buffer capacity is restricted to 100 (seems to be a
+        // TODO: room for optimization: we can probably get away with much smaller buffer sizes for some of our channels
+
+        /// The channel buffer capacity is restricted to 100 (seems to be a
         /// common default in Tokio) to prevent the message queue from growing
         /// to the point of memory exhaustion.
-        const EVENT_BUFFER_CAPACITY: usize = 100;
-        let (event_tx, event_rx) = mpsc::channel(EVENT_BUFFER_CAPACITY);
+        const TOKIO_DEFAULT_CHANNEL_BUFFER_CAPACITY: usize = 100;
 
-        /// The polling tasks/threads are mostly waiting for signals from the
-        /// main event loop, and perform a single action on arrival of a
-        /// message. Therefore, the receiving polling tasks should never
-        /// receive more than 1 task.
-        const POLLING_TASKS_BUFFER_CAPACITY: usize = 1;
-        let (reload_tx, reload_rx) = mpsc::channel(POLLING_TASKS_BUFFER_CAPACITY);
+        let (event_tx, event_rx) = mpsc::channel(TOKIO_DEFAULT_CHANNEL_BUFFER_CAPACITY);
+        let (reload_tx, reload_rx) = mpsc::channel(TOKIO_DEFAULT_CHANNEL_BUFFER_CAPACITY);
+        let (polling_tx, polling_rx) = mpsc::channel(TOKIO_DEFAULT_CHANNEL_BUFFER_CAPACITY);
 
         let env_variables = state.get_env();
         let keybindings = Keybindings::from_parsed(config.keybindings_parsed, &env_variables);
@@ -168,6 +184,7 @@ impl UI {
                 .with_output()
                 .interruptible(reload_rx)
                 .with_env(env_variables.clone()),
+            polling_rx,
         };
 
         let ui = Self {
@@ -181,6 +198,7 @@ impl UI {
                 event_tx,
                 event_rx,
                 reload_tx,
+                polling_tx,
             },
         };
 
@@ -198,69 +216,35 @@ impl UI {
         tokio::spawn(poll_terminal_events(
             self.keybindings.clone(),
             self.channels.event_tx.clone(),
+            polling_state.polling_rx,
         ));
 
         'event_loop: loop {
-            draw!(self)?;
+            // Don't draw our own TUI when it is hidden while executing another TUI.
+            match self.blocking_state {
+                BlockingState::BlockedExecutingTUISubcommand => {}
+                _ => {
+                    draw!(self)?;
+                }
+            };
 
             let Some(event) = self.channels.event_rx.recv().await else {
+                // Event channel has been closed.
                 break 'event_loop;
             };
 
             // Handle events that are handled the same in every state.
             if let Event::TerminalResized = &event {
-                // Reload the UI
+                // Reload the UI.
                 continue 'event_loop;
             }
+
             // Note: all states also handle Event::CommandOutput very similarly,
             // but taking lines out of event here leaves event in a partially
             // moved state, preventing further usage. Therefore, we tolerate
             // the code duplication below for now.
 
             match self.blocking_state {
-                BlockingState::BlockedReloadingWatchedCommand => {
-                    if let Event::CommandOutput(lines) = event {
-                        self.state.update_lines(lines?)?;
-
-                        if let ControlFlow::Exit = self.conclude_blocking().await? {
-                            break 'event_loop;
-                        }
-                    }
-                }
-                BlockingState::BlockedExecutingSubcommand => {
-                    match event {
-                        Event::CommandOutput(lines) => {
-                            // We handle new output lines, but don't exit the
-                            // blocking state.
-                            self.state.update_lines(lines?)?;
-                        }
-                        Event::SubcommandCompleted(potential_error) => {
-                            potential_error?;
-
-                            if let ControlFlow::Exit = self.conclude_blocking().await? {
-                                break 'event_loop;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                BlockingState::BlockedExecutingSubcommandForEnv => {
-                    match event {
-                        Event::CommandOutput(lines) => {
-                            // We handle new output lines, but don't exit the
-                            // blocking state.
-                            self.state.update_lines(lines?)?;
-                        }
-                        Event::SubcommandForEnvCompleted(new_env_variables) => {
-                            self.state.set_env(new_env_variables?).await;
-
-                            if let ControlFlow::Exit = self.conclude_blocking().await? {
-                                break 'event_loop;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
                 BlockingState::Unblocked => match event {
                     Event::CommandOutput(lines) => {
                         self.state.update_lines(lines?)?;
@@ -270,9 +254,95 @@ impl UI {
                             break 'event_loop;
                         }
                     }
-                    _ => {}
+                    // Already handled before.
+                    Event::TerminalResized => {}
+                    // Currently not blocking, so should never receive completed subcommand events.
+                    Event::SubcommandCompleted(_)
+                    | Event::SubcommandForEnvCompleted(_)
+                    | Event::TUISubcommandCompleted(_) => {}
                 },
-            }
+                BlockingState::BlockedExecutingTUISubcommand => match event {
+                    Event::TUISubcommandCompleted(potential_error) => {
+                        potential_error?;
+
+                        self.terminal_manager.show_tui()?;
+                        // Resume listening to terminal events in our TUI.
+                        self.channels
+                            .polling_tx
+                            .send(PollingCommand::Listen)
+                            .await?;
+
+                        if let ControlFlow::Exit = self.conclude_blocking().await? {
+                            break 'event_loop;
+                        }
+                    }
+                    // Our TUI is disabled, so we can't display new output anyways.
+                    Event::CommandOutput(_) => {}
+                    // Already handled before.
+                    Event::TerminalResized => {}
+                    // TUI should not be interactive while blocking.
+                    Event::KeyPressed(_) => {}
+                    // Currently not blocking, so should never receive completed subcommand events.
+                    Event::SubcommandCompleted(_) | Event::SubcommandForEnvCompleted(_) => {}
+                },
+                BlockingState::BlockedReloadingWatchedCommand => match event {
+                    Event::CommandOutput(lines) => {
+                        self.state.update_lines(lines?)?;
+
+                        if let ControlFlow::Exit = self.conclude_blocking().await? {
+                            break 'event_loop;
+                        }
+                    }
+                    // Already handled before.
+                    Event::TerminalResized => {}
+                    // TUI should not be interactive while blocking.
+                    Event::KeyPressed(_) => {}
+                    // Currently not waiting for any blocking subcommand to complete.
+                    Event::SubcommandCompleted(_)
+                    | Event::SubcommandForEnvCompleted(_)
+                    | Event::TUISubcommandCompleted(_) => {}
+                },
+                BlockingState::BlockedExecutingSubcommand => match event {
+                    Event::CommandOutput(lines) => {
+                        // We handle new output lines, but don't exit the
+                        // blocking state.
+                        self.state.update_lines(lines?)?;
+                    }
+                    Event::SubcommandCompleted(potential_error) => {
+                        potential_error?;
+
+                        if let ControlFlow::Exit = self.conclude_blocking().await? {
+                            break 'event_loop;
+                        }
+                    }
+                    // Already handled before.
+                    Event::TerminalResized => {}
+                    // TUI should not be interactive while blocking.
+                    Event::KeyPressed(_) => {}
+                    // Currently not waiting for any blocking subcommand to complete.
+                    Event::SubcommandForEnvCompleted(_) | Event::TUISubcommandCompleted(_) => {}
+                },
+                BlockingState::BlockedExecutingSubcommandForEnv => match event {
+                    Event::CommandOutput(lines) => {
+                        // We handle new output lines, but don't exit the
+                        // blocking state.
+                        self.state.update_lines(lines?)?;
+                    }
+                    Event::SubcommandForEnvCompleted(new_env_variables) => {
+                        self.state.set_env(new_env_variables?).await;
+
+                        if let ControlFlow::Exit = self.conclude_blocking().await? {
+                            break 'event_loop;
+                        }
+                    }
+                    // Already handled before.
+                    Event::TerminalResized => {}
+                    // TUI should not be interactive while blocking.
+                    Event::KeyPressed(_) => {}
+                    // Currently not waiting for any blocking subcommand to complete.
+                    Event::SubcommandCompleted(_) | Event::TUISubcommandCompleted(_) => {}
+                },
+            };
         }
 
         Ok(())
@@ -314,6 +384,18 @@ impl UI {
 
                         return Ok(ControlFlow::Continue);
                     }
+                    RequestedAction::ExecutingTUISubcommand(tui_hidden_tx) => {
+                        // Pause listening for terminal events.
+                        self.channels.polling_tx.send(PollingCommand::Pause).await?;
+                        self.terminal_manager.hide_tui()?;
+
+                        save_remaining_operations!(self, key, idx + 1, ops);
+                        self.blocking_state = BlockingState::BlockedExecutingTUISubcommand;
+
+                        tui_hidden_tx.send(()).await?;
+
+                        return Ok(ControlFlow::Continue);
+                    }
                     RequestedAction::Continue => {
                         // Redraw the UI between the execution of each
                         // non-blocking operation.
@@ -327,13 +409,18 @@ impl UI {
         Ok(ControlFlow::Continue)
     }
 
+    /// Remove all elements from the events channel.
+    fn clear_events_channel(&mut self) {
+        clear_buffer(&mut self.channels.event_rx);
+    }
+
     /// The current blocking state is now over. However, this doesn't guarantee
     /// that we transition to the unblocked state, because we might still have
     /// to execute remaining blocking operations.
     async fn conclude_blocking(&mut self) -> Result<ControlFlow> {
         // Since we are coming from a blocking state, we need to delete all
         // events we received while we were blocking.
-        clear_buffer(&mut self.channels.event_rx);
+        self.clear_events_channel();
 
         match self.remaining_operations.take() {
             Some(RemainingOperations {
@@ -410,45 +497,77 @@ async fn poll_execute_watched_command(
     log::info!("Shutting down command executor task");
 }
 
+/// A command sent to a polling thread.
+enum PollingCommand {
+    /// Continue listening/polling for terminal events.
+    Listen,
+    /// Pause listening/polling for terminal events.
+    Pause,
+}
+
 /// Continuously listens for terminal-related events, and sends relevant events
 /// back to the main thread.
 /// For key events, only those that are part of a keybinding are sent.
 /// For terminal resizing, we always notify.
-async fn poll_terminal_events(keybindings: Arc<Keybindings>, event_tx: Sender<Event>) {
-    // TODO: don't listen for events when blocked, isn't displayed anyways
-    let mut reader = EventStream::new();
+async fn poll_terminal_events(
+    keybindings: Arc<Keybindings>,
+    event_tx: Sender<Event>,
+    mut polling_rx: Receiver<PollingCommand>,
+) {
+    let mut terminal_event_reader = EventStream::new();
 
-    loop {
-        let event = reader.next().fuse();
+    'polling_loop: loop {
+        tokio::select! {
+            // Wait for receival of a polling command from main event loop thread.
+            polling = polling_rx.recv() => match polling {
+                Some(PollingCommand::Pause) => {
+                    // Wait until another Listen command is received.
+                    log::info!("Terminal event listener has been paused.");
+                    'wait_for_listen: while let Some(polling) = polling_rx.recv().await {
+                        if let PollingCommand::Listen = polling {
+                            break 'wait_for_listen;
+                        }
+                    }
+                    log::info!("Terminal event listener is listening again.");
 
-        match event.await {
-            Some(Ok(CrosstermEvent::Key(key_event))) => {
-                if let Ok(key) = key_event.try_into() {
-                    if keybindings.get_operations(&key).is_some() {
-                        // Ideally, we would send the &Operations directly, instead
-                        // of only sending the key event, which the main thread
-                        // then as to look-up again in the Keybindings hashmap,
-                        // but sending references is impossible/requires a lot of
-                        // synchronization overhead.
-                        if event_tx.send(Event::KeyPressed(key)).await.is_err() {
-                            break;
-                        };
+                },
+                // Currently already listening for terminal events.
+                Some(PollingCommand::Listen) => {},
+                // Channel has been closed.
+                None => break 'polling_loop,
+            },
+            // Wait for a terminal event.
+            event = terminal_event_reader.next().fuse() => match event {
+                Some(Ok(CrosstermEvent::Key(key_event))) => {
+                    if let Ok(key) = key_event.try_into() {
+                        if keybindings.get_operations(&key).is_some() {
+                            // Ideally, we would send the &Operations directly, instead
+                            // of only sending the key event, which the main thread
+                            // then as to look-up again in the Keybindings hashmap,
+                            // but sending references is infeasible (a lot of
+                            // synchronization overhead).
+                            if event_tx.send(Event::KeyPressed(key)).await.is_err() {
+                                break 'polling_loop;
+                            };
+                        }
                     }
                 }
+                Some(Ok(CrosstermEvent::Resize(_, _))) => {
+                    if event_tx.send(Event::TerminalResized).await.is_err() {
+                        break 'polling_loop;
+                    };
+                }
+                _ => {}
             }
-            Some(Ok(CrosstermEvent::Resize(_, _))) => {
-                if event_tx.send(Event::TerminalResized).await.is_err() {
-                    break;
-                };
-            }
-            _ => {}
         }
     }
 
-    log::info!("Shutting down event listener task");
+    log::info!("Shutting down terminal event listener task");
 }
 
-/// Remove all elements from the receiving channel buffer, until is is either
+// TODO: implement a trait on rx so we can call this directly on rx
+
+/// Remove all elements from a receiving channel buffer, until it is either
 /// empty or was closed by the sender(s).
 fn clear_buffer<T>(rx: &mut Receiver<T>) {
     while rx.try_recv().is_ok() {}

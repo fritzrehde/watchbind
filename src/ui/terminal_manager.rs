@@ -15,6 +15,15 @@ pub struct TerminalManager {
 
 impl TerminalManager {
     pub fn new() -> Result<Self> {
+        let terminal = Self::create_tui()?;
+        let mut terminal_manager = TerminalManager { terminal };
+        terminal_manager.show_tui()?;
+
+        Ok(terminal_manager)
+    }
+
+    // TODO: maybe we don't have to create the stdout, backend variables again, only once at creation. Optimize that later
+    fn create_tui() -> Result<Terminal> {
         enable_raw_mode()?;
         let mut stdout = stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -22,10 +31,16 @@ impl TerminalManager {
         let mut terminal = Terminal::new(backend)?;
         terminal.hide_cursor()?;
 
-        Ok(TerminalManager { terminal })
+        Ok(terminal)
     }
 
-    pub fn restore(&mut self) -> Result<()> {
+    pub fn show_tui(&mut self) -> Result<()> {
+        self.terminal = Self::create_tui()?;
+
+        Ok(())
+    }
+
+    pub fn hide_tui(&mut self) -> Result<()> {
         disable_raw_mode()?;
         execute!(
             self.terminal.backend_mut(),
@@ -33,6 +48,7 @@ impl TerminalManager {
             DisableMouseCapture
         )?;
         self.terminal.show_cursor()?;
+
         Ok(())
     }
 }
@@ -40,6 +56,6 @@ impl TerminalManager {
 impl Drop for TerminalManager {
     fn drop(&mut self) {
         // TODO: remove unwrap
-        self.restore().unwrap();
+        self.hide_tui().unwrap();
     }
 }

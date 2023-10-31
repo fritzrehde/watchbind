@@ -1,10 +1,12 @@
-use crate::command::{Blocking, CommandBuilder, NonBlocking, WithEnv, WithOutput};
+use crate::command::{
+    Blocking, CommandBuilder, InheritedIO, NonBlocking, NonInterruptible, WithEnv, WithOutput,
+};
 use crate::ui::{EnvVariable, EnvVariables, Event, RequestedAction, State};
 use anyhow::Result;
 use parse_display::{Display, FromStr};
 use std::str;
 use std::sync::Arc;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
 
 // TODO: use some rust pattern (with types) instead of hardcoded Operation{,Parsed} variants
@@ -33,6 +35,9 @@ pub enum OperationParsed {
     #[display("exec & -- {0}")]
     ExecuteNonBlocking(String),
 
+    #[display("exec tui -- {0}")]
+    ExecuteTUI(String),
+
     #[display("set-env {0} -- {1}")]
     SetEnv(EnvVariable, String),
 
@@ -51,13 +56,14 @@ pub enum Operation {
     HelpToggle,
     MoveCursor(MoveCursor),
     SelectLine(SelectOperation),
+    // TODO: document why we have an Arc (probably because it's shared across threads, but why? is it even necessary to share across threads given async)
     ExecuteBlocking(Arc<CommandBuilder<Blocking, WithEnv>>),
     ExecuteNonBlocking(Arc<CommandBuilder<NonBlocking, WithEnv>>),
+    ExecuteTUI(Arc<CommandBuilder<Blocking, WithEnv, InheritedIO, NonInterruptible>>),
     SetEnv(
         EnvVariable,
         Arc<CommandBuilder<Blocking, WithEnv, WithOutput>>,
     ),
-
     UnsetEnv(EnvVariable),
     ReadIntoEnv(EnvVariable),
 }
@@ -115,7 +121,7 @@ impl Operation {
                 state.add_lines_to_env().await?;
 
                 // TODO: these clones are preventable by using Arc<> (I think Arc<Mutex> isn't required because executing them doesn't mutate them)
-                let blocking_cmd = blocking_cmd.clone();
+                let blocking_cmd = Arc::clone(blocking_cmd);
                 let event_tx = event_tx.clone();
                 tokio::spawn(async move {
                     let result = blocking_cmd.execute().await;
@@ -126,10 +132,29 @@ impl Operation {
 
                 return Ok(RequestedAction::ExecutingBlockingSubcommand);
             }
+            Self::ExecuteTUI(tui_cmd) => {
+                state.add_lines_to_env().await?;
+
+                // Create channels for waiting until TUI has actually been hidden.
+                let (tui_hidden_tx, mut tui_hidden_rx) = mpsc::channel(1);
+
+                let tui_cmd = Arc::clone(tui_cmd);
+                let event_tx = event_tx.clone();
+                tokio::spawn(async move {
+                    // Wait until TUI has actually been hidden.
+                    let _ = tui_hidden_rx.recv().await;
+
+                    let result = tui_cmd.execute().await;
+
+                    // Ignore whether the sender has closed channel.
+                    let _ = event_tx.send(Event::TUISubcommandCompleted(result)).await;
+                });
+
+                return Ok(RequestedAction::ExecutingTUISubcommand(tui_hidden_tx));
+            }
             Self::SetEnv(env_variable, blocking_cmd) => {
                 state.add_lines_to_env().await?;
 
-                // TODO: these clones are preventable by using Arc<> (I think Arc<Mutex> isn't required because executing them doesn't mutate them)
                 let blocking_cmd = blocking_cmd.clone();
                 let env_variable = env_variable.clone();
                 let event_tx = event_tx.clone();
@@ -171,6 +196,12 @@ impl Operation {
             )),
             OperationParsed::ExecuteNonBlocking(cmd) => Self::ExecuteNonBlocking(Arc::new(
                 CommandBuilder::new(cmd).with_env(env_variables.clone()),
+            )),
+            OperationParsed::ExecuteTUI(cmd) => Self::ExecuteTUI(Arc::new(
+                CommandBuilder::new(cmd)
+                    .blocking()
+                    .inherited_io()
+                    .with_env(env_variables.clone()),
             )),
             OperationParsed::SetEnv(env_var, cmd) => Self::SetEnv(
                 env_var,
