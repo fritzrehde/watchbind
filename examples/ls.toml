@@ -1,4 +1,4 @@
-watched-command = "ls -la"
+watched-command = "ls"
 interval = 3.0
 bold = false
 cursor-fg = "black"
@@ -28,3 +28,4 @@ header-lines = 1
   "exec -- echo \"Trying to overwrite watchbind's lines with stdout\"",
   "exec -- echo \"Trying to overwrite watchbind's lines with stderr\" >&2"
 ]
+"e" = [ "exec tui -- nvim \"$line\"" ]

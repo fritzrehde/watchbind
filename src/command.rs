@@ -30,6 +30,8 @@ pub struct WithEnv {
 pub struct NoOutput;
 #[derive(Clone)]
 pub struct WithOutput;
+#[derive(Clone)]
+pub struct InheritedIO;
 
 #[derive(Clone)]
 pub struct NonInterruptible;
@@ -61,12 +63,6 @@ pub struct CommandBuilder<B = NonBlocking, E = WithoutEnv, O = NoOutput, I = Non
 // TODO: impl default trait so we don't have to duplicate this
 impl CommandBuilder {
     pub fn new(command: String) -> Self {
-        let sh = ["sh", "-c", &command];
-        let mut process = TokioCommand::new(sh[0]);
-        process.args(&sh[1..]);
-        process.stdout(Stdio::null());
-        process.stderr(Stdio::null());
-
         CommandBuilder {
             // TODO: i think we don't even need command anymore, just the tokiocommand
             command,
@@ -74,16 +70,17 @@ impl CommandBuilder {
             output: NoOutput,
             interruptible: NonInterruptible,
             env: WithoutEnv,
-            tokio_command: Default::default(),
+            tokio_command: TokioCommandBuilder::default(),
         }
     }
 }
 
-/// Since we can't save a tokio::process::Command permanently and just clone it
-/// on new executions (it doesn't implement Clone), we store most of what's
-/// necessary to contruct it.
+/// Since we can't save a tokio::process::Command permanently and clone it
+/// on new executions (it doesn't implement Clone), we store what's
+/// needed to construct it.
 #[derive(Default, Clone)]
 struct TokioCommandBuilder {
+    stdin: StdioClonable,
     stdout: StdioClonable,
     stderr: StdioClonable,
 }
@@ -91,16 +88,18 @@ struct TokioCommandBuilder {
 // TODO: this should be known at compile-time as well, not have a match statement
 #[derive(Default, Clone)]
 enum StdioClonable {
-    Piped,
     #[default]
     Null,
+    Piped,
+    Inherit,
 }
 
 impl From<&StdioClonable> for Stdio {
     fn from(value: &StdioClonable) -> Self {
         match value {
-            StdioClonable::Piped => Stdio::piped(),
             StdioClonable::Null => Stdio::null(),
+            StdioClonable::Piped => Stdio::piped(),
+            StdioClonable::Inherit => Stdio::inherit(),
         }
     }
 }
@@ -150,6 +149,21 @@ impl<B, E, O, I> CommandBuilder<B, E, O, I> {
         }
     }
 
+    pub fn inherited_io(mut self) -> CommandBuilder<B, E, InheritedIO, I> {
+        // Required so child process can inherit IO from parent for TUI to work.
+        self.tokio_command.stdin = StdioClonable::Inherit;
+        self.tokio_command.stdout = StdioClonable::Inherit;
+
+        CommandBuilder {
+            command: self.command,
+            blocking: self.blocking,
+            output: InheritedIO,
+            interruptible: self.interruptible,
+            env: self.env,
+            tokio_command: self.tokio_command,
+        }
+    }
+
     pub fn interruptible(
         self,
         interrupt_rx: Receiver<InterruptSignal>,
@@ -171,8 +185,8 @@ impl<B, O, I> CommandBuilder<B, WithoutEnv, O, I> {
         let sh = ["sh", "-c", &self.command];
 
         let mut command = TokioCommand::new(sh[0]);
-
         command.args(&sh[1..]);
+        command.stdin(&self.tokio_command.stdin);
         command.stdout(&self.tokio_command.stdout);
         command.stderr(&self.tokio_command.stderr);
 
@@ -240,6 +254,17 @@ impl CommandBuilder<Blocking, WithEnv, NoOutput, NonInterruptible> {
         //     .stdout(Stdio::null())
         //     .stderr(Stdio::piped())
         //     .spawn()?;
+
+        let exit_status = child.wait().await?;
+        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+
+        Ok(())
+    }
+}
+
+impl CommandBuilder<Blocking, WithEnv, InheritedIO, NonInterruptible> {
+    pub async fn execute(&self) -> Result<()> {
+        let mut child = self.create_shell_command().await.spawn()?;
 
         let exit_status = child.wait().await?;
         assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
@@ -354,8 +379,8 @@ impl<B, E, O> CommandBuilder<B, E, O, Interruptible> {
     }
 }
 
-/// Return error in case the exit status/code indicates failure, and include
-/// stderr in error message.
+/// Return an error in case the exit status/exit code indicates failure, and
+/// include stderr in error message.
 async fn assert_child_exited_successfully(
     exit_status: ExitStatus,
     stderr: &mut Option<tokio::process::ChildStderr>,

@@ -164,22 +164,25 @@ All supported `OP` values:
 
 Operation | Description
 :-- | :--
-`exit` | Quit watchbind
-`reload` | Reload the watched command manually, resets interval timer
-`cursor [down\|up] <N>` | Move cursor \[down\|up\] N number of lines
-`cursor [first\|last]` | Move cursor to the \[first\|last\] line
-`select` | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines)
-`unselect` | Unselect line that cursor is currently on
-`toggle-selection` | Toggle selection of line that cursor is currently on
-`select-all` | Select all lines
-`unselect-all` | Unselect all currently selected lines
-`exec -- <CMD>` | Execute `CMD` and block until termination
-`exec & -- <CMD>` | Execute `CMD` as background process, i.e. don't block until command terminates
-`set-env <ENV> -- <CMD>` | Blockingly execute `CMD`, and save its output to the environment variable `ENV`
-`unset-env <ENV> -- <CMD>` | Unsets environment variable `ENV`
-`help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings
+`exit` | Quit watchbind.
+`reload` | Reload the watched command manually, resets interval timer.
+`cursor [down\|up] <N>` | Move cursor \[down\|up\] N number of lines.
+`cursor [first\|last]` | Move cursor to the \[first\|last\] line.
+`select` | Select line that cursor is currently on (i.e. add line that cursor is currently on to selected lines).
+`unselect` | Unselect line that cursor is currently on.
+`toggle-selection` | Toggle selection of line that cursor is currently on.
+`select-all` | Select all lines.
+`unselect-all` | Unselect all currently selected lines.
+`exec -- <CMD>` | Execute `CMD` and block until termination.
+`exec & -- <CMD>` | Execute `CMD` as background process, i.e. don't block until command terminates.
+`exec tui -- <TUI-CMD>` | Execute a `TUI-CMD` that spawns a TUI (e.g. text editor). Watchbind's own TUI is replaced with `TUI-CMD`'s TUI until `TUI-CMD` terminates.
+`set-env <ENV> -- <CMD>` | Blockingly execute `CMD`, and save its output to the environment variable `ENV`.
+`unset-env <ENV> -- <CMD>` | Unsets environment variable `ENV`.
+`help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings.
 
-All shell commands `CMD` will be executed in a subshell (i.e. `sh -c "CMD"`) that has the environment variable `line` set to the line the cursor is one and `lines` set to all selected lines or, if none are selected, the line the cursor is currently on.
+All `CMD` and `TUI-CMD` shell commands will be executed in a subshell (i.e. `sh -c "CMD"`) that has some environment variables set.
+The environment variable `line` is set to the line the cursor is on.
+The environment variable `lines` set to all selected lines, or if none are selected, the line the cursor is currently on.
 All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
 If multiple lines are selected, they will be separated by newlines in `lines`.
 
