@@ -266,6 +266,7 @@ impl UI {
                         potential_error?;
 
                         self.terminal_manager.show_tui()?;
+                        log::info!("Watchbind's TUI is shown.");
                         // Resume listening to terminal events in our TUI.
                         self.channels
                             .polling_tx
@@ -385,14 +386,14 @@ impl UI {
                         return Ok(ControlFlow::Continue);
                     }
                     RequestedAction::ExecutingTUISubcommand(tui_hidden_tx) => {
-                        // Pause listening for terminal events.
-                        self.channels.polling_tx.send(PollingCommand::Pause).await?;
+                        self.pause_terminal_events_polling().await?;
+
                         self.terminal_manager.hide_tui()?;
+                        tui_hidden_tx.send(()).await?;
+                        log::info!("Watchbind's TUI has been hidden.");
 
                         save_remaining_operations!(self, key, idx + 1, ops);
                         self.blocking_state = BlockingState::BlockedExecutingTUISubcommand;
-
-                        tui_hidden_tx.send(()).await?;
 
                         return Ok(ControlFlow::Continue);
                     }
@@ -407,6 +408,22 @@ impl UI {
             self.blocking_state = BlockingState::Unblocked;
         }
         Ok(ControlFlow::Continue)
+    }
+
+    /// Tells the terminal event listener thread to stop polling.
+    async fn pause_terminal_events_polling(&self) -> Result<()> {
+        // Create channels for waiting until polling has actually been paused.
+        let (polling_paused_tx, mut polling_paused_rx) = mpsc::channel(1);
+
+        self.channels
+            .polling_tx
+            .send(PollingCommand::Pause(polling_paused_tx))
+            .await?;
+
+        // Wait until polling has actually been paused.
+        let _ = polling_paused_rx.recv().await;
+
+        Ok(())
     }
 
     /// Remove all elements from the events channel.
@@ -501,9 +518,13 @@ async fn poll_execute_watched_command(
 enum PollingCommand {
     /// Continue listening/polling for terminal events.
     Listen,
-    /// Pause listening/polling for terminal events.
-    Pause,
+    /// Pause listening/polling for terminal events. Notifies event's sender
+    /// once polling has actually been paused.
+    Pause(Sender<PollingPaused>),
 }
+
+/// A message, sent via a channel, that the polling has been paused.
+struct PollingPaused;
 
 /// Continuously listens for terminal-related events, and sends relevant events
 /// back to the main thread.
@@ -514,52 +535,65 @@ async fn poll_terminal_events(
     event_tx: Sender<Event>,
     mut polling_rx: Receiver<PollingCommand>,
 ) {
-    let mut terminal_event_reader = EventStream::new();
+    'main_loop: loop {
+        // Poll terminal events until instructed to pause.
+        let polling_paused_tx = {
+            // Recreate the EventStream everytime we start polling terminal
+            // events (again).
+            let mut terminal_event_reader = EventStream::new();
 
-    'polling_loop: loop {
-        tokio::select! {
-            // Wait for receival of a polling command from main event loop thread.
-            polling = polling_rx.recv() => match polling {
-                Some(PollingCommand::Pause) => {
-                    // Wait until another Listen command is received.
-                    log::info!("Terminal event listener has been paused.");
-                    'wait_for_listen: while let Some(polling) = polling_rx.recv().await {
-                        if let PollingCommand::Listen = polling {
-                            break 'wait_for_listen;
+            'polling_loop: loop {
+                tokio::select! {
+                    // Wait for receival of a polling command from main event loop thread.
+                    polling = polling_rx.recv() => match polling {
+                        Some(PollingCommand::Pause(polling_paused_tx)) => break 'polling_loop polling_paused_tx,
+                        // Currently already listening for terminal events.
+                        Some(PollingCommand::Listen) => continue 'polling_loop,
+                        // Channel has been closed.
+                        None => break 'main_loop,
+                    },
+                    // Wait for a terminal event.
+                    Some(Ok(event)) = terminal_event_reader.next().fuse() => match event {
+                        CrosstermEvent::Key(key_event) => {
+                            if let Ok(key) = key_event.try_into() {
+                                log::info!("Key pressed: {}", key);
+
+                                if keybindings.get_operations(&key).is_some() {
+                                    // Ideally, we would send the &Operations directly, instead
+                                    // of only sending the key event, which the main thread
+                                    // then has to look-up again in the Keybindings hashmap,
+                                    // but sending references is infeasible (a lot of
+                                    // synchronization overhead).
+                                    if event_tx.send(Event::KeyPressed(key)).await.is_err() {
+                                        break 'main_loop;
+                                    };
+                                }
+                            }
                         }
-                    }
-                    log::info!("Terminal event listener is listening again.");
-
-                },
-                // Currently already listening for terminal events.
-                Some(PollingCommand::Listen) => {},
-                // Channel has been closed.
-                None => break 'polling_loop,
-            },
-            // Wait for a terminal event.
-            event = terminal_event_reader.next().fuse() => match event {
-                Some(Ok(CrosstermEvent::Key(key_event))) => {
-                    if let Ok(key) = key_event.try_into() {
-                        if keybindings.get_operations(&key).is_some() {
-                            // Ideally, we would send the &Operations directly, instead
-                            // of only sending the key event, which the main thread
-                            // then as to look-up again in the Keybindings hashmap,
-                            // but sending references is infeasible (a lot of
-                            // synchronization overhead).
-                            if event_tx.send(Event::KeyPressed(key)).await.is_err() {
-                                break 'polling_loop;
+                        CrosstermEvent::Resize(_, _) => {
+                            if event_tx.send(Event::TerminalResized).await.is_err() {
+                                break 'main_loop;
                             };
                         }
+                        _ => continue 'polling_loop,
                     }
                 }
-                Some(Ok(CrosstermEvent::Resize(_, _))) => {
-                    if event_tx.send(Event::TerminalResized).await.is_err() {
-                        break 'polling_loop;
-                    };
-                }
-                _ => {}
+            }
+        };
+
+        log::info!("Terminal event listener has been paused.");
+
+        // Notify sender thread that polling has been paused.
+        let _ = polling_paused_tx.send(PollingPaused).await;
+
+        // Wait until another Listen command is received.
+        'wait_for_listen: while let Some(polling) = polling_rx.recv().await {
+            if let PollingCommand::Listen = polling {
+                break 'wait_for_listen;
             }
         }
+
+        log::info!("Terminal event listener is listening again.");
     }
 
     log::info!("Shutting down terminal event listener task");
