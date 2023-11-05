@@ -12,7 +12,7 @@ use crossterm::event::EventStream;
 use futures::{future::FutureExt, StreamExt};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use terminal_manager::TerminalManager;
+use terminal_manager::Tui;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 pub use state::State;
@@ -22,7 +22,7 @@ pub type WatchedCommand = CommandBuilder<Blocking, WithEnv, WithOutput, Interrup
 
 pub struct UI {
     blocking_state: BlockingState,
-    terminal_manager: TerminalManager,
+    tui: Tui,
     state: State,
     watch_rate: Duration,
     keybindings: Arc<Keybindings>,
@@ -117,10 +117,7 @@ enum BlockingState {
 /// require borrowing self completely, which causes borrow-checker problems.
 macro_rules! draw {
     ($self:expr) => {
-        $self
-            .terminal_manager
-            .terminal
-            .draw(|frame| $self.state.draw(frame))
+        $self.tui.terminal.draw(|frame| $self.state.draw(frame))
     };
 }
 
@@ -152,7 +149,7 @@ impl UI {
     }
 
     async fn new(config: Config) -> Result<(Self, PollingState)> {
-        let terminal_manager = TerminalManager::new()?;
+        let terminal_manager = Tui::new()?;
 
         let env_variables = EnvVariables::generate_initial(config.initial_env_variables).await?;
         let keybindings_str = config.keybindings_parsed.to_string();
@@ -189,7 +186,7 @@ impl UI {
 
         let ui = Self {
             blocking_state: BlockingState::default(),
-            terminal_manager,
+            tui: terminal_manager,
             state,
             watch_rate: config.watch_rate,
             keybindings: Arc::new(keybindings),
@@ -265,8 +262,9 @@ impl UI {
                     Event::TUISubcommandCompleted(potential_error) => {
                         potential_error?;
 
-                        self.terminal_manager.show_tui()?;
+                        self.tui.restore()?;
                         log::info!("Watchbind's TUI is shown.");
+
                         // Resume listening to terminal events in our TUI.
                         self.channels
                             .polling_tx
@@ -288,6 +286,7 @@ impl UI {
                 },
                 BlockingState::BlockedReloadingWatchedCommand => match event {
                     Event::CommandOutput(lines) => {
+                        // TODO: is called from async context, should be put in spawn_blocking
                         self.state.update_lines(lines?)?;
 
                         if let ControlFlow::Exit = self.conclude_blocking().await? {
@@ -388,7 +387,7 @@ impl UI {
                     RequestedAction::ExecutingTUISubcommand(tui_hidden_tx) => {
                         self.pause_terminal_events_polling().await?;
 
-                        self.terminal_manager.hide_tui()?;
+                        self.tui.hide()?;
                         tui_hidden_tx.send(()).await?;
                         log::info!("Watchbind's TUI has been hidden.");
 
