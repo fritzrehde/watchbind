@@ -2,10 +2,11 @@ use anyhow::Result;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use ratatui::backend::CrosstermBackend;
+use ratatui::{backend::CrosstermBackend, Frame};
 use std::io::{stdout, Stdout};
 
-type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
+type Backend = CrosstermBackend<Stdout>;
+type Terminal = ratatui::Terminal<Backend>;
 
 /// A Terminal User Interface (TUI).
 pub struct Tui {
@@ -27,6 +28,15 @@ impl Tui {
     /// Create a new terminal that will write the TUI to stdout.
     fn create_new_terminal() -> Result<Terminal> {
         Ok(Terminal::new(CrosstermBackend::new(stdout()))?)
+    }
+
+    /// Draw provided frame to TUI.
+    pub fn draw<F>(&mut self, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut Frame<Backend>),
+    {
+        self.terminal.draw(f)?;
+        Ok(())
     }
 
     /// Show the TUI.
@@ -78,8 +88,7 @@ impl Tui {
 impl Drop for Tui {
     fn drop(&mut self) {
         if let Err(e) = self.exit() {
-            // TODO: one shouldn't panic in a drop impl, since a second panic would cause instant termination
-            panic!("Tearing down the TUI failed with: {}", e);
+            log::error!("Tearing down the TUI failed with: {}", e);
         }
     }
 }

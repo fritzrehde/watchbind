@@ -2,15 +2,17 @@ mod env_variables;
 mod help_menu;
 mod lines;
 
-use std::sync::Arc;
-
-use self::{help_menu::HelpMenu, lines::Lines};
+use self::{
+    help_menu::HelpMenu,
+    lines::{CursorLine, Lines, SelectedLines},
+};
 use crate::config::{Fields, Styles};
 use anyhow::Result;
 use ratatui::{backend::Backend, Frame};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub use env_variables::{EnvVariable, EnvVariables};
-use tokio::sync::Mutex;
 
 pub struct State {
     mode: Mode,
@@ -56,8 +58,8 @@ impl State {
         self.lines.update_lines(new_lines)
     }
 
-    pub fn get_cursor_line_and_selected_lines(&mut self) -> Option<(String, String)> {
-        self.lines.get_selected_lines()
+    pub fn get_cursor_line_and_selected_lines(&mut self) -> Option<(CursorLine, SelectedLines)> {
+        self.lines.get_cursor_line_and_selected_lines()
     }
 
     /// Set both the cursor line as well as the selected lines in the UI as
@@ -66,8 +68,8 @@ impl State {
         // TODO: get_selected_lines is sync and computationally intensive, maybe use spawn_blocking
         if let Some((cursor_line, selected_lines)) = self.get_cursor_line_and_selected_lines() {
             let new_env_variables: EnvVariables = [
-                ("line".parse()?, cursor_line),
-                ("lines".parse()?, selected_lines),
+                ("line".parse()?, cursor_line.into()),
+                ("lines".parse()?, selected_lines.into()),
             ]
             .into_iter()
             .collect();

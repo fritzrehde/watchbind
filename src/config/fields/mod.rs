@@ -32,10 +32,12 @@ impl Fields {
     }
 }
 
-/// Format a string as a table that has its fields separated by an elastic
-/// tabstop, and only displays the fields that should be selected.
-/// Only applies any formatting if a separator or selection is present.
 pub trait TableFormatter {
+    /// Format a string as a table that has its fields separated by an elastic
+    /// tabstop, and only displays the fields that should be selected.
+    /// Only applies any formatting if a field separator or a field selection
+    /// are present.
+    /// Returns `None` if no formatting was applied.
     fn format_as_table(&self, fields: &Fields) -> Result<Option<String>>;
 }
 

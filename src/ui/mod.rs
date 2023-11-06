@@ -113,12 +113,18 @@ enum BlockingState {
     BlockedExecutingTUISubcommand,
 }
 
-/// Draws the UI. Prevents code duplication, because making this a method would
-/// require borrowing self completely, which causes borrow-checker problems.
+/// Clean wrapper around draw() which prevents borrow-checking problems caused
+/// by mutably borrowing self.
 macro_rules! draw {
     ($self:expr) => {
-        $self.tui.terminal.draw(|frame| $self.state.draw(frame))
+        draw(&mut $self.tui, &mut $self.state)
     };
+}
+
+/// Draw state to a TUI.
+fn draw(tui: &mut Tui, state: &mut State) -> Result<()> {
+    tui.draw(|frame| state.draw(frame))?;
+    Ok(())
 }
 
 /// Save all remaining operations, if there are any. Used as macro to prevent
@@ -222,6 +228,7 @@ impl UI {
                 BlockingState::BlockedExecutingTUISubcommand => {}
                 _ => {
                     draw!(self)?;
+                    self.tui.terminal.draw(|frame| self.state.draw(frame))?;
                 }
             };
 

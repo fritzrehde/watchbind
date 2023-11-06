@@ -1,73 +1,152 @@
-use anyhow::{bail, Result};
-use ratatui::style::{Color, Modifier, Style};
+use clap::ValueEnum;
+use derive_new::new;
+use parse_display::{Display, FromStr};
+use ratatui::style::{Color as RatatuiColor, Modifier, Style as RatatuiStyle};
+use serde::Deserialize;
 
-#[derive(Clone)]
+/// All styles used in the UI.
+#[derive(Debug, Clone)]
 pub struct Styles {
-    pub line: Style,
-    pub cursor: Style,
-    pub header: Style,
-    pub selected: Style,
+    /// The style of the line the cursor is on.
+    pub cursor: RatatuiStyle,
+    /// The style of the header lines.
+    pub header: RatatuiStyle,
+    /// The style of the lines that the cursor is not on and that are not
+    /// header lines.
+    pub non_cursor_non_header: RatatuiStyle,
+    /// The style of the indicator in selected lines (not the style of the
+    /// selected lines themselves).
+    pub selected: RatatuiStyle,
+}
+
+/// A style encompassing fg, bg and boldness.
+#[derive(new)]
+pub struct Style {
+    /// Foreground color.
+    fg: Color,
+    /// Background color.
+    bg: Color,
+    /// Boldness.
+    boldness: Boldness,
 }
 
 impl Styles {
-    // TODO: clippy says too many arguments (and I agree)
-    pub fn parse(
-        fg: Option<String>,
-        bg: Option<String>,
-        bold: Option<bool>,
-        cursor_fg: Option<String>,
-        cursor_bg: Option<String>,
-        cursor_bold: Option<bool>,
-        header_fg: Option<String>,
-        header_bg: Option<String>,
-        header_bold: Option<bool>,
-        selected_bg: Option<String>,
-    ) -> Result<Self> {
-        let new_style = |fg, bg, bold| -> Result<Style> {
-            Ok(Style::reset()
-                .fg(parse_color(fg)?)
-                .bg(parse_color(bg)?)
-                .add_modifier(parse_bold(bold)))
-        };
-        Ok(Self {
-            line: new_style(fg, bg, bold)?,
-            cursor: new_style(cursor_fg, cursor_bg, cursor_bold)?,
-            header: new_style(header_fg, header_bg, header_bold)?,
-            selected: new_style(None, selected_bg, None)?,
-        })
+    /// Create new from individual `Style`s.
+    pub fn new(
+        non_cursor_style: Style,
+        cursor_style: Style,
+        header_style: Style,
+        selected_style: Style,
+    ) -> Self {
+        Self {
+            non_cursor_non_header: non_cursor_style.into(),
+            cursor: cursor_style.into(),
+            header: header_style.into(),
+            selected: selected_style.into(),
+        }
     }
 }
 
-fn parse_bold(bold: Option<bool>) -> Modifier {
-    if let Some(true) = bold {
-        Modifier::BOLD
-    } else {
-        Modifier::empty()
+impl From<Style> for RatatuiStyle {
+    fn from(style: Style) -> Self {
+        let mut ratatui_style = RatatuiStyle::default();
+
+        if let Some(fg) = style.fg.into() {
+            ratatui_style = ratatui_style.fg(fg);
+        }
+        if let Some(bg) = style.bg.into() {
+            ratatui_style = ratatui_style.bg(bg);
+        }
+        match style.boldness {
+            Boldness::Bold => ratatui_style = ratatui_style.add_modifier(Modifier::BOLD),
+            Boldness::NonBold => ratatui_style = ratatui_style.remove_modifier(Modifier::BOLD),
+            Boldness::Unspecified => {}
+        }
+
+        ratatui_style
     }
 }
 
-// TODO: create custom Color type and impl from_str and add parser directly into toml and clap structs
-fn parse_color(src: Option<String>) -> Result<Color> {
-    Ok(match src {
-        Some(color) => match color.to_lowercase().as_str() {
-            "white" => Color::White,
-            "black" => Color::Black,
-            "red" => Color::Red,
-            "green" => Color::Green,
-            "yellow" => Color::Yellow,
-            "blue" => Color::Blue,
-            "magenta" => Color::Magenta,
-            "cyan" => Color::Cyan,
-            "gray" => Color::Gray,
-            "dark_gray" => Color::DarkGray,
-            "light_red" => Color::LightRed,
-            "light_green" => Color::LightGreen,
-            "light_yellow" => Color::LightYellow,
-            "light_blue" => Color::LightBlue,
-            "light_magenta" => Color::LightMagenta,
-            "light_cyan" => Color::LightCyan,
-            invalid => bail!("Invalid color provided: \"{}\"", invalid),
-        },
-        _ => Color::Reset,
-    })
+/// A wrapper around ratatui's `Color`.
+#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+#[display(style = "kebab-case")]
+pub enum Color {
+    White,
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    Gray,
+    DarkGray,
+    LightRed,
+    LightGreen,
+    LightYellow,
+    LightBlue,
+    LightMagenta,
+    LightCyan,
+    Reset,
+    /// Don't enforce any specific style.
+    #[default]
+    Unspecified,
+}
+
+impl Color {
+    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    pub fn or(self, other: Self) -> Self {
+        match self {
+            Color::Unspecified => other,
+            color => color,
+        }
+    }
+}
+
+impl From<Color> for Option<RatatuiColor> {
+    fn from(color: Color) -> Self {
+        match color {
+            Color::White => Some(RatatuiColor::White),
+            Color::Black => Some(RatatuiColor::Black),
+            Color::Red => Some(RatatuiColor::Red),
+            Color::Green => Some(RatatuiColor::Green),
+            Color::Yellow => Some(RatatuiColor::Yellow),
+            Color::Blue => Some(RatatuiColor::Blue),
+            Color::Magenta => Some(RatatuiColor::Magenta),
+            Color::Cyan => Some(RatatuiColor::Cyan),
+            Color::Gray => Some(RatatuiColor::Gray),
+            Color::DarkGray => Some(RatatuiColor::DarkGray),
+            Color::LightRed => Some(RatatuiColor::LightRed),
+            Color::LightGreen => Some(RatatuiColor::LightGreen),
+            Color::LightYellow => Some(RatatuiColor::LightYellow),
+            Color::LightBlue => Some(RatatuiColor::LightBlue),
+            Color::LightMagenta => Some(RatatuiColor::LightMagenta),
+            Color::LightCyan => Some(RatatuiColor::LightCyan),
+            Color::Reset => Some(RatatuiColor::Reset),
+            Color::Unspecified => None,
+        }
+    }
+}
+
+/// A wrapper around ratatui's `Modifier::BOLD`.
+#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+#[display(style = "kebab-case")]
+pub enum Boldness {
+    Bold,
+    NonBold,
+    /// Don't enforce any specific style.
+    #[default]
+    Unspecified,
+}
+
+impl Boldness {
+    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    pub fn or(self, other: Self) -> Self {
+        match self {
+            Boldness::Unspecified => other,
+            boldness => boldness,
+        }
+    }
 }
