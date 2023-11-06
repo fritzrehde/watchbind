@@ -55,8 +55,10 @@ impl Tui {
     /// split-second.
     pub fn hide(&mut self) -> Result<()> {
         disable_raw_mode()?;
+
         // The trick to not unpainting our TUI is to not leave the alternate
         // screen like we would normally do when hiding the TUI.
+
         self.terminal.show_cursor()?;
 
         Ok(())

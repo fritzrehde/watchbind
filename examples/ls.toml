@@ -28,4 +28,4 @@ header-lines = 1
   "exec -- echo \"Trying to overwrite watchbind's lines with stdout\"",
   "exec -- echo \"Trying to overwrite watchbind's lines with stderr\" >&2"
 ]
-"e" = [ "exec tui -- nvim \"$line\"" ]
+"e" = [ "exec tui -- $EDITOR \"$line\"" ]

@@ -175,7 +175,7 @@ Operation | Description
 `unselect-all` | Unselect all currently selected lines.
 `exec -- <CMD>` | Execute `CMD` and block until termination.
 `exec & -- <CMD>` | Execute `CMD` as background process, i.e. don't block until command terminates.
-`exec tui -- <TUI-CMD>` | Execute a `TUI-CMD` that spawns a TUI (e.g. text editor). Watchbind's own TUI is replaced with `TUI-CMD`'s TUI until `TUI-CMD` terminates.
+`exec tui -- <TUI-CMD>` | Execute a `TUI-CMD` that spawns a TUI (e.g. text editor). Watchbind's own TUI is replaced with `TUI-CMD`'s TUI until `TUI-CMD` terminates. Note that `TUI-CMD` must spawn a full-screen TUI that covers the entire terminal, otherwise undefined behaviour will ensue.
 `set-env <ENV> -- <CMD>` | Blockingly execute `CMD`, and save its output to the environment variable `ENV`.
 `unset-env <ENV> -- <CMD>` | Unsets environment variable `ENV`.
 `help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings.
