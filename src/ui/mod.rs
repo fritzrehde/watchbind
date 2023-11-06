@@ -7,8 +7,8 @@ use crate::command::{
 use crate::config::KeyEvent;
 use crate::config::{Config, Keybindings};
 use anyhow::Result;
-use crossterm::event::Event as CrosstermEvent;
-use crossterm::event::EventStream;
+use crossterm::event::{Event as CrosstermEvent, KeyEvent as CrosstermKeyEvent};
+use crossterm::event::{EventStream, KeyEventKind};
 use futures::{future::FutureExt, StreamExt};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -553,7 +553,9 @@ async fn poll_terminal_events(
                     },
                     // Wait for a terminal event.
                     Some(Ok(event)) = terminal_event_reader.next().fuse() => match event {
-                        CrosstermEvent::Key(key_event) => {
+                        // Only react to key press, otherwise we might react
+                        // to both key press and key release.
+                        CrosstermEvent::Key(key_event @ CrosstermKeyEvent { kind: KeyEventKind::Press, .. }) => {
                             if let Ok(key) = key_event.try_into() {
                                 log::info!("Key pressed: {}", key);
 
