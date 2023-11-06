@@ -2,11 +2,10 @@ mod command;
 mod config;
 mod ui;
 
-use std::fs::File;
-
 use crate::config::Config;
 use anyhow::{Context, Result};
 use simplelog::{LevelFilter, WriteLogger};
+use std::fs::File;
 use ui::UI;
 
 #[tokio::main]

@@ -1,35 +1,52 @@
 mod line;
+mod selected_lines;
 
 pub use line::Line;
 
+use self::selected_lines::LineSelections;
 use crate::config::Styles;
 use crate::config::{Fields, TableFormatter};
 use anyhow::Result;
-use itertools::izip;
+use derive_more::{From, Into};
+use itertools::{izip, Itertools};
 use ratatui::{
     prelude::{Backend, Constraint},
     style::Style,
-    widgets::{Cell, Row, Table, TableState},
+    widgets::{Row, Table, TableState},
     Frame,
 };
 use std::cmp::max;
 
+/// The state of the lines, which can be drawn in order to be displayed
+/// in the UI.
 pub struct Lines {
-    pub lines: Vec<Line>,
-    pub selected: Vec<bool>,
-    pub styles: Styles,
-    pub fields: Fields,
-    pub index_after_header_lines: usize,
-    pub cursor_index: Option<usize>,
+    /// Stores all output lines from the watched command.
+    lines: Vec<Line>,
+    /// Stores which lines are selected. The reason why this is separate
+    /// from `lines` is that the `lines` are updated periodically,
+    /// but the selection of lines stays persistant between `lines`-updates.
+    /// However, the length of the `line_selections` will always be equal to
+    /// that of `lines`, meaning it will be resized on `lines`-updates.
+    line_selections: LineSelections,
+    /// The styles used to style the `lines` and `line_selections`.
+    styles: Styles,
+    /// Specifies the delimiter and shown fields that should be displayed
+    /// for each line.
+    fields: Fields,
+    /// The first index after the header lines, which is the smallest possible
+    /// index the cursor can take.
+    index_after_header_lines: usize,
+    /// The line index of the cursor.
+    cursor_index: Option<usize>,
     // TODO: deprecate in future
-    pub table_state: TableState,
+    table_state: TableState,
 }
 
 impl Lines {
     pub fn new(fields: Fields, styles: Styles, header_lines: usize) -> Self {
         Self {
             lines: vec![],
-            selected: vec![],
+            line_selections: LineSelections::new(styles.selected, styles.non_cursor_non_header),
             fields,
             cursor_index: None,
             styles,
@@ -38,19 +55,11 @@ impl Lines {
         }
     }
 
+    /// Render to frame.
     pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
         // TODO: do as much as possible in update_lines to improve performance
-        let rows: Vec<Row> = izip!(&self.lines, &self.selected)
-            .map(|(line, &selected)| {
-                // TODO: consider replacing Vec<bool> with Vec<Style> directly
-                let selected_style = if selected {
-                    self.styles.selected
-                } else {
-                    self.styles.line
-                };
-
-                Row::new(vec![Cell::from(" ").style(selected_style), line.draw()])
-            })
+        let rows: Vec<Row> = izip!(self.lines.iter(), self.line_selections.iter())
+            .map(|(line, selected)| Row::new(vec![selected.draw(), line.draw()]))
             .collect();
 
         let table = Table::new(rows)
@@ -60,38 +69,45 @@ impl Lines {
         frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
     }
 
-    // TODO: might be better suited as a new() method or similar
-    pub fn update_lines(&mut self, lines: String) -> Result<()> {
-        let formatted: Vec<Option<String>> = match lines.as_str().format_as_table(&self.fields)? {
-            Some(formatted) => formatted.lines().map(str::to_owned).map(Some).collect(),
-            None => vec![None; lines.lines().count()],
-        };
+    /// Update the lines to `new_lines`.
+    pub fn update_lines(&mut self, new_lines: String) -> Result<()> {
+        let formatted: Vec<Option<String>> =
+            match new_lines.as_str().format_as_table(&self.fields)? {
+                // All lines have formatting.
+                Some(formatted) => formatted.lines().map(str::to_owned).map(Some).collect(),
+                // No lines have formatting.
+                None => vec![None; new_lines.lines().count()],
+            };
 
-        self.lines = izip!(lines.lines(), formatted)
+        self.lines = izip!(new_lines.lines(), formatted)
             .enumerate()
             .map(|(i, (unformatted, formatted))| {
                 let style = if i < self.index_after_header_lines {
                     self.styles.header
                 } else {
-                    self.styles.line
+                    self.styles.non_cursor_non_header
                 };
-
                 Line::new(unformatted.to_owned(), formatted, style)
             })
-            .collect();
+            .collect::<Result<_>>()?;
 
-        self.selected.resize(self.lines.len(), false);
+        // Resize the line selections to the same size as the lines.
+        self.line_selections.resize(self.lines.len());
+
         self.calibrate_cursor();
 
         Ok(())
     }
+}
 
-    // Moving cursor
-
+// Moving cursor
+impl Lines {
     // TODO: don't use isize, instead use an enum Up|Down and saturating_{add,sub}
+
+    /// Move the cursor to `index`.
     fn move_cursor(&mut self, index: isize) {
-        let old = self.get_cursor_position();
-        let new = if self.lines.is_empty() {
+        let old_cursor_index = self.get_cursor_position();
+        let new_cursor_index = if self.lines.is_empty() {
             None
         } else {
             let first = self.index_after_header_lines as isize;
@@ -99,15 +115,18 @@ impl Lines {
             Some(index.clamp(first, last) as usize)
         };
 
-        self.cursor_index = new;
+        self.cursor_index = new_cursor_index;
         self.table_state.select(self.cursor_index);
-        self.adjust_cursor_style(old, new);
+        self.adjust_cursor_style(old_cursor_index, new_cursor_index);
     }
 
+    /// Get the current cursor index, or `None` if there is currently no cursor.
     fn get_cursor_position(&self) -> Option<usize> {
         self.cursor_index
     }
 
+    /// Calibrate the cursor. Calibration may be necessary if the cursor is
+    /// still on a line that no longer exists.
     fn calibrate_cursor(&mut self) {
         match self.get_cursor_position() {
             None => self.move_cursor_to_first_line(),
@@ -115,111 +134,143 @@ impl Lines {
         };
     }
 
+    /// Move the cursor down by `steps`.
     pub fn move_cursor_down(&mut self, steps: usize) {
         if let Some(i) = self.get_cursor_position() {
             self.move_cursor(i as isize + steps as isize);
         }
     }
 
+    /// Move the cursor up by `steps`.
     pub fn move_cursor_up(&mut self, steps: usize) {
         if let Some(i) = self.get_cursor_position() {
             self.move_cursor(i as isize - steps as isize);
         }
     }
 
+    /// Move the cursor to the first line.
     pub fn move_cursor_to_first_line(&mut self) {
         self.move_cursor(self.index_after_header_lines as isize);
     }
 
+    /// Move the cursor to the last line.
     pub fn move_cursor_to_last_line(&mut self) {
         self.move_cursor(self.last_index() as isize);
     }
+}
 
-    // Styling cursor
-
-    fn adjust_cursor_style(&mut self, old: Option<usize>, new: Option<usize>) {
-        if let Some(old_index) = old {
-            self.update_line_style(old_index, self.styles.line);
+// Styling cursor
+impl Lines {
+    /// After changing cursor positions, the styles of the lines must be
+    /// updated. Revert the style of the line the cursor was on previously
+    /// (`old_cursor_index`), and update the line the cursor is on now
+    /// (`new_cursor_index`). It is possible that there is no old or new
+    /// cursor index.
+    fn adjust_cursor_style(
+        &mut self,
+        old_cursor_index: Option<usize>,
+        new_cursor_index: Option<usize>,
+    ) {
+        if let Some(old_index) = old_cursor_index {
+            self.update_line_style(old_index, self.styles.non_cursor_non_header);
         }
-        if let Some(new_index) = new {
+        if let Some(new_index) = new_cursor_index {
             self.update_line_style(new_index, self.styles.cursor);
         }
     }
 
+    /// Update the style of the line at `index`.
     pub fn update_line_style(&mut self, index: usize, new_style: Style) {
         if let Some(line) = self.lines.get_mut(index) {
             line.update_style(new_style);
         }
     }
+}
 
-    // Selecting lines
-
+// Selecting lines
+impl Lines {
+    /// Select the line that the cursor is currently on.
     pub fn select_current(&mut self) {
         if let Some(i) = self.get_cursor_position() {
-            if let Some(selected) = self.selected.get_mut(i) {
-                *selected = true;
-            }
+            self.line_selections.select_at_index(i);
         }
     }
 
+    /// Unselect the line that the cursor is currently on.
     pub fn unselect_current(&mut self) {
         if let Some(i) = self.get_cursor_position() {
-            if let Some(selected) = self.selected.get_mut(i) {
-                *selected = false;
-            }
+            self.line_selections.unselect_at_index(i);
         }
     }
 
+    /// Toggle the selection of the line that the cursor is currently on.
     pub fn toggle_selection_current(&mut self) {
         if let Some(i) = self.get_cursor_position() {
-            if let Some(selected) = self.selected.get_mut(i) {
-                *selected = !(*selected);
-            }
+            self.line_selections.toggle_selection_at_index(i);
         }
     }
 
+    /// Select all lines.
     pub fn select_all(&mut self) {
-        self.selected.fill(true);
+        self.line_selections.select_all();
     }
 
+    /// Unselect all lines.
     pub fn unselect_all(&mut self) {
-        self.selected.fill(false);
+        self.line_selections.unselect_all();
     }
+}
 
-    // Getting selected lines
+/// String content of the line on which the cursor is currently on.
+#[derive(From, Into, Clone)]
+pub struct CursorLine(String);
 
-    fn get_line_under_cursor(&self) -> Option<String> {
-        self.get_cursor_position()
-            .and_then(|i| self.get_unformatted(i))
-    }
+/// Concatenation of all contents of selected lines into string.
+#[derive(From, Into)]
+pub struct SelectedLines(String);
 
-    // TODO: not pretty API, maybe make cursor_line and selected_lines distinct types
-    pub fn get_selected_lines(&self) -> Option<(String, String)> {
+// Getting selected lines
+impl Lines {
+    /// Return the string content of the cursor line and the selected lines.
+    /// If there are no selected lines, the cursor line is returned for both
+    /// the cursor line and the selected lines.
+    pub fn get_cursor_line_and_selected_lines(&self) -> Option<(CursorLine, SelectedLines)> {
         self.get_line_under_cursor().map(|cursor_line| {
-            let selected_lines = if self.selected.contains(&true) {
-                izip!(self.unformatted(), self.selected.iter())
-                    .filter_map(|(line, &selected)| selected.then(|| line.to_owned()))
-                    .collect::<Vec<String>>()
-                    .join("\n")
-            } else {
-                cursor_line.clone()
+            let mut selected_lines_iter = izip!(self.lines.iter(), self.line_selections.iter())
+                .filter_map(|(line, selection)| {
+                    selection.is_selected().then(|| line.unformatted_str())
+                })
+                .peekable();
+
+            let selected_lines = match selected_lines_iter.peek() {
+                // There are some selected lines.
+                Some(_) => selected_lines_iter.join("\n"),
+                // There are no selected lines.
+                None => cursor_line.clone(),
             };
-            (cursor_line, selected_lines)
+
+            (cursor_line.into(), selected_lines.into())
         })
     }
 
-    // Formatting
+    /// Get the string content of the line that the cursor is currently on,
+    /// or `None` if there is currently no cursor.
+    fn get_line_under_cursor(&self) -> Option<String> {
+        self.get_cursor_position()
+            .and_then(|i| self.get_unformatted_line(i))
+    }
+}
 
-    pub fn unformatted(&self) -> Vec<&String> {
-        self.lines.iter().map(Line::unformatted).collect()
+// Miscellaneous
+impl Lines {
+    /// Get an owned, unformatted version of the line at `index`, or `None`
+    /// if it doesn't exist.
+    pub fn get_unformatted_line(&self, index: usize) -> Option<String> {
+        self.lines.get(index).map(Line::unformatted_string)
     }
 
-    pub fn get_unformatted(&self, index: usize) -> Option<String> {
-        self.lines.get(index).map(|line| line.unformatted().clone())
-    }
-
-    // Miscellaneous
-
+    /// Get the index of the last line. The returned index will never be within
+    /// the header lines.
     fn last_index(&self) -> usize {
         if self.lines.is_empty() {
             self.index_after_header_lines

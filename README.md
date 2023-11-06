@@ -15,7 +15,7 @@
 - [Installation](#installation)
 - [Customizations](#customizations)
   - [Keybindings](#customizations)
-  - [Formatting with Field Separators and Selections](#formatting-with-field-separators-and-selections)
+  - [Formatting with Field Separators and Field Selections](#formatting-with-field-separators-and-field-selections)
   - [Styling](#styling)
 - [Tips](#tips)
 
@@ -157,10 +157,9 @@ tab
 
 #### Operations
 
+<!-- TODO: Make table of toml config reference name,example,description -->
+
 All supported `OP` values:
-
-<!-- Make table of toml config reference name,example,description -->
-
 
 Operation | Description
 :-- | :--
@@ -186,7 +185,7 @@ The environment variable `lines` set to all selected lines, or if none are selec
 All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
 If multiple lines are selected, they will be separated by newlines in `lines`.
 
-### Formatting with Field Separators and Selections
+### Formatting with Field Separators and Field Selections
 
 `watchbind` supports some extra formatting features reminiscent of the Unix `cut` command:
 
@@ -203,13 +202,19 @@ For instance, the field selection `1,3-4,6-` will display the first, third and f
 
 ### Styling
 
-Foreground colors, background colors and boldness of the line the cursor is on, the header lines and all other lines can be customized.
+Foreground colors, background colors and boldness can be customized.
+These styling options are available for:
+- The line the cursor is currently on with `cursor-[fg|bg|boldness]`.
+- The header lines with `header-[fg|bg|boldness]`.
+- All other lines with `non-cursor-non-header-[fg|bg|boldness]`.
+- The selection indicator with `selected-bg`.
 
-To see all available fields you can customize, run `watchbind -h`.
 The names of the customization fields from the command-line options (e.g. `--cursor-fg blue`) are the same in the TOML config file (e.g. `cursor-fg = "blue"`).
 
+Furthermore, `watchbind` also supports styling according to ANSI codes in the input text.
+
 All supported `COLOR` values:
-```
+```sh
 white
 black
 red
@@ -226,6 +231,15 @@ light_yellow
 light_blue
 light_magenta
 light_cyan
+reset        # Reset the fg and bg
+unspecified  # Don't applying any styling => use style from ANSI input text
+```
+
+All supported `BOLDNESS` values:
+```sh
+bold         # Make everything bold
+non-bold     # Make sure nothing is bold (i.e. remove any bold styling from input ANSI)
+unspecified  # Don't applying any styling => use style from ANSI input text
 ```
 
 ## Tips

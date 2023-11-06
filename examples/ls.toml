@@ -1,11 +1,17 @@
 watched-command = "ls"
 interval = 3.0
-bold = false
-cursor-fg = "black"
+
+# cursor line
 cursor-bg = "blue"
-cursor-bold = true
-selected-bg = "red"
+cursor-boldness = "bold"
+
+# header lines
 header-lines = 1
+header-fg = "blue"
+header-boldness = "non-bold"
+
+# selected lines
+selected-bg = "red"
 
 [keybindings]
 "esc" = [ "unselect-all", "help-hide" ]

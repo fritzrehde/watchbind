@@ -40,8 +40,8 @@ pub struct Interruptible {
 }
 
 // Advantages of the Type-State Builder Pattern:
-// 1. We don't have any option/enum (an alternative configuration strategy)
-// checking overhead at runtime.
+// 1. We don't have any option/enum checking (an alternative configuration
+// strategy) overhead at runtime.
 // 2. We can guarantee that we handled all possible Command "variants"
 // (combination of config options), that we use, at compile-time.
 // 3. Arguably, this also results in separated, cleaner code.
@@ -50,7 +50,6 @@ pub struct Interruptible {
 /// environment variables, whether the output is captured and whether the
 /// execution can be interrupted. Utilizes the type-state builder pattern to
 /// enforce these configurations at compile-time.
-// #[derive(Clone)]
 pub struct CommandBuilder<B = NonBlocking, E = WithoutEnv, O = NoOutput, I = NonInterruptible> {
     command: String,
     blocking: B,
