@@ -1,9 +1,7 @@
 mod key;
 mod operations;
 
-pub use key::KeyEvent;
-pub use operations::{Operation, OperationParsed, Operations, OperationsParsed};
-
+use crate::ui::EnvVariables;
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use serde::Deserialize;
@@ -13,7 +11,8 @@ use std::{collections::HashMap, fmt};
 use tabwriter::TabWriter;
 use tokio::sync::Mutex;
 
-use crate::ui::EnvVariables;
+pub use key::KeyEvent;
+pub use operations::{Operation, OperationParsed, Operations, OperationsParsed};
 
 pub struct Keybindings(HashMap<KeyEvent, Operations>);
 

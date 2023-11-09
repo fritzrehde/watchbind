@@ -1,11 +1,10 @@
 mod selected_line;
 
+use self::selected_line::LineSelected;
 use derive_new::new;
 use ratatui::style::Style;
 
 pub use selected_line::LineSelection;
-
-use self::selected_line::LineSelected;
 
 /// All selected lines.
 #[derive(new)]

@@ -1,8 +1,6 @@
 mod line;
 mod selected_lines;
 
-pub use line::Line;
-
 use self::selected_lines::LineSelections;
 use crate::config::Styles;
 use crate::config::{Fields, TableFormatter};
@@ -16,6 +14,8 @@ use ratatui::{
     Frame,
 };
 use std::cmp::max;
+
+pub use line::Line;
 
 /// The state of the lines, which can be drawn in order to be displayed
 /// in the UI.

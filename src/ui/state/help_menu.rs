@@ -1,14 +1,12 @@
-use std::sync::Arc;
-
+use super::EnvVariables;
 use ratatui::{
     prelude::{Alignment, Backend, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
 };
+use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use super::EnvVariables;
 
 pub struct HelpMenu {
     env_variables: Arc<Mutex<EnvVariables>>,

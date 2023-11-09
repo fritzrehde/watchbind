@@ -4,12 +4,12 @@ use crate::{
     command::CommandBuilder,
     config::{OperationParsed, OperationsParsed},
 };
-use std::{collections::HashMap, fmt, io::Write};
-
 use anyhow::{bail, Result};
-pub use env_variable::EnvVariable;
 use itertools::Itertools;
+use std::{collections::HashMap, fmt, io::Write};
 use tabwriter::TabWriter;
+
+pub use env_variable::EnvVariable;
 
 #[derive(Default, Debug)]
 pub struct EnvVariables(HashMap<EnvVariable, String>);

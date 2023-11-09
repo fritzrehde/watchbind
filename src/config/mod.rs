@@ -2,21 +2,21 @@ mod fields;
 mod keybindings;
 mod style;
 
-pub use fields::{Fields, TableFormatter};
-use itertools::Itertools;
-pub use keybindings::{
-    KeyEvent, Keybindings, Operation, OperationParsed, Operations, OperationsParsed,
-};
-pub use style::Styles;
-
 use self::fields::{FieldSelections, FieldSeparator};
 use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use self::style::{Boldness, Color, Style};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use indoc::indoc;
+use itertools::Itertools;
 use serde::Deserialize;
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
+
+pub use fields::{Fields, TableFormatter};
+pub use keybindings::{
+    KeyEvent, Keybindings, Operation, OperationParsed, Operations, OperationsParsed,
+};
+pub use style::Styles;
 
 // TODO: don't have public members
 
