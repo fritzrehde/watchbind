@@ -2,7 +2,7 @@ mod env_variable;
 
 use crate::{
     command::CommandBuilder,
-    config::{OperationParsed, OperationsParsed},
+    config::{Operation, OperationParsed, Operations, OperationsParsed},
 };
 use anyhow::{bail, Result};
 use itertools::Itertools;
@@ -15,7 +15,11 @@ pub use env_variable::EnvVariable;
 pub struct EnvVariables(HashMap<EnvVariable, String>);
 
 impl EnvVariables {
-    // TODO: maybe extend to also allow the general execution of normal commands before the initial watched command is executed (if there are use-cases for that)
+    /// Create a new empty structure of environment variables.
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
     /// Receive parsed operations, but only execute the "set-env" operations.
     pub async fn generate_initial(value: OperationsParsed) -> Result<Self> {
         // TODO: consider trying to use async iterators to do this in one iterator pass (instead of the mut hashmap) once stable
@@ -36,13 +40,41 @@ impl EnvVariables {
         Ok(Self(map))
     }
 
+    /// Receive parsed operations, but only execute the "set-env" operations.
+    pub async fn generate_initial2(&mut self, operations: Operations) -> Result<()> {
+        // TODO: consider trying to use async iterators to do this in one iterator pass (instead of the mut hashmap) once stable
+        for op in operations.into_iter() {
+            match op {
+                Operation::SetEnv(env_variable, blocking_cmd) => {
+                    log::info!("executing cmd");
+
+                    let cmd_output = blocking_cmd.execute().await?;
+
+                    log::info!("finished executing cmd");
+
+                    self.0.insert(env_variable, cmd_output);
+                }
+                // other_op => bail!("Invalid operation for env variable setup (only \"set-env\" operations allowed here): {}", other_op),
+                _ => bail!("Only \"set-env\" operations allowed here."),
+            }
+        }
+        Ok(())
+    }
+
     pub fn merge_new_envs(&mut self, env_variables: Self) {
         self.0.extend(env_variables.0);
     }
 
+    // TODO: expose EnvVariableValue type instead of String
+
+    /// Add an environment variable mapping.
+    pub fn set_env(&mut self, env_var: EnvVariable, value: String) {
+        self.0.insert(env_var, value);
+    }
+
     /// Unset/remove the specified environment variable.
-    pub fn unset_env(&mut self, env: &EnvVariable) {
-        self.0.remove(env);
+    pub fn unset_env(&mut self, env_var: &EnvVariable) {
+        self.0.remove(env_var);
     }
 
     /// Write formatted version (insert elastic tabstops) to a buffer.

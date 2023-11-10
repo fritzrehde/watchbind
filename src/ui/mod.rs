@@ -157,15 +157,18 @@ impl UI {
     async fn new(config: Config) -> Result<(Self, PollingState)> {
         let terminal_manager = Tui::new()?;
 
-        let env_variables = EnvVariables::generate_initial(config.initial_env_variables).await?;
+        // Create `State`.
         let keybindings_str = config.keybindings_parsed.to_string();
-        let state = State::new(
+        let mut state = State::new(
             config.header_lines,
             config.fields,
             config.styles,
             keybindings_str,
-            env_variables,
+            EnvVariables::new(),
         );
+        state
+            .generate_initial_env_vars(config.initial_env_ops)
+            .await?;
 
         // TODO: room for optimization: we can probably get away with much smaller buffer sizes for some of our channels
 
@@ -269,6 +272,9 @@ impl UI {
                     Event::TUISubcommandCompleted(potential_error) => {
                         potential_error?;
 
+                        // Remove temporary env vars that were added just for execution.
+                        self.state.remove_cursor_and_selected_lines_from_env().await;
+
                         self.tui.restore()?;
                         log::info!("Watchbind's TUI is shown.");
 
@@ -311,12 +317,17 @@ impl UI {
                 },
                 BlockingState::BlockedExecutingSubcommand => match event {
                     Event::CommandOutput(lines) => {
+                        // TODO: it's up for discussion if we really want this behaviour, need to find use-cases against first
+
                         // We handle new output lines, but don't exit the
                         // blocking state.
                         self.state.update_lines(lines?)?;
                     }
                     Event::SubcommandCompleted(potential_error) => {
                         potential_error?;
+
+                        // Remove temporary env vars that were added just for execution.
+                        self.state.remove_cursor_and_selected_lines_from_env().await;
 
                         if let ControlFlow::Exit = self.conclude_blocking().await? {
                             break 'event_loop;
@@ -336,7 +347,10 @@ impl UI {
                         self.state.update_lines(lines?)?;
                     }
                     Event::SubcommandForEnvCompleted(new_env_variables) => {
-                        self.state.set_env(new_env_variables?).await;
+                        // Remove temporary env vars that were added just for execution.
+                        self.state.remove_cursor_and_selected_lines_from_env().await;
+
+                        self.state.set_envs(new_env_variables?).await;
 
                         if let ControlFlow::Exit = self.conclude_blocking().await? {
                             break 'event_loop;

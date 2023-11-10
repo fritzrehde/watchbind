@@ -1009,6 +1009,7 @@ dependencies = [
  "indoc",
  "itertools",
  "log",
+ "once_cell",
  "parse-display",
  "ranges",
  "ratatui",

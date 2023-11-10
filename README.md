@@ -185,6 +185,12 @@ The environment variable `lines` set to all selected lines, or if none are selec
 All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
 If multiple lines are selected, they will be separated by newlines in `lines`.
 
+### State management
+
+The `set-env` and `unset-env` operations allow you to manage state through environment variables.
+Additionally, you can use the `initial-env` option to specify a list of `set-env` commands that will be executed **before** the first execution of the watched command.
+This powerful combination allows you to set some initial state with `initial-env`, reference that state directly in the watched command, and update the state with keybindings at runtime with `set-env`.
+
 ### Formatting with Field Separators and Field Selections
 
 `watchbind` supports some extra formatting features reminiscent of the Unix `cut` command:

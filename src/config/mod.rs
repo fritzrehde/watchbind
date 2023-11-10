@@ -28,7 +28,7 @@ pub struct Config {
     pub keybindings_parsed: KeybindingsParsed,
     pub header_lines: usize,
     pub fields: Fields,
-    pub initial_env_variables: OperationsParsed,
+    pub initial_env_ops: OperationsParsed,
 }
 
 impl Config {
@@ -76,7 +76,7 @@ impl TryFrom<TomlConfig> for Config {
 
         Ok(Self {
             log_file: toml.log_file,
-            initial_env_variables: toml.initial_env_variables.unwrap_or_default().try_into()?,
+            initial_env_ops: toml.initial_env_vars.unwrap_or_default().try_into()?,
             watched_command: match toml.watched_command {
                 Some(command) => command,
                 None => bail!("A command must be provided via command line or config file"),
@@ -100,7 +100,7 @@ pub struct TomlConfig {
     log_file: Option<PathBuf>,
 
     #[serde(rename = "initial-env")]
-    initial_env_variables: Option<Vec<String>>,
+    initial_env_vars: Option<Vec<String>>,
 
     watched_command: Option<String>,
     interval: Option<f64>,
@@ -151,7 +151,7 @@ impl TomlConfig {
     fn merge(self, other: Self) -> Self {
         Self {
             log_file: self.log_file.or(other.log_file),
-            initial_env_variables: self.initial_env_variables.or(other.initial_env_variables),
+            initial_env_vars: self.initial_env_vars.or(other.initial_env_vars),
             watched_command: self.watched_command.or(other.watched_command),
             interval: self.interval.or(other.interval),
             non_cursor_non_header_fg: self
@@ -182,7 +182,7 @@ impl From<ClapConfig> for TomlConfig {
     fn from(clap: ClapConfig) -> Self {
         Self {
             log_file: clap.log_file,
-            initial_env_variables: clap.initial_env_variables,
+            initial_env_vars: clap.initial_env_vars,
             watched_command: clap.watched_command.map(|s| s.join(" ")),
             interval: clap.interval,
             non_cursor_non_header_fg: clap.non_cursor_non_header_fg,
@@ -248,9 +248,9 @@ pub struct ClapConfig {
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
 
-    /// Command to watch by executing periodically
+    /// Comman-separated `set-env` operations to execute before first watched command execution
     #[arg(long = "initial-env", value_name = "LIST", value_delimiter = ',')]
-    initial_env_variables: Option<Vec<String>>,
+    initial_env_vars: Option<Vec<String>>,
 
     /// Command to watch by executing periodically
     #[arg(trailing_var_arg(true))]
