@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 /// The version of Operation used for parsing and displaying. The reason we
 /// can't parse directly into Operation is because any operations that execute
 /// something need to receive access to the globally set environment variables.
-#[derive(FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(FromStr, Display, PartialEq, PartialOrd, Eq, Ord, Clone)]
 #[display(style = "kebab-case")]
 pub enum OperationParsed {
     Exit,
@@ -114,13 +114,13 @@ impl Operation {
             Self::Reload => return Ok(RequestedAction::ReloadWatchedCommand),
             Self::Exit => return Ok(RequestedAction::Exit),
             Self::ExecuteNonBlocking(non_blocking_cmd) => {
-                state.add_lines_to_env().await?;
+                state.add_cursor_and_selected_lines_to_env().await;
                 non_blocking_cmd.execute().await?;
+                state.remove_cursor_and_selected_lines_from_env().await;
             }
             Self::ExecuteBlocking(blocking_cmd) => {
-                state.add_lines_to_env().await?;
+                state.add_cursor_and_selected_lines_to_env().await;
 
-                // TODO: these clones are preventable by using Arc<> (I think Arc<Mutex> isn't required because executing them doesn't mutate them)
                 let blocking_cmd = Arc::clone(blocking_cmd);
                 let event_tx = event_tx.clone();
                 tokio::spawn(async move {
@@ -133,7 +133,7 @@ impl Operation {
                 return Ok(RequestedAction::ExecutingBlockingSubcommand);
             }
             Self::ExecuteTUI(tui_cmd) => {
-                state.add_lines_to_env().await?;
+                state.add_cursor_and_selected_lines_to_env().await;
 
                 // Create channels for waiting until TUI has actually been hidden.
                 let (tui_hidden_tx, mut tui_hidden_rx) = mpsc::channel(1);
@@ -153,7 +153,7 @@ impl Operation {
                 return Ok(RequestedAction::ExecutingTUISubcommand(tui_hidden_tx));
             }
             Self::SetEnv(env_variable, blocking_cmd) => {
-                state.add_lines_to_env().await?;
+                state.add_cursor_and_selected_lines_to_env().await;
 
                 let blocking_cmd = blocking_cmd.clone();
                 let env_variable = env_variable.clone();
@@ -179,7 +179,8 @@ impl Operation {
         Ok(RequestedAction::Continue)
     }
 
-    /// Convert the parsed form into the normal, runtime Operation form.
+    /// Convert the parsed form into the normal, runtime Operation form. The
+    /// `env_variables` is required so it can be passed to the `SetEnv` command.
     pub fn from_parsed(parsed: OperationParsed, env_variables: &Arc<Mutex<EnvVariables>>) -> Self {
         match parsed {
             OperationParsed::Exit => Self::Exit,
