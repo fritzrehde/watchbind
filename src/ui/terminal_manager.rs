@@ -33,7 +33,7 @@ impl Tui {
     /// Draw provided frame to TUI.
     pub fn draw<F>(&mut self, f: F) -> Result<()>
     where
-        F: FnOnce(&mut Frame<Backend>),
+        F: FnOnce(&mut Frame),
     {
         self.terminal.draw(f)?;
         Ok(())

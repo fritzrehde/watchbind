@@ -194,10 +194,7 @@ where
     T::iter()
         // TODO: replace with strum's get_bool once available
         // Hide variants configured to be hidden.
-        .filter(|variant| match variant.get_str("Hidden") {
-            Some("true") => false,
-            _ => true,
-        })
+        .filter(|variant| !matches!(variant.get_str("Hidden"), Some("true")))
         // Use strum's `message` if available, otherwise use `to_string`.
         .map(|variant| {
             variant

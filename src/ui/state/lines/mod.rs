@@ -8,7 +8,7 @@ use anyhow::Result;
 use derive_more::{From, Into};
 use itertools::{izip, Itertools};
 use ratatui::{
-    prelude::{Backend, Constraint},
+    prelude::Constraint,
     style::Style,
     widgets::{Row, Table, TableState},
     Frame,
@@ -56,7 +56,7 @@ impl Lines {
     }
 
     /// Render to frame.
-    pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
+    pub fn render(&mut self, frame: &mut Frame) {
         // TODO: do as much as possible in update_lines to improve performance
         let rows: Vec<Row> = izip!(self.lines.iter(), self.line_selections.iter())
             .map(|(line, selected)| Row::new(vec![selected.draw(), line.draw()]))

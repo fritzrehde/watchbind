@@ -1,6 +1,6 @@
 use super::EnvVariables;
 use ratatui::{
-    prelude::{Alignment, Backend, Constraint, Direction, Layout, Margin, Rect},
+    prelude::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
@@ -32,7 +32,7 @@ impl HelpMenu {
         }
     }
 
-    pub fn render<B: Backend>(&mut self, frame: &mut Frame<B>) {
+    pub fn render(&mut self, frame: &mut Frame) {
         // TODO: maybe in the future, when we add more features for manipulating ENV variable state, we have to fetch the new
         let area = centered_rect(50, 50, frame.size());
 
@@ -70,7 +70,7 @@ impl HelpMenu {
 
     fn update_vertical_scroll_index(&mut self, index: usize) {
         self.vertical_scroll_index = index;
-        self.vertical_scroll_state = self.vertical_scroll_state.position(index as u16);
+        self.vertical_scroll_state = self.vertical_scroll_state.position(index);
     }
 
     // Moving

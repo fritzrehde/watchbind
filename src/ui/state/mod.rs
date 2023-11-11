@@ -9,7 +9,7 @@ use self::{
 use crate::config::{Fields, Operation, Operations, OperationsParsed, Styles};
 use anyhow::{bail, Result};
 use once_cell::sync::Lazy;
-use ratatui::{backend::Backend, Frame};
+use ratatui::{Frame};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -46,7 +46,7 @@ impl State {
         }
     }
 
-    pub fn draw<B: Backend>(&mut self, frame: &mut Frame<B>) {
+    pub fn draw(&mut self, frame: &mut Frame) {
         self.lines.render(frame);
         if let Mode::HelpMenu = self.mode {
             self.help_menu.render(frame);
