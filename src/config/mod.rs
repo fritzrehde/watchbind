@@ -7,7 +7,7 @@ use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use self::style::{Boldness, Color, Style};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
-use indoc::indoc;
+use indoc::{formatdoc, indoc};
 use itertools::Itertools;
 use serde::Deserialize;
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
@@ -393,17 +393,19 @@ fn get_possible_values<T: ValueEnum>() -> String {
 }
 
 impl ClapConfig {
-    /// Get printable help menu for possible values of `Color` and `Boldness`.
+    /// Get string help menu of all possible values of configuration options.
     fn all_possible_values() -> String {
-        let possible_color_values = get_possible_values::<Color>();
-        let possible_boldness_values = get_possible_values::<Boldness>();
-        format!(
-            indoc! {r#"
-        Possible values:
-          COLOR:    [{}]
-          BOLDNESS: [{}]
-        "#},
-            possible_color_values, possible_boldness_values
-        )
+        let color = get_possible_values::<Color>();
+        let boldness = get_possible_values::<Boldness>();
+        let (key_code, key_modifier) = KeyEvent::all_possible_values();
+        formatdoc! {r#"
+            Possible values:
+              COLOR:    [{color}]
+              BOLDNESS: [{boldness}]
+              KEY:      [MODIFIER+CODE, CODE]
+                CODE:     [{key_code}]
+                MODIFIER: [{key_modifier}]
+            "#
+        }
     }
 }

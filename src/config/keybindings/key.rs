@@ -1,28 +1,68 @@
 use anyhow::{bail, Context, Error, Result};
-use crossterm::event::{KeyCode as CKeyCode, KeyEvent as CKeyEvent, KeyModifiers as CKeyModifiers};
-use derive_more::From;
+use crossterm::event::{
+    KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
+    KeyModifiers as CrosstermKeyModifiers,
+};
+use itertools::Itertools;
 use parse_display::{Display, FromStr};
 use std::{fmt, str};
+use strum::{EnumIter, EnumMessage, EnumProperty, IntoEnumIterator};
 
 /// The specific combinations of modifiers and key codes that we allow/handle.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct KeyEvent {
     modifier: KeyModifier,
     code: KeyCode,
 }
 
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
+#[derive(
+    Debug,
+    // For using as key in hashmap
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Clone,
+    // For displaying and parsing
+    Display,
+    FromStr,
+    // For displaying all possible variants
+    EnumIter,
+    EnumMessage,
+    EnumProperty,
+)]
 #[display(style = "lowercase")]
 enum KeyModifier {
     Alt,
     Ctrl,
+
     #[from_str(ignore)]
+    #[strum(props(Hidden = "true"))]
     Shift,
+
     #[from_str(ignore)]
+    #[strum(props(Hidden = "true"))]
     None,
 }
 
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, From, Clone, Debug, Display, FromStr)]
+#[derive(
+    Debug,
+    // For using as key in hashmap
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Clone,
+    // For displaying and parsing
+    Display,
+    FromStr,
+    // For displaying all possible variants
+    EnumIter,
+    EnumMessage,
+    EnumProperty,
+)]
 #[display(style = "lowercase")]
 enum KeyCode {
     Esc,
@@ -43,11 +83,13 @@ enum KeyCode {
     Space,
 
     #[display("{0}")]
+    #[strum(message = "<lowercase char>, <uppercase char>")]
     Char(char),
 
     // Parse only values 1 to 12
     #[from_str(regex = "f(?<0>[1-9]|1[0-2])")]
     #[display("f{0}")]
+    #[strum(message = "f<1-12>")]
     F(u8),
 }
 
@@ -74,18 +116,17 @@ impl str::FromStr for KeyEvent {
 
 impl fmt::Display for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.modifier == KeyModifier::None {
-            write!(f, "{}", self.code)?;
-        } else {
-            write!(f, "{}+{}", self.modifier, self.code)?;
-        }
+        match self.modifier {
+            KeyModifier::None => write!(f, "{}", self.code)?,
+            _ => write!(f, "{}+{}", self.modifier, self.code)?,
+        };
         Ok(())
     }
 }
 
-impl TryFrom<CKeyEvent> for KeyEvent {
+impl TryFrom<CrosstermKeyEvent> for KeyEvent {
     type Error = Error;
-    fn try_from(key: CKeyEvent) -> std::result::Result<Self, Self::Error> {
+    fn try_from(key: CrosstermKeyEvent) -> std::result::Result<Self, Self::Error> {
         let code = key.code.try_into()?;
         let mut modifier = key.modifiers.try_into()?;
 
@@ -103,45 +144,78 @@ impl TryFrom<CKeyEvent> for KeyEvent {
     }
 }
 
-impl TryFrom<CKeyModifiers> for KeyModifier {
+impl TryFrom<CrosstermKeyModifiers> for KeyModifier {
     type Error = Error;
-    fn try_from(value: CKeyModifiers) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: CrosstermKeyModifiers) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            CKeyModifiers::ALT => Self::Alt,
-            CKeyModifiers::CONTROL => Self::Ctrl,
-            CKeyModifiers::SHIFT => Self::Shift,
-            CKeyModifiers::NONE => Self::None,
+            CrosstermKeyModifiers::ALT => Self::Alt,
+            CrosstermKeyModifiers::CONTROL => Self::Ctrl,
+            CrosstermKeyModifiers::SHIFT => Self::Shift,
+            CrosstermKeyModifiers::NONE => Self::None,
             // TODO: shouldn't use debug output for display output
             _ => bail!("Invalid modifier key: {:?}", value),
         })
     }
 }
 
-impl TryFrom<CKeyCode> for KeyCode {
+impl TryFrom<CrosstermKeyCode> for KeyCode {
     type Error = Error;
-    fn try_from(value: CKeyCode) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: CrosstermKeyCode) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            CKeyCode::Esc => KeyCode::Esc,
-            CKeyCode::Enter => KeyCode::Enter,
-            CKeyCode::Left => KeyCode::Left,
-            CKeyCode::Right => KeyCode::Right,
-            CKeyCode::Up => KeyCode::Up,
-            CKeyCode::Down => KeyCode::Down,
-            CKeyCode::Home => KeyCode::Home,
-            CKeyCode::End => KeyCode::End,
-            CKeyCode::PageUp => KeyCode::PageUp,
-            CKeyCode::PageDown => KeyCode::PageDown,
-            CKeyCode::BackTab => KeyCode::BackTab,
-            CKeyCode::Backspace => KeyCode::Backspace,
-            CKeyCode::Delete => KeyCode::Delete,
-            CKeyCode::Insert => KeyCode::Insert,
-            CKeyCode::F(c) => KeyCode::F(c),
-            CKeyCode::Tab => KeyCode::Tab,
-            CKeyCode::Char(' ') => KeyCode::Space,
-            CKeyCode::Char(c) => KeyCode::Char(c),
+            CrosstermKeyCode::Esc => KeyCode::Esc,
+            CrosstermKeyCode::Enter => KeyCode::Enter,
+            CrosstermKeyCode::Left => KeyCode::Left,
+            CrosstermKeyCode::Right => KeyCode::Right,
+            CrosstermKeyCode::Up => KeyCode::Up,
+            CrosstermKeyCode::Down => KeyCode::Down,
+            CrosstermKeyCode::Home => KeyCode::Home,
+            CrosstermKeyCode::End => KeyCode::End,
+            CrosstermKeyCode::PageUp => KeyCode::PageUp,
+            CrosstermKeyCode::PageDown => KeyCode::PageDown,
+            CrosstermKeyCode::BackTab => KeyCode::BackTab,
+            CrosstermKeyCode::Backspace => KeyCode::Backspace,
+            CrosstermKeyCode::Delete => KeyCode::Delete,
+            CrosstermKeyCode::Insert => KeyCode::Insert,
+            CrosstermKeyCode::F(c) => KeyCode::F(c),
+            CrosstermKeyCode::Tab => KeyCode::Tab,
+            CrosstermKeyCode::Char(' ') => KeyCode::Space,
+            CrosstermKeyCode::Char(c) => KeyCode::Char(c),
             // TODO: shouldn't use debug output for display output
             _ => bail!("Invalid key code: {:?}", value),
         })
+    }
+}
+
+/// Get string list of all possible values of `T`.
+fn get_possible_values<T>() -> String
+where
+    T: IntoEnumIterator + EnumMessage + EnumProperty + fmt::Display,
+{
+    T::iter()
+        // TODO: replace with strum's get_bool once available
+        // Hide variants configured to be hidden.
+        .filter(|variant| match variant.get_str("Hidden") {
+            Some("true") => false,
+            _ => true,
+        })
+        // Use strum's `message` if available, otherwise use `to_string`.
+        .map(|variant| {
+            variant
+                .get_message()
+                .map(str::to_owned)
+                .unwrap_or_else(|| variant.to_string())
+        })
+        .join(", ")
+}
+
+impl KeyEvent {
+    /// Get string help menu of all possible values of `KeyCode` and
+    /// `KeyModifier`.
+    pub fn all_possible_values() -> (String, String) {
+        (
+            get_possible_values::<KeyCode>(),
+            get_possible_values::<KeyModifier>(),
+        )
     }
 }
 
