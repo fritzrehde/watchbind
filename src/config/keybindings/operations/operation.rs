@@ -6,6 +6,7 @@ use anyhow::Result;
 use parse_display::{Display, FromStr};
 use std::str;
 use std::sync::Arc;
+use strum::{EnumIter, EnumMessage, EnumProperty};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
 
@@ -14,38 +15,82 @@ use tokio::sync::Mutex;
 /// The version of Operation used for parsing and displaying. The reason we
 /// can't parse directly into Operation is because any operations that execute
 /// something need to receive access to the globally set environment variables.
-#[derive(FromStr, Display, PartialEq, PartialOrd, Eq, Ord, Clone)]
+#[derive(
+    // For using as key in hashmap
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Clone,
+    // For displaying and parsing
+    Display,
+    FromStr,
+    // For displaying all possible variants
+    EnumIter,
+    EnumMessage,
+    EnumProperty,
+)]
 #[display(style = "kebab-case")]
 pub enum OperationParsed {
     Exit,
     Reload,
-    HelpShow,
-    HelpHide,
-    HelpToggle,
 
-    #[display("cursor {0}")]
-    MoveCursor(MoveCursor),
+    #[display("cursor up {0}")]
+    #[strum(message = "cursor up <N>")]
+    MoveCursorUp(usize),
 
-    #[display("{0}")]
-    SelectLine(SelectOperation),
+    #[display("cursor down {0}")]
+    #[strum(message = "cursor down <N>")]
+    MoveCursorDown(usize),
+
+    #[display("cursor first")]
+    MoveCursorFirst,
+
+    #[display("cursor last")]
+    MoveCursorLast,
+
+    #[display("select")]
+    SelectLine,
+
+    #[display("unselect")]
+    UnselectLine,
+
+    #[display("toggle-selection")]
+    ToggleLineSelection,
+
+    #[display("select-all")]
+    SelectAllLines,
+
+    #[display("unselect-all")]
+    UnselectAllLines,
 
     #[display("exec -- {0}")]
+    #[strum(message = "exec -- <CMD>")]
     ExecuteBlocking(String),
 
     #[display("exec & -- {0}")]
+    #[strum(message = "exec & -- <CMD>")]
     ExecuteNonBlocking(String),
 
     #[display("exec tui -- {0}")]
+    #[strum(message = "exec tui & -- <TUI-CMD>")]
     ExecuteTUI(String),
 
     #[display("set-env {0} -- {1}")]
+    #[strum(message = "set-env <ENV> -- <CMD>")]
     SetEnv(EnvVariable, String),
 
     #[display("unset-env {0}")]
+    #[strum(message = "unset-env <ENV>")]
     UnsetEnv(EnvVariable),
 
     #[display("read-into-env {0}")]
+    #[strum(message = "read-into-env <ENV>")]
     ReadIntoEnv(EnvVariable),
+
+    HelpShow,
+    HelpHide,
+    HelpToggle,
 }
 
 pub enum Operation {
@@ -68,22 +113,15 @@ pub enum Operation {
     ReadIntoEnv(EnvVariable),
 }
 
-// TODO: add support for goto nth line
-#[derive(Clone, FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
-#[display(style = "lowercase")]
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum MoveCursor {
-    #[display("down {0}")]
     Down(usize),
-
-    #[display("up {0}")]
     Up(usize),
-
     First,
     Last,
 }
 
-#[derive(Clone, FromStr, Display, PartialEq, PartialOrd, Eq, Ord)]
-#[display(style = "kebab-case")]
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SelectOperation {
     Select,
     Unselect,
@@ -185,11 +223,17 @@ impl Operation {
         match parsed {
             OperationParsed::Exit => Self::Exit,
             OperationParsed::Reload => Self::Reload,
-            OperationParsed::HelpShow => Self::HelpShow,
-            OperationParsed::HelpHide => Self::HelpHide,
-            OperationParsed::HelpToggle => Self::HelpToggle,
-            OperationParsed::MoveCursor(x) => Self::MoveCursor(x),
-            OperationParsed::SelectLine(x) => Self::SelectLine(x),
+            OperationParsed::MoveCursorUp(n) => Self::MoveCursor(MoveCursor::Up(n)),
+            OperationParsed::MoveCursorDown(n) => Self::MoveCursor(MoveCursor::Down(n)),
+            OperationParsed::MoveCursorFirst => Self::MoveCursor(MoveCursor::First),
+            OperationParsed::MoveCursorLast => Self::MoveCursor(MoveCursor::Last),
+            OperationParsed::SelectLine => Self::SelectLine(SelectOperation::Select),
+            OperationParsed::UnselectLine => Self::SelectLine(SelectOperation::Unselect),
+            OperationParsed::ToggleLineSelection => {
+                Self::SelectLine(SelectOperation::ToggleSelection)
+            }
+            OperationParsed::SelectAllLines => Self::SelectLine(SelectOperation::SelectAll),
+            OperationParsed::UnselectAllLines => Self::SelectLine(SelectOperation::UnselectAll),
             OperationParsed::ExecuteBlocking(cmd) => Self::ExecuteBlocking(Arc::new(
                 CommandBuilder::new(cmd)
                     .blocking()
@@ -215,6 +259,9 @@ impl Operation {
             ),
             OperationParsed::UnsetEnv(x) => Self::UnsetEnv(x),
             OperationParsed::ReadIntoEnv(x) => Self::ReadIntoEnv(x),
+            OperationParsed::HelpShow => Self::HelpShow,
+            OperationParsed::HelpHide => Self::HelpHide,
+            OperationParsed::HelpToggle => Self::HelpToggle,
         }
     }
 }
@@ -227,11 +274,11 @@ mod tests {
     fn test_parse_move_cursor() {
         assert!(matches!(
             "cursor down 42".parse(),
-            Ok(OperationParsed::MoveCursor(MoveCursor::Down(42)))
+            Ok(OperationParsed::MoveCursorDown(42))
         ));
         assert!(matches!(
             "cursor up 24".parse(),
-            Ok(OperationParsed::MoveCursor(MoveCursor::Up(24)))
+            Ok(OperationParsed::MoveCursorUp(24))
         ));
     }
 

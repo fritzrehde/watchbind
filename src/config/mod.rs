@@ -2,15 +2,19 @@ mod fields;
 mod keybindings;
 mod style;
 
+use crate::config::keybindings::{KeyCode, KeyModifier};
+
 use self::fields::{FieldSelections, FieldSeparator};
 use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use self::style::{Boldness, Color, Style};
 use anyhow::{bail, Context, Result};
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use indoc::{formatdoc, indoc};
 use itertools::Itertools;
 use serde::Deserialize;
+use std::fmt;
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
+use strum::{EnumMessage, EnumProperty, IntoEnumIterator};
 
 pub use fields::{Fields, TableFormatter};
 pub use keybindings::{
@@ -384,11 +388,21 @@ pub struct ClapConfig {
 }
 
 /// Get string list of all possible values of `T`.
-fn get_possible_values<T: ValueEnum>() -> String {
-    T::value_variants()
-        .iter()
-        .filter_map(T::to_possible_value)
-        .map(|v| v.get_name().to_owned())
+fn get_possible_values<T>() -> String
+where
+    T: IntoEnumIterator + EnumMessage + EnumProperty + fmt::Display,
+{
+    T::iter()
+        // TODO: replace with strum's get_bool once available
+        // Hide variants configured to be hidden.
+        .filter(|variant| !matches!(variant.get_str("Hidden"), Some("true")))
+        // Use strum's `message` if available, otherwise use `to_string`.
+        .map(|variant| {
+            variant
+                .get_message()
+                .map(str::to_owned)
+                .unwrap_or_else(|| variant.to_string())
+        })
         .join(", ")
 }
 
@@ -397,7 +411,10 @@ impl ClapConfig {
     fn all_possible_values() -> String {
         let color = get_possible_values::<Color>();
         let boldness = get_possible_values::<Boldness>();
-        let (key_code, key_modifier) = KeyEvent::all_possible_values();
+        let key_code = get_possible_values::<KeyCode>();
+        let key_modifier = get_possible_values::<KeyModifier>();
+        let operation = get_possible_values::<OperationParsed>();
+
         formatdoc! {r#"
             Possible values:
               COLOR:    [{color}]
@@ -405,6 +422,7 @@ impl ClapConfig {
               KEY:      [MODIFIER+CODE, CODE]
                 CODE:     [{key_code}]
                 MODIFIER: [{key_modifier}]
+              OP:       [{operation}]
             "#
         }
     }

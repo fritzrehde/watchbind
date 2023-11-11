@@ -9,7 +9,7 @@ use self::{
 use crate::config::{Fields, Operation, Operations, OperationsParsed, Styles};
 use anyhow::{bail, Result};
 use once_cell::sync::Lazy;
-use ratatui::{Frame};
+use ratatui::Frame;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

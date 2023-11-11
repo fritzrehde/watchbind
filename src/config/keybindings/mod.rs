@@ -11,7 +11,7 @@ use std::{collections::HashMap, fmt};
 use tabwriter::TabWriter;
 use tokio::sync::Mutex;
 
-pub use key::KeyEvent;
+pub use key::{KeyCode, KeyEvent, KeyModifier};
 pub use operations::{Operation, OperationParsed, Operations, OperationsParsed};
 
 pub struct Keybindings(HashMap<KeyEvent, Operations>);

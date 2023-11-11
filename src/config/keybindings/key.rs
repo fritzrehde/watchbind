@@ -33,7 +33,7 @@ pub struct KeyEvent {
     EnumProperty,
 )]
 #[display(style = "lowercase")]
-enum KeyModifier {
+pub enum KeyModifier {
     Alt,
     Ctrl,
 
@@ -64,7 +64,7 @@ enum KeyModifier {
     EnumProperty,
 )]
 #[display(style = "lowercase")]
-enum KeyCode {
+pub enum KeyCode {
     Esc,
     Enter,
     Left,

@@ -3,6 +3,7 @@ use derive_new::new;
 use parse_display::{Display, FromStr};
 use ratatui::style::{Color as RatatuiColor, Modifier, Style as RatatuiStyle};
 use serde::Deserialize;
+use strum::{EnumIter, EnumMessage, EnumProperty};
 
 /// All styles used in the UI.
 #[derive(Debug, Clone)]
@@ -68,7 +69,9 @@ impl From<Style> for RatatuiStyle {
 }
 
 /// A wrapper around ratatui's `Color`.
-#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum)]
+#[derive(
+    Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter, EnumMessage, EnumProperty,
+)]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Color {
@@ -130,7 +133,9 @@ impl From<Color> for Option<RatatuiColor> {
 }
 
 /// A wrapper around ratatui's `Modifier::BOLD`.
-#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum)]
+#[derive(
+    Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter, EnumMessage, EnumProperty,
+)]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Boldness {

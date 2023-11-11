@@ -5,7 +5,7 @@ use std::str;
 
 /// Environment variable name that can be (un)set by user and is set in
 /// subprocesses.
-#[derive(Debug, AsRef, Clone, Display, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Debug, AsRef, Clone, Display, PartialEq, PartialOrd, Eq, Ord, Hash, Default)]
 #[display("{0}")]
 pub struct EnvVariable(String);
 
