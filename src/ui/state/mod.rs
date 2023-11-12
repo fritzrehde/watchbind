@@ -48,6 +48,7 @@ impl State {
 
     pub fn draw(&mut self, frame: &mut Frame) {
         self.lines.render(frame);
+
         if let Mode::HelpMenu = self.mode {
             self.help_menu.render(frame);
         }

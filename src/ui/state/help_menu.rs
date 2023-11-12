@@ -2,7 +2,9 @@ use super::EnvVariables;
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+    widgets::{
+        Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+    },
     Frame,
 };
 use std::sync::Arc;
@@ -53,6 +55,7 @@ impl HelpMenu {
             .scroll((self.vertical_scroll_index as u16, 0));
 
         // Render the scrollbar next to the paragraph
+        frame.render_widget(Clear, area);
         frame.render_widget(paragraph, area);
 
         frame.render_stateful_widget(
