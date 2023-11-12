@@ -13,6 +13,7 @@ pub struct LineSelections {
     selections: Vec<LineSelection>,
     selected_style: Style,
     unselected_style: Style,
+    index_after_header_lines: usize,
 }
 
 impl LineSelections {
@@ -32,10 +33,13 @@ impl LineSelections {
 
     /// Select all lines.
     pub fn select_all(&mut self) {
-        self.selections.fill(LineSelection::new(
-            LineSelected::Selected,
-            self.selected_style,
-        ));
+        self.selections
+            .iter_mut()
+            // Don't select the header lines.
+            .skip(self.index_after_header_lines)
+            .for_each(|selection| {
+                *selection = LineSelection::new(LineSelected::Selected, self.selected_style);
+            });
     }
 
     /// Unselect all lines.
