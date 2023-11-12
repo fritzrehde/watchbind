@@ -46,7 +46,11 @@ impl Lines {
     pub fn new(fields: Fields, styles: Styles, header_lines: usize) -> Self {
         Self {
             lines: vec![],
-            line_selections: LineSelections::new(styles.selected, styles.non_cursor_non_header),
+            line_selections: LineSelections::new(
+                styles.selected,
+                styles.non_cursor_non_header,
+                header_lines,
+            ),
             fields,
             cursor_index: None,
             styles,
