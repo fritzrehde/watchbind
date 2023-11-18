@@ -1,9 +1,11 @@
 use clap::ValueEnum;
 use derive_new::new;
+use owo_colors::{AnsiColors as OwoColor, OwoColorize};
 use parse_display::{Display, FromStr};
 use ratatui::style::{Color as RatatuiColor, Modifier, Style as RatatuiStyle};
 use serde::Deserialize;
-use strum::{EnumIter, EnumMessage, EnumProperty};
+use std::fmt;
+use strum::{EnumIter, IntoEnumIterator};
 
 /// All styles used in the UI.
 #[derive(Debug, Clone)]
@@ -52,10 +54,10 @@ impl From<Style> for RatatuiStyle {
     fn from(style: Style) -> Self {
         let mut ratatui_style = RatatuiStyle::default();
 
-        if let Some(fg) = style.fg.into() {
+        if let Some(fg) = (&style.fg).into() {
             ratatui_style = ratatui_style.fg(fg);
         }
-        if let Some(bg) = style.bg.into() {
+        if let Some(bg) = (&style.bg).into() {
             ratatui_style = ratatui_style.bg(bg);
         }
         match style.boldness {
@@ -69,9 +71,7 @@ impl From<Style> for RatatuiStyle {
 }
 
 /// A wrapper around ratatui's `Color`.
-#[derive(
-    Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter, EnumMessage, EnumProperty,
-)]
+#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Color {
@@ -97,18 +97,8 @@ pub enum Color {
     Unspecified,
 }
 
-impl Color {
-    /// Returns `other` if self is `Unspecified`, otherwise returns self.
-    pub fn or(self, other: Self) -> Self {
-        match self {
-            Color::Unspecified => other,
-            color => color,
-        }
-    }
-}
-
-impl From<Color> for Option<RatatuiColor> {
-    fn from(color: Color) -> Self {
+impl From<&Color> for Option<RatatuiColor> {
+    fn from(color: &Color) -> Self {
         match color {
             Color::White => Some(RatatuiColor::White),
             Color::Black => Some(RatatuiColor::Black),
@@ -132,10 +122,70 @@ impl From<Color> for Option<RatatuiColor> {
     }
 }
 
+impl Color {
+    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    pub fn or(self, other: Self) -> Self {
+        match self {
+            Color::Unspecified => other,
+            color => color,
+        }
+    }
+}
+
+/// A pretty-printable version of `Color` that displays the string
+/// representation of a color in its color. Always applies this stylin,
+/// even if printing to a terminal.
+pub struct PrettyColor(Color);
+
+impl fmt::Display for PrettyColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let colored_color = match Option::<OwoColor>::from(&self.0) {
+            Some(owo_color) => self.0.color(owo_color).to_string(),
+            None => self.0.to_string(),
+        };
+        write!(f, "{}", colored_color)?;
+        Ok(())
+    }
+}
+
+// TODO: inefficient, has to unnecessarily collect
+impl IntoEnumIterator for PrettyColor {
+    type Iterator = std::vec::IntoIter<PrettyColor>;
+    fn iter() -> Self::Iterator {
+        Color::iter()
+            .map(PrettyColor)
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
+impl From<&Color> for Option<OwoColor> {
+    fn from(color: &Color) -> Self {
+        match color {
+            Color::White => Some(OwoColor::BrightWhite),
+            Color::Black => Some(OwoColor::Black),
+            Color::Red => Some(OwoColor::Red),
+            Color::Green => Some(OwoColor::Green),
+            Color::Yellow => Some(OwoColor::Yellow),
+            Color::Blue => Some(OwoColor::Blue),
+            Color::Magenta => Some(OwoColor::Magenta),
+            Color::Cyan => Some(OwoColor::Cyan),
+            Color::Gray => Some(OwoColor::White),
+            Color::DarkGray => Some(OwoColor::BrightBlack),
+            Color::LightRed => Some(OwoColor::BrightRed),
+            Color::LightGreen => Some(OwoColor::BrightGreen),
+            Color::LightYellow => Some(OwoColor::BrightYellow),
+            Color::LightBlue => Some(OwoColor::BrightBlue),
+            Color::LightMagenta => Some(OwoColor::BrightMagenta),
+            Color::LightCyan => Some(OwoColor::BrightCyan),
+            Color::Reset => None,
+            Color::Unspecified => None,
+        }
+    }
+}
+
 /// A wrapper around ratatui's `Modifier::BOLD`.
-#[derive(
-    Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter, EnumMessage, EnumProperty,
-)]
+#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Boldness {

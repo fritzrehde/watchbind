@@ -3,10 +3,9 @@ use crossterm::event::{
     KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
     KeyModifiers as CrosstermKeyModifiers,
 };
-use itertools::Itertools;
 use parse_display::{Display, FromStr};
 use std::{fmt, str};
-use strum::{EnumIter, EnumMessage, EnumProperty, IntoEnumIterator};
+use strum::{EnumIter, EnumMessage, EnumProperty};
 
 /// The specific combinations of modifiers and key codes that we allow/handle.
 #[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
@@ -29,7 +28,6 @@ pub struct KeyEvent {
     FromStr,
     // For displaying all possible variants
     EnumIter,
-    EnumMessage,
     EnumProperty,
 )]
 #[display(style = "lowercase")]
@@ -61,7 +59,6 @@ pub enum KeyModifier {
     // For displaying all possible variants
     EnumIter,
     EnumMessage,
-    EnumProperty,
 )]
 #[display(style = "lowercase")]
 pub enum KeyCode {
@@ -183,36 +180,6 @@ impl TryFrom<CrosstermKeyCode> for KeyCode {
             // TODO: shouldn't use debug output for display output
             _ => bail!("Invalid key code: {:?}", value),
         })
-    }
-}
-
-/// Get string list of all possible values of `T`.
-fn get_possible_values<T>() -> String
-where
-    T: IntoEnumIterator + EnumMessage + EnumProperty + fmt::Display,
-{
-    T::iter()
-        // TODO: replace with strum's get_bool once available
-        // Hide variants configured to be hidden.
-        .filter(|variant| !matches!(variant.get_str("Hidden"), Some("true")))
-        // Use strum's `message` if available, otherwise use `to_string`.
-        .map(|variant| {
-            variant
-                .get_message()
-                .map(str::to_owned)
-                .unwrap_or_else(|| variant.to_string())
-        })
-        .join(", ")
-}
-
-impl KeyEvent {
-    /// Get string help menu of all possible values of `KeyCode` and
-    /// `KeyModifier`.
-    pub fn all_possible_values() -> (String, String) {
-        (
-            get_possible_values::<KeyCode>(),
-            get_possible_values::<KeyModifier>(),
-        )
     }
 }
 

@@ -6,7 +6,7 @@ use anyhow::Result;
 use parse_display::{Display, FromStr};
 use std::str;
 use std::sync::Arc;
-use strum::{EnumIter, EnumMessage, EnumProperty};
+use strum::{EnumIter, EnumMessage};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
 
@@ -28,7 +28,6 @@ use tokio::sync::Mutex;
     // For displaying all possible variants
     EnumIter,
     EnumMessage,
-    EnumProperty,
 )]
 #[display(style = "kebab-case")]
 pub enum OperationParsed {
