@@ -1,20 +1,25 @@
 mod fields;
 mod keybindings;
+mod possible_enum_values;
 mod style;
 
 use crate::config::keybindings::{KeyCode, KeyModifier};
+use crate::config::possible_enum_values::PossibleEnumValues;
+use crate::config::style::PrettyColor;
 
 use self::fields::{FieldSelections, FieldSeparator};
 use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use self::style::{Boldness, Color, Style};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use indoc::{formatdoc, indoc};
-use itertools::Itertools;
+use indoc::indoc;
+use owo_colors::OwoColorize;
 use serde::Deserialize;
-use std::fmt;
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
-use strum::{EnumMessage, EnumProperty, IntoEnumIterator};
+use tabled::builder::Builder;
+use tabled::settings::peaker::PriorityMax;
+use tabled::settings::{Margin, Padding, Style as TableStyle, Width};
+use terminal_size::{terminal_size, Width as TerminalWidth};
 
 pub use fields::{Fields, TableFormatter};
 pub use keybindings::{
@@ -387,43 +392,41 @@ pub struct ClapConfig {
     keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
-/// Get string list of all possible values of `T`.
-fn get_possible_values<T>() -> String
-where
-    T: IntoEnumIterator + EnumMessage + EnumProperty + fmt::Display,
-{
-    T::iter()
-        // TODO: replace with strum's get_bool once available
-        // Hide variants configured to be hidden.
-        .filter(|variant| !matches!(variant.get_str("Hidden"), Some("true")))
-        // Use strum's `message` if available, otherwise use `to_string`.
-        .map(|variant| {
-            variant
-                .get_message()
-                .map(str::to_owned)
-                .unwrap_or_else(|| variant.to_string())
-        })
-        .join(", ")
-}
-
 impl ClapConfig {
     /// Get string help menu of all possible values of configuration options.
     fn all_possible_values() -> String {
-        let color = get_possible_values::<Color>();
-        let boldness = get_possible_values::<Boldness>();
-        let key_code = get_possible_values::<KeyCode>();
-        let key_modifier = get_possible_values::<KeyModifier>();
-        let operation = get_possible_values::<OperationParsed>();
+        let color = PossibleEnumValues::<PrettyColor>::new().get();
+        let boldness = PossibleEnumValues::<Boldness>::new().get();
+        let key_modifier = PossibleEnumValues::<KeyModifier>::new().hidden().get();
+        let key_code = PossibleEnumValues::<KeyCode>::new().custom_names().get();
+        let operation = PossibleEnumValues::<OperationParsed>::new()
+            .custom_names()
+            .get();
 
-        formatdoc! {r#"
-            Possible values:
-              COLOR:    [{color}]
-              BOLDNESS: [{boldness}]
-              KEY:      [MODIFIER+CODE, CODE]
-                CODE:     [{key_code}]
-                MODIFIER: [{key_modifier}]
-              OP:       [{operation}]
-            "#
+        let table_data = [
+            ["COLOR", &format!("[{color}]")],
+            ["BOLDNESS", &format!("[{boldness}]")],
+            ["KEY", "[<KEY-MODIFIER>+<KEY-CODE>, <KEY-CODE>]"],
+            ["KEY-MODIFIER", &format!("[{key_modifier}]")],
+            ["KEY-CODE", &format!("[{key_code}]")],
+            ["OP", &format!("[{operation}]")],
+        ];
+        let mut table = Builder::from_iter(table_data).build();
+        table
+            .with(TableStyle::blank())
+            // Add left margin for indent.
+            .with(Margin::new(2, 0, 0, 0))
+            // Remove left padding.
+            .with(Padding::new(0, 1, 0, 0));
+
+        // Set table width to terminal width.
+        if let Some((TerminalWidth(width), _)) = terminal_size() {
+            let width: usize = width.into();
+            table
+                .with(Width::wrap(width).priority::<PriorityMax>().keep_words())
+                .with(Width::increase(width));
         }
+
+        format!("{}\n{table}", "Possible values:".bold().underline())
     }
 }
