@@ -1,7 +1,3 @@
-use crate::command::{
-    Blocking, CommandBuilder, InheritedIO, NonBlocking, NonInterruptible, WithEnv, WithOutput,
-};
-use crate::ui::{EnvVariable, EnvVariables, Event, RequestedAction, State};
 use anyhow::Result;
 use parse_display::{Display, FromStr};
 use std::str;
@@ -9,6 +5,11 @@ use std::sync::Arc;
 use strum::{EnumIter, EnumMessage};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
+
+use crate::ui::{EnvVariable, EnvVariables, Event, RequestedAction, State};
+use crate::utils::command::{
+    Blocking, CommandBuilder, InheritedIO, NonBlocking, NonInterruptible, WithEnv, WithOutput,
+};
 
 // TODO: use some rust pattern (with types) instead of hardcoded Operation{,Parsed} variants
 

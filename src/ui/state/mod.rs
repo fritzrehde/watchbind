@@ -2,18 +2,20 @@ mod env_variables;
 mod help_menu;
 mod lines;
 
-use self::{
-    help_menu::HelpMenu,
-    lines::{CursorLine, Lines, SelectedLines},
-};
-use crate::config::{Fields, Operation, Operations, OperationsParsed, Styles};
 use anyhow::{bail, Result};
 use once_cell::sync::Lazy;
 use ratatui::Frame;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub use env_variables::{EnvVariable, EnvVariables};
+use crate::config::{Fields, Operation, Operations, OperationsParsed, Styles};
+
+use self::{
+    help_menu::HelpMenu,
+    lines::{CursorLine, Lines, SelectedLines},
+};
+
+pub use self::env_variables::{EnvVariable, EnvVariables};
 
 pub struct State {
     mode: Mode,

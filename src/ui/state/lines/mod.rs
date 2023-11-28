@@ -1,9 +1,6 @@
 mod line;
 mod selected_lines;
 
-use self::selected_lines::LineSelections;
-use crate::config::Styles;
-use crate::config::{Fields, TableFormatter};
 use anyhow::Result;
 use derive_more::{From, Into};
 use itertools::{izip, Itertools};
@@ -15,7 +12,12 @@ use ratatui::{
 };
 use std::cmp::max;
 
-pub use line::Line;
+use crate::config::Styles;
+use crate::config::{Fields, TableFormatter};
+
+use self::selected_lines::LineSelections;
+
+pub use self::line::Line;
 
 /// The state of the lines, which can be drawn in order to be displayed
 /// in the UI.

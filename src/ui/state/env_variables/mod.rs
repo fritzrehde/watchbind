@@ -1,15 +1,16 @@
 mod env_variable;
 
-use crate::{
-    command::CommandBuilder,
-    config::{Operation, OperationParsed, Operations, OperationsParsed},
-};
 use anyhow::{bail, Result};
 use itertools::Itertools;
 use std::{collections::HashMap, fmt, io::Write};
 use tabwriter::TabWriter;
 
-pub use env_variable::EnvVariable;
+use crate::{
+    config::{Operation, OperationParsed, Operations, OperationsParsed},
+    utils::command::CommandBuilder,
+};
+
+pub use self::env_variable::EnvVariable;
 
 #[derive(Default, Debug)]
 pub struct EnvVariables(HashMap<EnvVariable, String>);

@@ -1,14 +1,14 @@
 mod operation;
 
-use crate::ui::EnvVariables;
 use anyhow::{Context, Result};
 use derive_more::{From, IntoIterator};
 use itertools::Itertools;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub use self::operation::Operation;
-pub use operation::OperationParsed;
+use crate::ui::EnvVariables;
+
+pub use self::operation::{Operation, OperationParsed};
 
 #[derive(IntoIterator, From)]
 pub struct Operations(#[into_iterator(ref)] Vec<Operation>);

@@ -1,22 +1,23 @@
 mod state;
 mod terminal_manager;
 
-use crate::command::{
-    Blocking, CommandBuilder, ExecutionResult, Interruptible, WasWoken, WithEnv, WithOutput,
-};
-use crate::config::KeyEvent;
-use crate::config::{Config, Keybindings};
 use anyhow::Result;
-use crossterm::event::{Event as CrosstermEvent, KeyEvent as CrosstermKeyEvent};
-use crossterm::event::{EventStream, KeyEventKind};
+use crossterm::event::{
+    Event as CrosstermEvent, EventStream, KeyEvent as CrosstermKeyEvent, KeyEventKind,
+};
 use futures::{future::FutureExt, StreamExt};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_manager::Tui;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
-pub use state::State;
-pub use state::{EnvVariable, EnvVariables};
+use crate::config::{Config, KeyEvent, Keybindings};
+use crate::utils::command::{
+    Blocking, CommandBuilder, ExecutionResult, Interruptible, WasWoken, WithEnv, WithOutput,
+};
+
+pub use self::state::State;
+pub use self::state::{EnvVariable, EnvVariables};
 
 pub type WatchedCommand = CommandBuilder<Blocking, WithEnv, WithOutput, Interruptible>;
 

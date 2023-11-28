@@ -1,4 +1,3 @@
-use crate::ui::{EnvVariables, InterruptSignal};
 use anyhow::{bail, Result};
 use std::{
     borrow::Cow,
@@ -12,41 +11,9 @@ use tokio::process::Command as TokioCommand;
 use tokio::sync::mpsc::Receiver;
 use tokio::{io::AsyncReadExt, sync::Mutex};
 
-// Type-States
+use crate::ui::{EnvVariables, InterruptSignal};
 
-#[derive(Clone)]
-pub struct NonBlocking;
-#[derive(Clone)]
-pub struct Blocking;
-
-#[derive(Clone)]
-pub struct WithoutEnv;
-#[derive(Clone)]
-pub struct WithEnv {
-    env_variables: Arc<Mutex<EnvVariables>>,
-}
-
-#[derive(Clone)]
-pub struct NoOutput;
-#[derive(Clone)]
-pub struct WithOutput;
-#[derive(Clone)]
-pub struct InheritedIO;
-
-#[derive(Clone)]
-pub struct NonInterruptible;
-pub struct Interruptible {
-    pub interrupt_rx: Receiver<InterruptSignal>,
-}
-
-// Advantages of the Type-State Builder Pattern:
-// 1. We don't have any option/enum checking (an alternative configuration
-// strategy) overhead at runtime.
-// 2. We can guarantee that we handled all possible Command "variants"
-// (combination of config options), that we use, at compile-time.
-// 3. Arguably, this also results in separated, cleaner code.
-
-/// A Command offering customization of the blocking behaviour, the input
+/// An async Command offering customization of the blocking behaviour, the input
 /// environment variables, whether the output is captured and whether the
 /// execution can be interrupted. Utilizes the type-state builder pattern to
 /// enforce these configurations at compile-time.
@@ -58,6 +25,56 @@ pub struct CommandBuilder<B = NonBlocking, E = WithoutEnv, O = NoOutput, I = Non
     env: E,
     tokio_command: TokioCommandBuilder,
 }
+
+// Type-States
+
+// <B> Blocking behavior
+
+/// The command is executed non-blockingly.
+pub struct NonBlocking;
+
+/// The command is executed blockingly.
+pub struct Blocking;
+
+// <E> Environment variables
+
+/// The global `EnvVariables` are **not** made available in the child process.
+pub struct WithoutEnv;
+
+/// The global `EnvVariables` are made available in the sub-process.
+pub struct WithEnv {
+    env_variables: Arc<Mutex<EnvVariables>>,
+}
+
+// <O> Ouput/Input
+
+/// The output of the executed command is **not** captured.
+pub struct NoOutput;
+
+/// The output of the executed command is captured.
+pub struct WithOutput;
+
+/// The output of the executed command is **not** captured, but the child
+/// process inherits stdin and stdout of the parent process.
+pub struct InheritedIO;
+
+// <I> Interruptibility
+
+/// The execution of the child process is **non**-interruptible.
+pub struct NonInterruptible;
+
+/// The execution of the child process can be interrupted by sending an
+/// `InterruptSignal` to the `interrupt_rx` channel receiver.
+pub struct Interruptible {
+    pub interrupt_rx: Receiver<InterruptSignal>,
+}
+
+// Advantages of the Type-State Builder Pattern:
+// 1. We don't have any option/enum checking (an alternative configuration
+// strategy) overhead at runtime.
+// 2. We can guarantee that we handled all possible Command "variants"
+// (combination of config options), that we use, at compile-time.
+// 3. Arguably, this also results in separated, cleaner code.
 
 // TODO: impl default trait so we don't have to duplicate this
 impl CommandBuilder {
@@ -74,8 +91,8 @@ impl CommandBuilder {
     }
 }
 
-/// Since we can't save a tokio::process::Command permanently and clone it
-/// on new executions (it doesn't implement Clone), we store what's
+/// Since we can't save a `tokio::process::Command` permanently and clone it
+/// on new executions (it doesn't implement `Clone`), we store what is
 /// needed to construct it.
 #[derive(Default, Clone)]
 struct TokioCommandBuilder {

@@ -1,12 +1,13 @@
-mod command;
 mod config;
 mod ui;
+mod utils;
 
-use crate::config::Config;
 use anyhow::{Context, Result};
 use simplelog::{LevelFilter, WriteLogger};
 use std::fs::File;
-use ui::UI;
+
+use crate::config::Config;
+use crate::ui::UI;
 
 #[tokio::main]
 async fn main() -> Result<()> {

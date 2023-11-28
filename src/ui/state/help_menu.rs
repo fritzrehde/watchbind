@@ -1,4 +1,3 @@
-use super::EnvVariables;
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
@@ -9,6 +8,8 @@ use ratatui::{
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use super::EnvVariables;
 
 pub struct HelpMenu {
     env_variables: Arc<Mutex<EnvVariables>>,

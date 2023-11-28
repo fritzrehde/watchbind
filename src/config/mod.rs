@@ -1,15 +1,7 @@
 mod fields;
 mod keybindings;
-mod possible_enum_values;
 mod style;
 
-use crate::config::keybindings::{KeyCode, KeyModifier};
-use crate::config::possible_enum_values::PossibleEnumValues;
-use crate::config::style::PrettyColor;
-
-use self::fields::{FieldSelections, FieldSeparator};
-use self::keybindings::{KeybindingsParsed, StringKeybindings};
-use self::style::{Boldness, Color, Style};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
@@ -21,11 +13,19 @@ use tabled::settings::peaker::PriorityMax;
 use tabled::settings::{Margin, Padding, Style as TableStyle, Width};
 use terminal_size::{terminal_size, Width as TerminalWidth};
 
-pub use fields::{Fields, TableFormatter};
-pub use keybindings::{
+use crate::config::keybindings::{KeyCode, KeyModifier};
+use crate::config::style::PrettyColor;
+use crate::utils::possible_enum_values::PossibleEnumValues;
+
+use self::fields::{FieldSelections, FieldSeparator};
+use self::keybindings::{KeybindingsParsed, StringKeybindings};
+use self::style::{Boldness, Color, Style};
+
+pub use self::fields::{Fields, TableFormatter};
+pub use self::keybindings::{
     KeyEvent, Keybindings, Operation, OperationParsed, Operations, OperationsParsed,
 };
-pub use style::Styles;
+pub use self::style::Styles;
 
 // TODO: don't have public members
 
