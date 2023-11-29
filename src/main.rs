@@ -2,23 +2,18 @@ mod config;
 mod ui;
 mod utils;
 
-use anyhow::{Context, Result};
-use simplelog::{LevelFilter, WriteLogger};
-use std::fs::File;
+use anyhow::Result;
 
 use crate::config::Config;
 use crate::ui::UI;
 
+/// The name of the application.
+const WATCHBIND_NAME: &str = "watchbind";
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = Config::parse()?;
-
-    // Setup logging
-    if let Some(log_file) = &config.log_file {
-        let log_file = File::create(log_file)
-            .with_context(|| format!("Failed to create log file: {}", log_file.display()))?;
-        let _ = WriteLogger::init(LevelFilter::Info, simplelog::Config::default(), log_file);
+    if let Some(config) = Config::new()? {
+        UI::start(config).await?;
     }
-
-    UI::start(config).await
+    Ok(())
 }

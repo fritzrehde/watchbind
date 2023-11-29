@@ -16,7 +16,7 @@ pub enum Boldness {
 }
 
 impl Boldness {
-    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    /// Returns `other` if self is `Unspecified`, otherwise returns `self`.
     pub fn or(self, other: Self) -> Self {
         match self {
             Boldness::Unspecified => other,

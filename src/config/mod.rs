@@ -1,16 +1,20 @@
 mod fields;
 mod keybindings;
 mod style;
+mod xdg;
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use indoc::indoc;
-use owo_colors::OwoColorize;
 use serde::Deserialize;
-use std::{fs::read_to_string, path::PathBuf, time::Duration};
+use simplelog::{LevelFilter, WriteLogger};
+use std::{
+    fs::{read_to_string, File},
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tabled::builder::Builder;
-use tabled::settings::peaker::PriorityMax;
-use tabled::settings::{Margin, Padding, Style as TableStyle, Width};
+use tabled::settings::{peaker::PriorityMax, Margin, Padding, Style as TableStyle, Width};
 use terminal_size::{terminal_size, Width as TerminalWidth};
 
 use crate::config::keybindings::{KeyCode, KeyModifier};
@@ -40,48 +44,91 @@ pub struct Config {
     pub initial_env_ops: OperationsParsed,
 }
 
+const GLOBAL_CONFIG_FILE: &str = "config.toml";
+
 impl Config {
-    pub fn parse() -> Result<Self> {
+    /// Build a new `Config` from CLI options, local and global config files,
+    /// and default values. A return value of `None` indicates the program
+    /// should silently exit.
+    pub fn new() -> Result<Option<Self>> {
         let cli = ClapConfig::parse();
-        let config_file = cli.config_file.clone();
-        let cli: TomlConfig = cli.into();
-        let config = match &config_file {
-            Some(path) => cli.merge(TomlConfig::parse(path)?),
-            None => cli,
-        };
-        config.try_into()
+
+        // Setup logging, if requested.
+        if let Some(log_file) = &cli.log_file {
+            Self::setup_logging(log_file)?;
+        }
+
+        // Print global config file location, if requested.
+        let global_config_file = global_config_file()?;
+        if cli.print_global_config_file_location {
+            println!("{}", global_config_file.display());
+            return Ok(None);
+        }
+
+        let local_config_file: Option<PathBuf> = cli.local_config_file.clone();
+        let global_config_file: Option<PathBuf> = (global_config_file.is_file()
+            && global_config_file.exists())
+        .then_some(global_config_file);
+
+        // If local and/or global config files were provided, parse them into `TomlConfig`s.
+        let local_toml = local_config_file.map(TomlConfig::parse).transpose()?;
+        let global_toml = global_config_file.map(TomlConfig::parse).transpose()?;
+        let cli_toml: TomlConfig = cli.into();
+        let default_toml = TomlConfig::default();
+
+        // Config overriding order: cli > local > global > default
+        // (where `a > b` means that a's settings override b's on conflicts)
+        let toml_config = match (local_toml, global_toml) {
+            (Some(local_toml), Some(global_toml)) => cli_toml.merge(local_toml.merge(global_toml)),
+            (Some(local_toml), None) => cli_toml.merge(local_toml),
+            (None, Some(global_toml)) => cli_toml.merge(global_toml),
+            (None, None) => cli_toml,
+        }
+        .merge(default_toml);
+
+        let config = toml_config.try_into()?;
+        Ok(Some(config))
     }
+
+    /// Configure the logger to save logs to a `log_file`.
+    fn setup_logging<P: AsRef<Path>>(log_file: P) -> Result<()> {
+        let log_file = File::create(&log_file).with_context(|| {
+            format!("Failed to create log file: {}", log_file.as_ref().display())
+        })?;
+        WriteLogger::init(LevelFilter::Info, simplelog::Config::default(), log_file)?;
+        Ok(())
+    }
+}
+
+/// Get the global config file, regardless of whether it exists.
+fn global_config_file() -> Result<PathBuf> {
+    let mut global_config_dir = xdg::config_dir()?;
+    global_config_dir.push(GLOBAL_CONFIG_FILE);
+    Ok(global_config_dir)
 }
 
 impl TryFrom<TomlConfig> for Config {
     type Error = anyhow::Error;
     fn try_from(toml: TomlConfig) -> Result<Self, Self::Error> {
-        let default = TomlConfig::default();
+        let non_cursor_non_header_style = Style::new(
+            toml.non_cursor_non_header_fg,
+            toml.non_cursor_non_header_bg,
+            toml.non_cursor_non_header_boldness,
+        );
+        let cursor_style = Style::new(toml.cursor_fg, toml.cursor_bg, toml.cursor_boldness);
+        let header_style = Style::new(toml.header_fg, toml.header_bg, toml.header_boldness);
+        let selected_style =
+            Style::new(Color::Unspecified, toml.selected_bg, Boldness::Unspecified);
+        let styles = Styles::new(
+            non_cursor_non_header_style,
+            cursor_style,
+            header_style,
+            selected_style,
+        );
 
-        let non_cursor_style = Style::new(
-            toml.non_cursor_non_header_fg
-                .or(default.non_cursor_non_header_fg),
-            toml.non_cursor_non_header_bg
-                .or(default.non_cursor_non_header_bg),
-            toml.non_cursor_non_header_boldness
-                .or(default.non_cursor_non_header_boldness),
-        );
-        let cursor_style = Style::new(
-            toml.cursor_fg.or(default.cursor_fg),
-            toml.cursor_bg.or(default.cursor_bg),
-            toml.cursor_boldness.or(default.cursor_boldness),
-        );
-        let header_style = Style::new(
-            toml.header_fg.or(default.header_fg),
-            toml.header_bg.or(default.header_bg),
-            toml.header_boldness.or(default.header_boldness),
-        );
-        let selected_style = Style::new(
-            Color::Unspecified,
-            toml.selected_bg.or(default.selected_bg),
-            Boldness::Unspecified,
-        );
-        let styles = Styles::new(non_cursor_style, cursor_style, header_style, selected_style);
+        // Some fields **must** contain a value in `TomlConfig::default()`.
+        // Panic with this error message if that is not the case.
+        let error_msg = "Should have a value in the default toml config";
 
         Ok(Self {
             log_file: toml.log_file,
@@ -90,14 +137,10 @@ impl TryFrom<TomlConfig> for Config {
                 Some(command) => command,
                 None => bail!("A command must be provided via command line or config file"),
             },
-            watch_rate: Duration::from_secs_f64(
-                toml.interval.or(default.interval).expect("default"),
-            ),
+            watch_rate: Duration::from_secs_f64(toml.interval.expect(error_msg)),
             styles,
-            keybindings_parsed: StringKeybindings::merge(toml.keybindings, default.keybindings)
-                .expect("default")
-                .try_into()?,
-            header_lines: toml.header_lines.unwrap_or(0),
+            keybindings_parsed: toml.keybindings.expect(error_msg).try_into()?,
+            header_lines: toml.header_lines.expect(error_msg),
             fields: Fields::try_new(toml.field_separator, toml.field_selections)?,
         })
     }
@@ -147,16 +190,20 @@ pub struct TomlConfig {
 }
 
 impl TomlConfig {
-    fn parse(config_file: &str) -> Result<Self> {
-        let config = toml::from_str(
-            &read_to_string(config_file)
-                .with_context(|| format!("Failed to read configuration from {config_file}"))?,
-        )
-        .with_context(|| format!("Failed to parse TOML from {config_file}"))?;
+    /// Parse a `TomlConfig` from the string content of a `config_file`.
+    fn parse<P: AsRef<Path>>(config_file: P) -> Result<Self> {
+        let config_str = read_to_string(&config_file).with_context(|| {
+            format!(
+                "Failed to read configuration from {}",
+                config_file.as_ref().display()
+            )
+        })?;
+        let config =
+            toml::from_str(&config_str).context("Failed to parse TOML string into TomlConfig")?;
         Ok(config)
     }
 
-    // Merge two configs, where `self` is favored.
+    /// Merge two configs, where `self` is favored over `other`.
     fn merge(self, other: Self) -> Self {
         Self {
             log_file: self.log_file.or(other.log_file),
@@ -214,7 +261,7 @@ impl From<ClapConfig> for TomlConfig {
 
 impl Default for TomlConfig {
     fn default() -> Self {
-        let toml = indoc! {r#"
+        let default_toml = indoc! {r#"
 			"interval" = 3.0
 
 			"cursor-fg" = "unspecified"
@@ -224,6 +271,7 @@ impl Default for TomlConfig {
 			"header-fg" = "blue"
 			"header-bg" = "unspecified"
 			"header-boldness" = "non-bold"
+            "header-lines" = 0
 
 			"non-cursor-non-header-fg" = "unspecified"
 			"non-cursor-non-header-bg" = "unspecified"
@@ -246,7 +294,7 @@ impl Default for TomlConfig {
 			"g" = [ "cursor first" ]
 			"G" = [ "cursor last" ]
 		"#};
-        toml::from_str(toml).expect("Default toml config file should be correct")
+        toml::from_str(default_toml).expect("Default toml config file should be correct")
     }
 }
 
@@ -257,6 +305,10 @@ pub struct ClapConfig {
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
 
+    /// Print where global config file is expected to be located.
+    #[arg(long)]
+    print_global_config_file_location: bool,
+
     /// Comman-separated `set-env` operations to execute before first watched command execution
     #[arg(long = "initial-env", value_name = "LIST", value_delimiter = ',')]
     initial_env_vars: Option<Vec<String>>,
@@ -265,9 +317,9 @@ pub struct ClapConfig {
     #[arg(trailing_var_arg(true))]
     watched_command: Option<Vec<String>>,
 
-    /// TOML config file path
-    #[arg(short, long, value_name = "FILE")]
-    config_file: Option<String>,
+    /// File path to local TOML config file
+    #[arg(short = 'c', long, value_name = "FILE")]
+    local_config_file: Option<PathBuf>,
 
     /// Seconds (f64) to wait between updates, 0 only executes once
     #[arg(short, long, value_name = "SECONDS")]
@@ -395,6 +447,8 @@ pub struct ClapConfig {
 impl ClapConfig {
     /// Get string help menu of all possible values of configuration options.
     fn all_possible_values() -> String {
+        use owo_colors::OwoColorize;
+
         let color = PossibleEnumValues::<PrettyColor>::new().get();
         let boldness = PossibleEnumValues::<Boldness>::new().get();
         let key_modifier = PossibleEnumValues::<KeyModifier>::new().hidden().get();

@@ -34,7 +34,7 @@ pub enum Color {
 }
 
 impl Color {
-    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    /// Returns `other` if self is `Unspecified`, otherwise returns `self`.
     pub fn or(self, other: Self) -> Self {
         match self {
             Color::Unspecified => other,

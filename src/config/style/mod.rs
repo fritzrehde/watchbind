@@ -36,13 +36,13 @@ pub struct Style {
 impl Styles {
     /// Create new from individual `Style`s.
     pub fn new(
-        non_cursor_style: Style,
+        non_cursor_non_header_style: Style,
         cursor_style: Style,
         header_style: Style,
         selected_style: Style,
     ) -> Self {
         Self {
-            non_cursor_non_header: non_cursor_style.into(),
+            non_cursor_non_header: non_cursor_non_header_style.into(),
             cursor: cursor_style.into(),
             header: header_style.into(),
             selected: selected_style.into(),
