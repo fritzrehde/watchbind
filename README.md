@@ -81,7 +81,7 @@ All configuration ways can be used at the same time, and `watchbind` will determ
 ```
 CLI arguments > local TOML config file > global TOML config file
 ```
-where `a > b` means: If the config setting `X` is configured in both `a` and `b`, the value of `X` from `a` is chosen.
+where `a > b` means: If the config setting `X` is configured in both `a` and `b`, the value of `X` from `a` is used.
 
 
 ### Keybindings
