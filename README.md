@@ -38,7 +38,7 @@ The [releases page](https://github.com/fritzrehde/watchbind/releases) contains p
 
 ### From [crates.io](https://crates.io/crates/watchbind)
 
-```shell
+```sh
 cargo install watchbind
 ```
 
@@ -74,8 +74,8 @@ Then, we make this static output **dynamic** by re-executing it at a specified w
 
 There are several ways to configure watchbind's settings:
 1. **CLI arguments** (see `watchbind -h` for all available arguments).
-2. A **local TOML config file**, specified with `watchbind --local-config-file <FILE>`, that applies only to this watchbind instance.
-3. A **global TOML config file**, located either in the user-specified `WATCHBIND_CONFIG_DIR` environment variable or in the default config directory (see `watchbind --print-global-config-dir-location` for the OS-specified default config directory), that applies to all watchbind instances.
+2. A **local TOML config file**, specified with `watchbind --local-config-file <FILE>`, that applies settings only to this watchbind instance.
+3. A **global TOML config file**, located either in the user-specified `WATCHBIND_CONFIG_DIR` environment variable or in the default config directory (see `watchbind --print-global-config-dir-location` for the OS-specified default config directory), that applies settings to all watchbind instances.
 
 All configuration ways can be used at the same time, and `watchbind` will determine which settings to use according to the following configuration hierarchy:
 ```
@@ -289,11 +289,11 @@ Finally, we want to remove our the selection of the now removed lines, so we cal
 ### Piping
 
 If you want to use pipes in your watched command on the command-line, make sure to escape the pipe symbol like so:
-```
+```sh
 watchbind ls \| grep "test"
 ```
 or put quotes around the watched command
-```
+```sh
 watchbind "ls | grep test"
 ```
 Otherwise, the shell will think you want to pipe the output of `watchbind exec -- ls` to `grep test`.
@@ -303,13 +303,13 @@ Otherwise, the shell will think you want to pipe the output of `watchbind exec -
 The commands you bind to keys will be executed in a subshell using `sh -c`.
 
 This means you can run a command like 
-```
+```sh
 watchbind --bind "enter:notify-send \$lines" ls
 ```
 and the environment variable `$lines` will contain the line the cursor is currently on.
 
 But note that 
-```
+```sh
 watchbind --bind "enter:notify-send $lines" ls
 ```
 will not work as expected, because `$lines` will be replaced in the shell you are running the `watchbind` command from.
