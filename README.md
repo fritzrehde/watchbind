@@ -9,21 +9,26 @@
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-light.png#gh-light-mode-only)
 ![screenshot](https://raw.githubusercontent.com/fritzrehde/i/master/watchbind/screenshot-dark.png#gh-dark-mode-only)
 
+
 ## Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
-- [Customizations](#customizations)
-  - [Keybindings](#customizations)
-  - [Formatting with Field Separators and Field Selections](#formatting-with-field-separators-and-field-selections)
+- [How it works](#how-it-works)
+- [Configuration](#configuration)
+  - [Keybindings](#keybindings)
   - [Styling](#styling)
+  - [Formatting with Field Separators and Field Selections](#formatting-with-field-separators-and-field-selections)
+  - [State Management](#state-management)
 - [Tips](#tips)
+
 
 ## Features
 
 - **Customizability**: All keybindings and styles (colors and boldness) are customizable.
-- **Flexibility**: You can specify settings using CLI options, a TOML config file, or both.
+- **Flexibility**: Settings can be configured through CLI arguments, a local TOML config file, a global TOML config file, or a combination of these.
 - **Speed**: Written in asynchronous Rust with [Tokio](https://tokio.rs/).
+
 
 ## Installation
 
@@ -57,6 +62,7 @@ pacman -S watchbind
 apk add watchbind
 ```
 
+
 ## How it works
 
 Watchbind is a command-line tool that aims to help you build custom TUIs from static CLI commands very easily.
@@ -64,15 +70,19 @@ It works by specifying a "watched command" that outputs some lines to stdout tha
 Then, we make this static output **dynamic** by re-executing it at a specified watch rate, and we make the TUI **interactive** through custom keybindings that can operate on the individual output lines.
 
 
-## Customizations
+## Configuration
 
-There are several ways to customize the settings:
-1. A TOML config file, specified with `watchbind --config-file <FILE>`, overrides all default settings ([examples/](examples/)).
-2. The command-line options override all other settings (i.e. all TOML and default settings).
+There are several ways to configure watchbind's settings:
+1. **CLI arguments** (see `watchbind -h` for all available arguments).
+2. A **local TOML config file**, specified with `watchbind --local-config-file <FILE>`, that applies only to this watchbind instance.
+3. A **global TOML config file**, located either in the user-specified `WATCHBIND_CONFIG_DIR` environment variable or in the default config directory (see `watchbind --print-global-config-dir-location` for the OS-specified default config directory), that applies to all watchbind instances.
 
-All ways of configuring `watchbind` (TOML and CLI options) can be used at the same time, and `watchbind` will automatically figure out which settings to use according to the above hierarchy.
+All configuration ways can be used at the same time, and `watchbind` will determine which settings to use according to the following configuration hierarchy:
+```
+CLI arguments > local TOML config file > global TOML config file
+```
+where `a > b` means: If the config setting `X` is configured in both `a` and `b`, the value of `X` from `a` is chosen.
 
-Personally, I recommend using the CLI options for small one liners and a TOML config file for more complex scripts.
 
 ### Keybindings
 
@@ -185,27 +195,6 @@ The environment variable `lines` set to all selected lines, or if none are selec
 All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
 If multiple lines are selected, they will be separated by newlines in `lines`.
 
-### State management
-
-The `set-env` and `unset-env` operations allow you to manage state through environment variables.
-Additionally, you can use the `initial-env` option to specify a list of `set-env` commands that will be executed **before** the first execution of the watched command.
-This powerful combination allows you to set some initial state with `initial-env`, reference that state directly in the watched command, and update the state with keybindings at runtime with `set-env`.
-
-### Formatting with Field Separators and Field Selections
-
-`watchbind` supports some extra formatting features reminiscent of the Unix `cut` command:
-
-- **Field Separators**:
-Define a separator/delimiter to segment your command's output into distinct fields.
-Each separator will be replaced with an [elastic tabstop](https://nick-gravgaard.com/elastic-tabstops/), resulting in a "table"-like structure, similar to the `cut -d <SEPARATOR> -t` command.
-
-- **Field Selections**:
-Choose only specific fields to display.
-You can specify a comma-separated list of the indexes (starting at index 1) for individual fields (`X`), ranges (`X-Y`), or the capture of all fields from X onwards (`X-`).
-For instance, the field selection `1,3-4,6-` will display the first, third and fourth fields, as well as all fields from the sixth onwards.
-
-**Important**: The `lines` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
-
 ### Styling
 
 Foreground colors, background colors and boldness can be customized.
@@ -247,6 +236,28 @@ bold         # Make everything bold
 non-bold     # Make sure nothing is bold (i.e. remove any bold styling from input ANSI)
 unspecified  # Don't applying any styling => use style from ANSI input text
 ```
+
+### Formatting with Field Separators and Field Selections
+
+`watchbind` supports some extra formatting features reminiscent of the Unix `cut` command:
+
+- **Field Separators**:
+Define a separator/delimiter to segment your command's output into distinct fields.
+Each separator will be replaced with an [elastic tabstop](https://nick-gravgaard.com/elastic-tabstops/), resulting in a "table"-like structure, similar to the `cut -d <SEPARATOR> -t` command.
+
+- **Field Selections**:
+Choose only specific fields to display.
+You can specify a comma-separated list of the indexes (starting at index 1) for individual fields (`X`), ranges (`X-Y`), or the capture of all fields from X onwards (`X-`).
+For instance, the field selection `1,3-4,6-` will display the first, third and fourth fields, as well as all fields from the sixth onwards.
+
+**Important**: The `lines` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
+
+### State management
+
+The `set-env` and `unset-env` operations allow you to manage state through environment variables.
+Additionally, you can use the `initial-env` option to specify a list of `set-env` commands that will be executed **before** the first execution of the watched command.
+This powerful combination allows you to set some initial state with `initial-env`, reference that state directly in the watched command, and update the state with keybindings at runtime with `set-env`.
+
 
 ## Tips
 
