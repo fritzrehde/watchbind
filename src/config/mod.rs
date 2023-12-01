@@ -13,8 +13,8 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tabled::builder::Builder;
 use tabled::settings::{peaker::PriorityMax, Margin, Padding, Style as TableStyle, Width};
+use tabled::{builder::Builder, Table};
 use terminal_size::{terminal_size, Width as TerminalWidth};
 
 use crate::config::keybindings::{KeyCode, KeyModifier};
@@ -51,21 +51,21 @@ impl Config {
     /// and default values. A return value of `None` indicates the program
     /// should silently exit.
     pub fn new() -> Result<Option<Self>> {
-        let cli = ClapConfig::parse();
+        let cli_args = CliArgs::parse();
 
         // Setup logging, if requested.
-        if let Some(log_file) = &cli.log_file {
+        if let Some(log_file) = &cli_args.log_file {
             Self::setup_logging(log_file)?;
         }
 
         // Print global config file location, if requested.
         let global_config_file = global_config_file()?;
-        if cli.print_global_config_file_location {
+        if cli_args.print_global_config_file_location {
             println!("{}", global_config_file.display());
             return Ok(None);
         }
 
-        let local_config_file: Option<PathBuf> = cli.local_config_file.clone();
+        let local_config_file: Option<PathBuf> = cli_args.local_config_file.clone();
         let global_config_file: Option<PathBuf> = (global_config_file.is_file()
             && global_config_file.exists())
         .then_some(global_config_file);
@@ -73,7 +73,7 @@ impl Config {
         // If local and/or global config files were provided, parse them into `TomlConfig`s.
         let local_toml = local_config_file.map(TomlConfig::parse).transpose()?;
         let global_toml = global_config_file.map(TomlConfig::parse).transpose()?;
-        let cli_toml: TomlConfig = cli.into();
+        let cli_toml: TomlConfig = cli_args.into();
         let default_toml = TomlConfig::default();
 
         // Config overriding order: cli > local > global > default
@@ -234,8 +234,8 @@ impl TomlConfig {
     }
 }
 
-impl From<ClapConfig> for TomlConfig {
-    fn from(clap: ClapConfig) -> Self {
+impl From<CliArgs> for TomlConfig {
+    fn from(clap: CliArgs) -> Self {
         Self {
             log_file: clap.log_file,
             initial_env_vars: clap.initial_env_vars,
@@ -300,7 +300,7 @@ impl Default for TomlConfig {
 
 #[derive(Parser)]
 #[command(version, about, rename_all = "kebab-case", after_help = Self::all_possible_values())]
-pub struct ClapConfig {
+pub struct CliArgs {
     /// Enable logging, and write logs to file.
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
@@ -444,7 +444,16 @@ pub struct ClapConfig {
     keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
-impl ClapConfig {
+/// Convert [[&str, String]] to [[String, String]] by calling str::to_owned().
+macro_rules! to_owned_first {
+    ($([$str_slice:expr, $string:expr]),* $(,)?) => {
+        [$(
+            [str::to_owned($str_slice), $string],
+        )*]
+    };
+}
+
+impl CliArgs {
     /// Get string help menu of all possible values of configuration options.
     fn all_possible_values() -> String {
         use owo_colors::OwoColorize;
@@ -457,15 +466,27 @@ impl ClapConfig {
             .custom_names()
             .get();
 
-        let table_data = [
-            ["COLOR", &format!("[{color}]")],
-            ["BOLDNESS", &format!("[{boldness}]")],
-            ["KEY", "[<KEY-MODIFIER>+<KEY-CODE>, <KEY-CODE>]"],
-            ["KEY-MODIFIER", &format!("[{key_modifier}]")],
-            ["KEY-CODE", &format!("[{key_code}]")],
-            ["OP", &format!("[{operation}]")],
+        let possible_values_table_data = to_owned_first![
+            ["COLOR", format!("[{color}]")],
+            ["BOLDNESS", format!("[{boldness}]")],
+            ["KEY", format!("[<KEY-MODIFIER>+<KEY-CODE>, <KEY-CODE>]")],
+            ["KEY-MODIFIER", format!("[{key_modifier}]")],
+            ["KEY-CODE", format!("[{key_code}]")],
+            ["OP", format!("[{operation}]")],
         ];
-        let mut table = Builder::from_iter(table_data).build();
+        let possible_values_table = Self::create_table(&possible_values_table_data);
+
+        // Mimic clap's bold underlined style for headers.
+        format!(
+            "{}\n{}",
+            "Possible values:".bold().underline(),
+            possible_values_table,
+        )
+    }
+
+    /// Create a formatted `tabled::Table` with two columns.
+    fn create_table(table_data: &[[String; 2]]) -> Table {
+        let mut table = Builder::from_iter(table_data.iter().map(|row| row.iter())).build();
         table
             .with(TableStyle::blank())
             // Add left margin for indent.
@@ -481,6 +502,6 @@ impl ClapConfig {
                 .with(Width::increase(width));
         }
 
-        format!("{}\n{table}", "Possible values:".bold().underline())
+        table
     }
 }

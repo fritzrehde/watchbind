@@ -4,7 +4,7 @@ use std::{env, path::PathBuf};
 use crate::WATCHBIND_NAME;
 
 /// Environment variable the user can set to override default config directory.
-const WATCHBIND_CONFIG_DIR: &str = "WATCHBIND_CONFIG_DIR";
+pub const WATCHBIND_CONFIG_DIR: &str = "WATCHBIND_CONFIG_DIR";
 
 /// Get watchbind's default configuration directory.
 pub fn config_dir() -> Result<PathBuf> {
