@@ -7,7 +7,8 @@ use std::fmt;
 use strum::{EnumIter, IntoEnumIterator};
 
 /// A wrapper around ratatui's `Color`.
-#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[derive(Debug, Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Color {

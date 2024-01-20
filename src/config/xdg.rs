@@ -28,7 +28,7 @@ fn user_config_dir() -> Option<PathBuf> {
 fn default_os_config_dir() -> Result<PathBuf> {
     let default_os_config_dir = if cfg!(target_os = "macos") {
         // On MacOS, use `$HOME/.config` instead of dirs::config_dir().
-        dirs::home_dir().map(|h| h.join(".config"))
+        dirs::home_dir().map(|home| home.join(".config"))
     } else {
         dirs::config_dir()
     }

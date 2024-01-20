@@ -232,7 +232,6 @@ impl UI {
                 BlockingState::BlockedExecutingTUISubcommand => {}
                 _ => {
                     draw!(self)?;
-                    self.tui.terminal.draw(|frame| self.state.draw(frame))?;
                 }
             };
 

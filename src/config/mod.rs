@@ -11,11 +11,15 @@ use simplelog::{LevelFilter, WriteLogger};
 use std::{
     fs::{read_to_string, File},
     path::{Path, PathBuf},
+    str::FromStr,
     time::Duration,
 };
 use tabled::settings::{peaker::PriorityMax, Margin, Padding, Style as TableStyle, Width};
 use tabled::{builder::Builder, Table};
 use terminal_size::{terminal_size, Width as TerminalWidth};
+
+#[cfg(test)]
+use derive_builder::Builder;
 
 use crate::config::keybindings::{KeyCode, KeyModifier};
 use crate::config::style::PrettyColor;
@@ -58,33 +62,26 @@ impl Config {
             Self::setup_logging(log_file)?;
         }
 
-        // Print global config file location, if requested.
-        let global_config_file = global_config_file()?;
-        if cli_args.print_global_config_file_location {
-            println!("{}", global_config_file.display());
-            return Ok(None);
-        }
-
+        let global_config_file_path = global_config_file_path()?;
+        let global_config_file: Option<PathBuf> = (global_config_file_path.is_file()
+            && global_config_file_path.exists())
+        .then_some(global_config_file_path);
         let local_config_file: Option<PathBuf> = cli_args.local_config_file.clone();
-        let global_config_file: Option<PathBuf> = (global_config_file.is_file()
-            && global_config_file.exists())
-        .then_some(global_config_file);
 
-        // If local and/or global config files were provided, parse them into `TomlConfig`s.
-        let local_toml = local_config_file.map(TomlConfig::parse).transpose()?;
+        // If global and/or local config files were provided, parse them into `TomlConfig`s.
         let global_toml = global_config_file.map(TomlConfig::parse).transpose()?;
+        let local_toml = local_config_file.map(TomlConfig::parse).transpose()?;
         let cli_toml: TomlConfig = cli_args.into();
         let default_toml = TomlConfig::default();
 
-        // Config overriding order: cli > local > global > default
-        // (where `a > b` means that a's settings override b's on conflicts)
-        let toml_config = match (local_toml, global_toml) {
-            (Some(local_toml), Some(global_toml)) => cli_toml.merge(local_toml.merge(global_toml)),
-            (Some(local_toml), None) => cli_toml.merge(local_toml),
-            (None, Some(global_toml)) => cli_toml.merge(global_toml),
-            (None, None) => cli_toml,
-        }
-        .merge(default_toml);
+        dbg!(&cli_toml, &local_toml, &global_toml, &default_toml);
+
+        let toml_config = TomlConfig::apply_config_overriding_order(
+            cli_toml,
+            local_toml,
+            global_toml,
+            default_toml,
+        );
 
         let config = toml_config.try_into()?;
         Ok(Some(config))
@@ -100,8 +97,9 @@ impl Config {
     }
 }
 
-/// Get the global config file, regardless of whether it exists.
-fn global_config_file() -> Result<PathBuf> {
+/// Get the global config file path, regardless of whether the file actually
+/// exists.
+fn global_config_file_path() -> Result<PathBuf> {
     let mut global_config_dir = xdg::config_dir()?;
     global_config_dir.push(GLOBAL_CONFIG_FILE);
     Ok(global_config_dir)
@@ -146,7 +144,8 @@ impl TryFrom<TomlConfig> for Config {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq, Builder), builder(default, pattern = "owned"))]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct TomlConfig {
     log_file: Option<PathBuf>,
@@ -198,9 +197,26 @@ impl TomlConfig {
                 config_file.as_ref().display()
             )
         })?;
-        let config =
-            toml::from_str(&config_str).context("Failed to parse TOML string into TomlConfig")?;
-        Ok(config)
+        config_str.parse()
+    }
+
+    /// Given the `TomlConfig`s from the CLI, possibly from a local config file,
+    /// possibly from a global config file, and from the defaults, apply the
+    /// config overriding order: `cli > local > global > default`
+    /// (where `a > b` means that a's settings override b's on conflicts)
+    fn apply_config_overriding_order(
+        cli: Self,
+        local: Option<Self>,
+        global: Option<Self>,
+        default: Self,
+    ) -> Self {
+        match (local, global) {
+            (Some(local), Some(global)) => cli.merge(local.merge(global)),
+            (Some(local), None) => cli.merge(local),
+            (None, Some(global)) => cli.merge(global),
+            (None, None) => cli,
+        }
+        .merge(default)
     }
 
     /// Merge two configs, where `self` is favored over `other`.
@@ -231,6 +247,13 @@ impl TomlConfig {
             field_selections: self.field_selections.or(other.field_selections),
             keybindings: StringKeybindings::merge(self.keybindings, other.keybindings),
         }
+    }
+}
+
+impl FromStr for TomlConfig {
+    type Err = anyhow::Error;
+    fn from_str(config_str: &str) -> Result<Self, Self::Err> {
+        toml::from_str(config_str).context("Failed to parse TOML string into TomlConfig")
     }
 }
 
@@ -265,7 +288,7 @@ impl Default for TomlConfig {
 			"interval" = 3.0
 
 			"cursor-fg" = "unspecified"
-			"cursor-bg" = "gray"
+			"cursor-bg" = "blue"
 			"cursor-boldness" = "bold"
 
 			"header-fg" = "blue"
@@ -294,20 +317,16 @@ impl Default for TomlConfig {
 			"g" = [ "cursor first" ]
 			"G" = [ "cursor last" ]
 		"#};
-        toml::from_str(default_toml).expect("Default toml config file should be correct")
+        toml::from_str(default_toml).expect("Default embedded toml config file should be correct")
     }
 }
 
 #[derive(Parser)]
-#[command(version, about, rename_all = "kebab-case", after_help = Self::all_possible_values())]
+#[command(version, about, rename_all = "kebab-case", after_help = Self::extra_help_menu())]
 pub struct CliArgs {
     /// Enable logging, and write logs to file.
     #[arg(short, long, value_name = "FILE")]
     log_file: Option<PathBuf>,
-
-    /// Print where global config file is expected to be located.
-    #[arg(long)]
-    print_global_config_file_location: bool,
 
     /// Comman-separated `set-env` operations to execute before first watched command execution
     #[arg(long = "initial-env", value_name = "LIST", value_delimiter = ',')]
@@ -454,8 +473,17 @@ macro_rules! to_owned_first {
 }
 
 impl CliArgs {
+    /// Get extra help menu as string.
+    fn extra_help_menu() -> String {
+        format!(
+            "{}\n\n{}",
+            Self::all_possible_values_help(),
+            Self::global_config_file_help()
+        )
+    }
+
     /// Get string help menu of all possible values of configuration options.
-    fn all_possible_values() -> String {
+    fn all_possible_values_help() -> String {
         use owo_colors::OwoColorize;
 
         let color = PossibleEnumValues::<PrettyColor>::new().get();
@@ -474,7 +502,7 @@ impl CliArgs {
             ["KEY-CODE", format!("[{key_code}]")],
             ["OP", format!("[{operation}]")],
         ];
-        let possible_values_table = Self::create_table(&possible_values_table_data);
+        let possible_values_table = create_table_from(possible_values_table_data);
 
         // Mimic clap's bold underlined style for headers.
         format!(
@@ -484,24 +512,111 @@ impl CliArgs {
         )
     }
 
-    /// Create a formatted `tabled::Table` with two columns.
-    fn create_table(table_data: &[[String; 2]]) -> Table {
-        let mut table = Builder::from_iter(table_data.iter().map(|row| row.iter())).build();
-        table
-            .with(TableStyle::blank())
-            // Add left margin for indent.
-            .with(Margin::new(2, 0, 0, 0))
-            // Remove left padding.
-            .with(Padding::new(0, 1, 0, 0));
+    /// Get string help menu of the global config file.
+    fn global_config_file_help() -> String {
+        use owo_colors::OwoColorize;
 
-        // Set table width to terminal width.
-        if let Some((TerminalWidth(width), _)) = terminal_size() {
-            let width: usize = width.into();
-            table
-                .with(Width::wrap(width).priority::<PriorityMax>().keep_words())
-                .with(Width::increase(width));
-        }
+        let global_config_file = global_config_file_path()
+            .map_or("Unknown".to_string(), |file| file.display().to_string());
 
+        let global_config_file_table_data = [[global_config_file]];
+        let global_config_file_table = create_table_from(global_config_file_table_data);
+
+        // Mimic clap's bold underlined style for headers.
+        format!(
+            "{}\n{}",
+            "Global config file:".bold().underline(),
+            global_config_file_table,
+        )
+    }
+}
+
+/// Create a formatted `tabled::Table` with two columns.
+fn create_table_from<R, C>(table_data: R) -> Table
+where
+    R: IntoIterator<Item = C>,
+    C: IntoIterator<Item = String>,
+{
+    let mut table = Builder::from_iter(table_data.into_iter().map(|row| row.into_iter())).build();
+    table
+        .with(TableStyle::blank())
+        // Add left margin for indent.
+        .with(Margin::new(2, 0, 0, 0))
+        // Remove left padding.
+        .with(Padding::new(0, 1, 0, 0));
+
+    // Set table width to terminal width.
+    if let Some((TerminalWidth(width), _)) = terminal_size() {
+        let width: usize = width.into();
         table
+            .with(Width::wrap(width).priority::<PriorityMax>().keep_words())
+            .with(Width::increase(width));
+    }
+
+    table
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Assert `a > b` by checking that `a`'s `attribute` persisted during the
+    /// merging of `a` and `b`.
+    macro_rules! assert_a_overrides_b_on_attribute {
+        ($src_a:expr, $src_b:expr, $attribute:ident, $merged:expr) => {
+            assert_ne!(
+                $src_a.$attribute,
+                $src_b.$attribute,
+                "Compared attributes must differ before merging, because it is impossible to observe overriding behaviour during merges if the overriding and overridden attributes are the same."
+            );
+            assert_eq!($src_a.$attribute, $merged.$attribute);
+        };
+    }
+
+    #[test]
+    fn test_toml_config_overriding_order() {
+        let cli = TomlConfigBuilder::default()
+            .interval(Some(3.0))
+            .cursor_bg(Color::Blue)
+            .selected_bg(Color::Yellow)
+            .header_lines(None)
+            .build()
+            .unwrap();
+
+        let local = TomlConfigBuilder::default()
+            .interval(Some(2.0))
+            .cursor_fg(Color::Gray)
+            .header_bg(Color::Magenta)
+            .header_lines(None)
+            .build()
+            .unwrap();
+
+        let global = TomlConfigBuilder::default()
+            .cursor_bg(Color::Red)
+            .cursor_fg(Color::Green)
+            .header_lines(Some(4))
+            .build()
+            .unwrap();
+
+        let default = TomlConfigBuilder::default()
+            .selected_bg(Color::Black)
+            .header_bg(Color::Red)
+            .header_lines(Some(5))
+            .build()
+            .unwrap();
+
+        let merged = TomlConfig::apply_config_overriding_order(
+            cli.clone(),
+            Some(local.clone()),
+            Some(global.clone()),
+            default.clone(),
+        );
+
+        assert_a_overrides_b_on_attribute!(cli, local, interval, merged);
+        assert_a_overrides_b_on_attribute!(cli, global, cursor_bg, merged);
+        assert_a_overrides_b_on_attribute!(cli, default, selected_bg, merged);
+        assert_a_overrides_b_on_attribute!(local, global, cursor_fg, merged);
+        assert_a_overrides_b_on_attribute!(local, default, header_bg, merged);
+        assert_a_overrides_b_on_attribute!(global, default, header_lines, merged);
     }
 }

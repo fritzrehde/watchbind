@@ -6,7 +6,8 @@ use std::io::Write;
 use tabwriter::TabWriter;
 
 // TODO: could also be char, but that makes it more restrictive
-#[derive(Deserialize, FromStr, Clone, AsRef)]
+#[derive(Debug, Deserialize, FromStr, Clone, AsRef)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct FieldSeparator(String);
 
 impl FieldSeparator {

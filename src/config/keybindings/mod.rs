@@ -85,7 +85,8 @@ impl TryFrom<StringKeybindings> for KeybindingsParsed {
 // TODO: remove once clap supports parsing directly into HashMap
 pub type ClapKeybindings = Vec<(String, Vec<String>)>;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct StringKeybindings(HashMap<String, Vec<String>>);
 
 impl StringKeybindings {

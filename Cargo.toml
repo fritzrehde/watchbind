@@ -53,3 +53,6 @@ pr-run-mode = "plan"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[dev-dependencies]
+derive_builder = "0.12.0"
