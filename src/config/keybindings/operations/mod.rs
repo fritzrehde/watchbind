@@ -33,7 +33,7 @@ impl Operations {
     }
 }
 
-#[derive(IntoIterator, Eq, Ord, PartialEq, PartialOrd, From, Clone)]
+#[derive(Debug, IntoIterator, Eq, Ord, PartialEq, PartialOrd, From, Clone)]
 pub struct OperationsParsed(#[into_iterator(ref)] Vec<OperationParsed>);
 
 impl TryFrom<Vec<String>> for OperationsParsed {

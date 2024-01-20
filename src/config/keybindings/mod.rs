@@ -36,6 +36,7 @@ impl Keybindings {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeybindingsParsed(HashMap<KeyEvent, OperationsParsed>);
 
 impl KeybindingsParsed {
@@ -89,19 +90,21 @@ pub type ClapKeybindings = Vec<(String, Vec<String>)>;
 #[cfg_attr(test, derive(PartialEq))]
 pub struct StringKeybindings(HashMap<String, Vec<String>>);
 
-impl StringKeybindings {
-    pub fn merge(new_opt: Option<Self>, old_opt: Option<Self>) -> Option<Self> {
-        match new_opt {
-            Some(new) => match old_opt {
-                Some(old) => {
-                    // new and old have same key => keep new value
-                    let mut merged = old.0;
-                    merged.extend(new.0);
+impl KeybindingsParsed {
+    /// Merge two keybinding hashmaps, where a value is taken from `opt_a` over
+    /// `opt_b` on identical keys.
+    pub fn merge(opt_a: Option<Self>, opt_b: Option<Self>) -> Option<Self> {
+        match opt_a {
+            Some(a) => match opt_b {
+                Some(b) => {
+                    // `a` and `b` have same key => keep `a`'s value
+                    let mut merged = b.0;
+                    merged.extend(a.0);
                     Some(Self(merged))
                 }
-                None => Some(new),
+                None => Some(a),
             },
-            None => old_opt,
+            None => opt_b,
         }
     }
 }
