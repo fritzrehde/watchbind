@@ -97,7 +97,7 @@ impl StringKeybindings {
                     // new and old have same key => keep new value
                     let mut merged = old.0;
                     merged.extend(new.0);
-                    Some(StringKeybindings(merged))
+                    Some(Self(merged))
                 }
                 None => Some(new),
             },

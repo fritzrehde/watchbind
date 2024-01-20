@@ -12,8 +12,5 @@ const WATCHBIND_NAME: &str = "watchbind";
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if let Some(config) = Config::new()? {
-        UI::start(config).await?;
-    }
-    Ok(())
+    UI::start(Config::new()?).await
 }

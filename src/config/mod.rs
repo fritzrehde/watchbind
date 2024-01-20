@@ -52,9 +52,8 @@ const GLOBAL_CONFIG_FILE: &str = "config.toml";
 
 impl Config {
     /// Build a new `Config` from CLI options, local and global config files,
-    /// and default values. A return value of `None` indicates the program
-    /// should silently exit.
-    pub fn new() -> Result<Option<Self>> {
+    /// and default values.
+    pub fn new() -> Result<Self> {
         let cli_args = CliArgs::parse();
 
         // Setup logging, if requested.
@@ -63,18 +62,34 @@ impl Config {
         }
 
         let global_config_file_path = global_config_file_path()?;
-        let global_config_file: Option<PathBuf> = (global_config_file_path.is_file()
+        let global_config_file: Option<&PathBuf> = (global_config_file_path.is_file()
             && global_config_file_path.exists())
-        .then_some(global_config_file_path);
-        let local_config_file: Option<PathBuf> = cli_args.local_config_file.clone();
+        .then_some(&global_config_file_path);
+        let local_config_file: Option<&PathBuf> = cli_args.local_config_file.as_ref();
 
         // If global and/or local config files were provided, parse them into `TomlConfig`s.
-        let global_toml = global_config_file.map(TomlConfig::parse).transpose()?;
-        let local_toml = local_config_file.map(TomlConfig::parse).transpose()?;
+        let global_toml = global_config_file
+            .map(TomlConfig::parse)
+            .transpose()
+            .with_context(|| {
+                format!(
+                    "Failed to parse global toml config file located at {}",
+                    global_config_file_path.display()
+                )
+            })?;
+        let local_toml = local_config_file
+            .map(TomlConfig::parse)
+            .transpose()
+            .with_context(|| {
+                format!(
+                    "Failed to parse local toml config file located at {}",
+                    global_config_file_path.display()
+                )
+            })?;
         let cli_toml: TomlConfig = cli_args.into();
         let default_toml = TomlConfig::default();
 
-        dbg!(&cli_toml, &local_toml, &global_toml, &default_toml);
+        dbg!(&global_toml);
 
         let toml_config = TomlConfig::apply_config_overriding_order(
             cli_toml,
@@ -83,8 +98,7 @@ impl Config {
             default_toml,
         );
 
-        let config = toml_config.try_into()?;
-        Ok(Some(config))
+        toml_config.try_into()
     }
 
     /// Configure the logger to save logs to a `log_file`.
