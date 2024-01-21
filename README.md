@@ -74,8 +74,9 @@ Then, we make this static output **dynamic** by re-executing it at a specified w
 
 There are several ways to configure watchbind's settings:
 1. **CLI arguments** (see `watchbind -h` for all available arguments).
-2. A **local TOML config file**, specified with `watchbind --local-config-file <FILE>`, that applies settings only to this watchbind instance.
-3. A **global TOML config file**, located either in the user-specified `WATCHBIND_CONFIG_DIR` environment variable or in the default config directory (see `watchbind -h` for the OS-specified default config directory), that applies settings to all watchbind instances.
+2. A **local TOML config file**, specified with `watchbind --local-config-file <FILE>`.
+3. A **global TOML config file**, located either in the user-specified `WATCHBIND_CONFIG_DIR` environment variable or in the default config directory (see `watchbind -h` for the OS-specific default config directory), is loaded automatically if it exists.
+The difference between the local and global config files is that the latter must not be specified with `--local-config-file <FILE>` on every watchbind invocation, making it convenient for global settings that should apply to all watchbind invocations.
 
 All configuration ways can be used at the same time, and `watchbind` will determine which settings to use according to the following configuration hierarchy:
 ```
