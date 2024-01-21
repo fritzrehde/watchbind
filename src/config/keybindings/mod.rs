@@ -2,6 +2,7 @@ mod key;
 mod operations;
 
 use anyhow::{bail, Context, Result};
+use derive_more::From;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::io::Write;
@@ -36,10 +37,26 @@ impl Keybindings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, From)]
 pub struct KeybindingsParsed(HashMap<KeyEvent, OperationsParsed>);
 
 impl KeybindingsParsed {
+    /// Merge two keybinding hashmaps, where a value is taken from `opt_a` over
+    /// `opt_b` on identical keys.
+    pub fn merge(opt_a: Option<Self>, opt_b: Option<Self>) -> Option<Self> {
+        match opt_a {
+            Some(a) => match opt_b {
+                Some(b) => {
+                    // If `a` and `b` have same key => keep `a`'s value
+                    let mut merged = b.0;
+                    merged.extend(a.0);
+                    Some(Self(merged))
+                }
+                None => Some(a),
+            },
+            None => opt_b,
+        }
+    }
     /// Write formatted version (insert elastic tabstops) to a buffer.
     fn write<W: Write>(&self, writer: W) -> Result<()> {
         let mut tw = TabWriter::new(writer);
@@ -90,25 +107,6 @@ pub type ClapKeybindings = Vec<(String, Vec<String>)>;
 #[cfg_attr(test, derive(PartialEq))]
 pub struct StringKeybindings(HashMap<String, Vec<String>>);
 
-impl KeybindingsParsed {
-    /// Merge two keybinding hashmaps, where a value is taken from `opt_a` over
-    /// `opt_b` on identical keys.
-    pub fn merge(opt_a: Option<Self>, opt_b: Option<Self>) -> Option<Self> {
-        match opt_a {
-            Some(a) => match opt_b {
-                Some(b) => {
-                    // `a` and `b` have same key => keep `a`'s value
-                    let mut merged = b.0;
-                    merged.extend(a.0);
-                    Some(Self(merged))
-                }
-                None => Some(a),
-            },
-            None => opt_b,
-        }
-    }
-}
-
 impl From<ClapKeybindings> for StringKeybindings {
     fn from(clap: ClapKeybindings) -> Self {
         Self(clap.into_iter().collect())
@@ -130,4 +128,57 @@ pub fn parse_str(s: &str) -> Result<(String, Vec<String>)> {
             .map(|op| op.trim().to_owned())
             .collect(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_merge_keybindings() {
+        let k1 = KeyEvent::new(KeyModifier::None, KeyCode::BackTab);
+        let k2 = KeyEvent::new(KeyModifier::None, KeyCode::Backspace);
+        let k3 = KeyEvent::new(KeyModifier::None, KeyCode::Delete);
+
+        let v1 = OperationsParsed::from(vec![OperationParsed::ExecuteBlocking("v1".to_string())]);
+        let v2 = OperationsParsed::from(vec![OperationParsed::ExecuteBlocking("v2".to_string())]);
+        let v3 = OperationsParsed::from(vec![OperationParsed::ExecuteBlocking("v3".to_string())]);
+        let v4 = OperationsParsed::from(vec![OperationParsed::ExecuteBlocking("v4".to_string())]);
+
+        let a: KeybindingsParsed = HashMap::from([(k1.clone(), v1), (k3.clone(), v4)]).into();
+        let b: KeybindingsParsed = HashMap::from([(k1.clone(), v2), (k2.clone(), v3)]).into();
+
+        let merged = KeybindingsParsed::merge(Some(a.clone()), Some(b.clone()))
+            .expect("merge should not be empty given both inputs are some");
+
+        // Assert that values from `a` were prioritized over those from `b`.
+
+        // If both `a` and `b` contain `k1`, check that `a`'s value was used.
+        assert!(
+            a.0.contains_key(&k1) && b.0.contains_key(&k1),
+            "both a and b should contain k1"
+        );
+        assert_ne!(
+            a.0.get(&k1),
+            b.0.get(&k1),
+            "a and b should contain different values for k1"
+        );
+        assert_eq!(a.0.get(&k1), merged.0.get(&k1), "a's value should be used");
+
+        // If only `b` contains `k2` (and `a` does not), check that `b`'s
+        // value was used.
+        assert!(
+            b.0.contains_key(&k2) && !a.0.contains_key(&k2),
+            "only b should contain k2, a should not"
+        );
+        assert_eq!(b.0.get(&k2), merged.0.get(&k2), "b's value should be used");
+
+        // If only `a` contains `k3` (and `b` does not), check that `a`'s
+        // value was used.
+        assert!(
+            a.0.contains_key(&k3) && !b.0.contains_key(&k3),
+            "only a should contain k3, b should not"
+        );
+        assert_eq!(a.0.get(&k3), merged.0.get(&k3), "a's value should be used");
+    }
 }

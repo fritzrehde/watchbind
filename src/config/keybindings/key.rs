@@ -3,12 +3,13 @@ use crossterm::event::{
     KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
     KeyModifiers as CrosstermKeyModifiers,
 };
+use derive_new::new;
 use parse_display::{Display, FromStr};
 use std::{fmt, str};
 use strum::{EnumIter, EnumMessage, EnumProperty};
 
 /// The specific combinations of modifiers and key codes that we allow/handle.
-#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Debug, new)]
 pub struct KeyEvent {
     modifier: KeyModifier,
     code: KeyCode,
