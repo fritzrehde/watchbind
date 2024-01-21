@@ -551,10 +551,11 @@ pub struct CliArgs {
     #[arg(short = 'f', long = "fields", value_name = "LIST")]
     field_selections: Option<FieldSelections>,
 
+    // TODO: replace with ClapKeybindings (currently panics, known clap bug)
     // TODO: replace with StringKeybindings once clap supports parsing into HashMap
     /// Keybindings as comma-separated `KEY:OP[+OP]*` pairs, e.g. `q:select+exit,r:reload`.
     #[arg(short = 'b', long = "bind", value_name = "LIST", value_delimiter = ',', value_parser = keybindings::parse_str)]
-    keybindings: Option<ClapKeybindings>,
+    keybindings: Option<Vec<(String, Vec<String>)>>,
 }
 
 /// Convert [[&str, String]] to [[String, String]] by calling str::to_owned().
