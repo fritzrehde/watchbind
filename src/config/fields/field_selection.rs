@@ -5,7 +5,8 @@ use std::{ops::RangeInclusive, str::FromStr};
 
 /// A collection of field selection ranges. The overlapping of multiple ranges
 /// is tolerated and should be optimized by the underlying data structure.
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct FieldSelections(#[serde(deserialize_with = "deserialize_ranges")] Ranges<usize>);
 
 /// Describes a range of fields that should be included in the selection.

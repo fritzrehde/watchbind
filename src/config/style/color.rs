@@ -7,7 +7,8 @@ use std::fmt;
 use strum::{EnumIter, IntoEnumIterator};
 
 /// A wrapper around ratatui's `Color`.
-#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[derive(Debug, Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Color {
@@ -34,7 +35,7 @@ pub enum Color {
 }
 
 impl Color {
-    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    /// Returns `other` if self is `Unspecified`, otherwise returns `self`.
     pub fn or(self, other: Self) -> Self {
         match self {
             Color::Unspecified => other,

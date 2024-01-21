@@ -17,6 +17,7 @@ use crate::utils::command::{
 /// can't parse directly into Operation is because any operations that execute
 /// something need to receive access to the globally set environment variables.
 #[derive(
+    Debug,
     // For using as key in hashmap
     Eq,
     PartialEq,

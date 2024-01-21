@@ -4,7 +4,8 @@ use serde::Deserialize;
 use strum::EnumIter;
 
 /// A wrapper around ratatui's `Modifier::BOLD`.
-#[derive(Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[derive(Debug, Deserialize, FromStr, Display, Clone, Default, ValueEnum, EnumIter)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "kebab-case")]
 #[display(style = "kebab-case")]
 pub enum Boldness {
@@ -16,7 +17,7 @@ pub enum Boldness {
 }
 
 impl Boldness {
-    /// Returns `other` if self is `Unspecified`, otherwise returns self.
+    /// Returns `other` if self is `Unspecified`, otherwise returns `self`.
     pub fn or(self, other: Self) -> Self {
         match self {
             Boldness::Unspecified => other,
