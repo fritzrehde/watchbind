@@ -42,6 +42,11 @@ The [releases page](https://github.com/fritzrehde/watchbind/releases) contains p
 cargo install watchbind
 ```
 
+Or install the latest git version from the `main` branch:
+```sh
+cargo install --git https://github.com/fritzrehde/watchbind --branch main 
+```
+
 ### Distro Packages
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/watchbind.svg)](https://repology.org/project/watchbind/versions)
