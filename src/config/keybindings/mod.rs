@@ -57,6 +57,7 @@ impl KeybindingsParsed {
             None => opt_b,
         }
     }
+
     /// Write formatted version (insert elastic tabstops) to a buffer.
     fn write<W: Write>(&self, writer: W) -> Result<()> {
         let mut tw = TabWriter::new(writer);
