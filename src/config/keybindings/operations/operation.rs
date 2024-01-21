@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use parse_display::{Display, FromStr};
 use std::str;
 use std::sync::Arc;
@@ -6,12 +6,23 @@ use strum::{EnumIter, EnumMessage};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
 
+use crate::config::KeyEvent;
 use crate::ui::{EnvVariable, EnvVariables, Event, RequestedAction, State};
 use crate::utils::command::{
     Blocking, CommandBuilder, InheritedIO, NonBlocking, NonInterruptible, WithEnv, WithOutput,
 };
 
-// TODO: use some rust pattern (with types) instead of hardcoded Operation{,Parsed} variants
+#[derive(Display)]
+#[display("{parsed}")]
+pub struct Operation {
+    /// Used for executing an operation.
+    pub executable: OperationExecutable,
+
+    /// Used for displaying an operation with `fmt::Display`.
+    parsed: OperationParsed,
+}
+
+// TODO: use some rust pattern (with types) instead of hardcoded OperationParsed variant
 
 /// The version of Operation used for parsing and displaying. The reason we
 /// can't parse directly into Operation is because any operations that execute
@@ -94,7 +105,7 @@ pub enum OperationParsed {
     HelpToggle,
 }
 
-pub enum Operation {
+pub enum OperationExecutable {
     Exit,
     Reload,
     HelpShow,
@@ -132,46 +143,61 @@ pub enum SelectOperation {
 }
 
 impl Operation {
+    /// Execute the operation given the current `State` of the program. Perform
+    /// any additional async communication with the main event loop through the
+    /// `event_tx` channel. Also use the `key_event` that triggered this
+    /// operation for printing helpful error messages.
     pub async fn execute(
         &self,
         state: &mut State,
         event_tx: &Sender<Event>,
+        key_event: &KeyEvent,
     ) -> Result<RequestedAction> {
-        match self {
-            Self::MoveCursor(MoveCursor::Down(steps)) => state.move_down(*steps),
-            Self::MoveCursor(MoveCursor::Up(steps)) => state.move_up(*steps),
-            Self::MoveCursor(MoveCursor::First) => state.move_to_first(),
-            Self::MoveCursor(MoveCursor::Last) => state.move_to_last(),
-            Self::SelectLine(SelectOperation::Select) => state.select(),
-            Self::SelectLine(SelectOperation::Unselect) => state.unselect(),
-            Self::SelectLine(SelectOperation::ToggleSelection) => state.toggle_selection(),
-            Self::SelectLine(SelectOperation::SelectAll) => state.select_all(),
-            Self::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
-            Self::HelpShow => state.show_help_menu().await,
-            Self::HelpHide => state.hide_help_menu(),
-            Self::HelpToggle => state.toggle_help_menu().await,
-            Self::Reload => return Ok(RequestedAction::ReloadWatchedCommand),
-            Self::Exit => return Ok(RequestedAction::Exit),
-            Self::ExecuteNonBlocking(non_blocking_cmd) => {
+        match &self.executable {
+            OperationExecutable::MoveCursor(MoveCursor::Down(steps)) => state.move_down(*steps),
+            OperationExecutable::MoveCursor(MoveCursor::Up(steps)) => state.move_up(*steps),
+            OperationExecutable::MoveCursor(MoveCursor::First) => state.move_to_first(),
+            OperationExecutable::MoveCursor(MoveCursor::Last) => state.move_to_last(),
+            OperationExecutable::SelectLine(SelectOperation::Select) => state.select(),
+            OperationExecutable::SelectLine(SelectOperation::Unselect) => state.unselect(),
+            OperationExecutable::SelectLine(SelectOperation::ToggleSelection) => {
+                state.toggle_selection()
+            }
+            OperationExecutable::SelectLine(SelectOperation::SelectAll) => state.select_all(),
+            OperationExecutable::SelectLine(SelectOperation::UnselectAll) => state.unselect_all(),
+            OperationExecutable::HelpShow => state.show_help_menu().await,
+            OperationExecutable::HelpHide => state.hide_help_menu(),
+            OperationExecutable::HelpToggle => state.toggle_help_menu().await,
+            OperationExecutable::Reload => return Ok(RequestedAction::ReloadWatchedCommand),
+            OperationExecutable::Exit => return Ok(RequestedAction::Exit),
+            OperationExecutable::ExecuteNonBlocking(non_blocking_cmd) => {
                 state.add_cursor_and_selected_lines_to_env().await;
                 non_blocking_cmd.execute().await?;
                 state.remove_cursor_and_selected_lines_from_env().await;
             }
-            Self::ExecuteBlocking(blocking_cmd) => {
+            OperationExecutable::ExecuteBlocking(blocking_cmd) => {
                 state.add_cursor_and_selected_lines_to_env().await;
 
                 let blocking_cmd = Arc::clone(blocking_cmd);
                 let event_tx = event_tx.clone();
+                // TODO: inefficient: creating Strings that are only used in the (rare) error-case
+                let (op_to_string, key_to_string) = (self.to_string(), key_event.to_string());
                 tokio::spawn(async move {
-                    let result = blocking_cmd.execute().await;
+                    let result = blocking_cmd.execute().await.with_context(|| {
+                        format!("Execution of blocking subcommand \"{}\", triggered by key event \"{}\", failed", op_to_string, key_to_string)
+                    });
 
                     // Ignore whether the sender has closed channel.
                     let _ = event_tx.send(Event::SubcommandCompleted(result)).await;
                 });
 
+                // Don't call state.remove_cursor_and_selected_lines_from_env()
+                // here, because it would race with the spawned Tokio task. It
+                // will be called once this subcommand completes.
+
                 return Ok(RequestedAction::ExecutingBlockingSubcommand);
             }
-            Self::ExecuteTUI(tui_cmd) => {
+            OperationExecutable::ExecuteTUI(tui_cmd) => {
                 state.add_cursor_and_selected_lines_to_env().await;
 
                 // Create channels for waiting until TUI has actually been hidden.
@@ -179,19 +205,27 @@ impl Operation {
 
                 let tui_cmd = Arc::clone(tui_cmd);
                 let event_tx = event_tx.clone();
+                // TODO: inefficient: creating Strings that are only used in the (rare) error-case
+                let (op_to_string, key_to_string) = (self.to_string(), key_event.to_string());
                 tokio::spawn(async move {
                     // Wait until TUI has actually been hidden.
                     let _ = tui_hidden_rx.recv().await;
 
-                    let result = tui_cmd.execute().await;
+                    let result = tui_cmd.execute().await.with_context(|| {
+                        format!("Execution of TUI subcommand \"{}\", triggered by key event \"{}\", failed", op_to_string, key_to_string)
+                    });
 
                     // Ignore whether the sender has closed channel.
                     let _ = event_tx.send(Event::TUISubcommandCompleted(result)).await;
                 });
 
+                // Don't call state.remove_cursor_and_selected_lines_from_env()
+                // here, because it would race with the spawned Tokio task. It
+                // will be called once this subcommand completes.
+
                 return Ok(RequestedAction::ExecutingTUISubcommand(tui_hidden_tx));
             }
-            Self::SetEnv(env_variable, blocking_cmd) => {
+            OperationExecutable::SetEnv(env_variable, blocking_cmd) => {
                 state.add_cursor_and_selected_lines_to_env().await;
 
                 let blocking_cmd = blocking_cmd.clone();
@@ -212,44 +246,54 @@ impl Operation {
 
                 return Ok(RequestedAction::ExecutingBlockingSubcommandForEnv);
             }
-            Self::UnsetEnv(env) => state.unset_env(env).await,
-            Self::ReadIntoEnv(env) => state.read_into_env(env).await,
+            OperationExecutable::UnsetEnv(env) => state.unset_env(env).await,
+            OperationExecutable::ReadIntoEnv(env) => state.read_into_env(env).await,
         };
         Ok(RequestedAction::Continue)
     }
 
-    /// Convert the parsed form into the normal, runtime Operation form. The
+    /// Convert the parsed form into the normal, runtime executable form. The
     /// `env_variables` is required so it can be passed to the `SetEnv` command.
     pub fn from_parsed(parsed: OperationParsed, env_variables: &Arc<Mutex<EnvVariables>>) -> Self {
-        match parsed {
-            OperationParsed::Exit => Self::Exit,
-            OperationParsed::Reload => Self::Reload,
-            OperationParsed::MoveCursorUp(n) => Self::MoveCursor(MoveCursor::Up(n)),
-            OperationParsed::MoveCursorDown(n) => Self::MoveCursor(MoveCursor::Down(n)),
-            OperationParsed::MoveCursorFirst => Self::MoveCursor(MoveCursor::First),
-            OperationParsed::MoveCursorLast => Self::MoveCursor(MoveCursor::Last),
-            OperationParsed::SelectLine => Self::SelectLine(SelectOperation::Select),
-            OperationParsed::UnselectLine => Self::SelectLine(SelectOperation::Unselect),
-            OperationParsed::ToggleLineSelection => {
-                Self::SelectLine(SelectOperation::ToggleSelection)
+        let operation_executable = match parsed.clone() {
+            OperationParsed::Exit => OperationExecutable::Exit,
+            OperationParsed::Reload => OperationExecutable::Reload,
+            OperationParsed::MoveCursorUp(n) => OperationExecutable::MoveCursor(MoveCursor::Up(n)),
+            OperationParsed::MoveCursorDown(n) => {
+                OperationExecutable::MoveCursor(MoveCursor::Down(n))
             }
-            OperationParsed::SelectAllLines => Self::SelectLine(SelectOperation::SelectAll),
-            OperationParsed::UnselectAllLines => Self::SelectLine(SelectOperation::UnselectAll),
-            OperationParsed::ExecuteBlocking(cmd) => Self::ExecuteBlocking(Arc::new(
-                CommandBuilder::new(cmd)
-                    .blocking()
-                    .with_env(env_variables.clone()),
-            )),
-            OperationParsed::ExecuteNonBlocking(cmd) => Self::ExecuteNonBlocking(Arc::new(
-                CommandBuilder::new(cmd).with_env(env_variables.clone()),
-            )),
-            OperationParsed::ExecuteTUI(cmd) => Self::ExecuteTUI(Arc::new(
+            OperationParsed::MoveCursorFirst => OperationExecutable::MoveCursor(MoveCursor::First),
+            OperationParsed::MoveCursorLast => OperationExecutable::MoveCursor(MoveCursor::Last),
+            OperationParsed::SelectLine => OperationExecutable::SelectLine(SelectOperation::Select),
+            OperationParsed::UnselectLine => {
+                OperationExecutable::SelectLine(SelectOperation::Unselect)
+            }
+            OperationParsed::ToggleLineSelection => {
+                OperationExecutable::SelectLine(SelectOperation::ToggleSelection)
+            }
+            OperationParsed::SelectAllLines => {
+                OperationExecutable::SelectLine(SelectOperation::SelectAll)
+            }
+            OperationParsed::UnselectAllLines => {
+                OperationExecutable::SelectLine(SelectOperation::UnselectAll)
+            }
+            OperationParsed::ExecuteBlocking(cmd) => {
+                OperationExecutable::ExecuteBlocking(Arc::new(
+                    CommandBuilder::new(cmd)
+                        .blocking()
+                        .with_env(env_variables.clone()),
+                ))
+            }
+            OperationParsed::ExecuteNonBlocking(cmd) => OperationExecutable::ExecuteNonBlocking(
+                Arc::new(CommandBuilder::new(cmd).with_env(env_variables.clone())),
+            ),
+            OperationParsed::ExecuteTUI(cmd) => OperationExecutable::ExecuteTUI(Arc::new(
                 CommandBuilder::new(cmd)
                     .blocking()
                     .inherited_io()
                     .with_env(env_variables.clone()),
             )),
-            OperationParsed::SetEnv(env_var, cmd) => Self::SetEnv(
+            OperationParsed::SetEnv(env_var, cmd) => OperationExecutable::SetEnv(
                 env_var,
                 Arc::new(
                     CommandBuilder::new(cmd)
@@ -258,11 +302,15 @@ impl Operation {
                         .with_env(env_variables.clone()),
                 ),
             ),
-            OperationParsed::UnsetEnv(x) => Self::UnsetEnv(x),
-            OperationParsed::ReadIntoEnv(x) => Self::ReadIntoEnv(x),
-            OperationParsed::HelpShow => Self::HelpShow,
-            OperationParsed::HelpHide => Self::HelpHide,
-            OperationParsed::HelpToggle => Self::HelpToggle,
+            OperationParsed::UnsetEnv(x) => OperationExecutable::UnsetEnv(x),
+            OperationParsed::ReadIntoEnv(x) => OperationExecutable::ReadIntoEnv(x),
+            OperationParsed::HelpShow => OperationExecutable::HelpShow,
+            OperationParsed::HelpHide => OperationExecutable::HelpHide,
+            OperationParsed::HelpToggle => OperationExecutable::HelpToggle,
+        };
+        Self {
+            executable: operation_executable,
+            parsed,
         }
     }
 }

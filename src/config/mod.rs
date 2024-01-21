@@ -25,16 +25,13 @@ use crate::config::keybindings::{KeyCode, KeyModifier};
 use crate::config::style::PrettyColor;
 use crate::utils::possible_enum_values::PossibleEnumValues;
 
+use self::fields::{FieldSelections, FieldSeparator};
 use self::keybindings::{KeybindingsParsed, StringKeybindings};
 use self::style::{Boldness, Color, Style};
-use self::{
-    fields::{FieldSelections, FieldSeparator},
-    keybindings::ClapKeybindings,
-};
 
 pub use self::fields::{Fields, TableFormatter};
 pub use self::keybindings::{
-    KeyEvent, Keybindings, Operation, OperationParsed, Operations, OperationsParsed,
+    KeyEvent, Keybindings, OperationExecutable, OperationParsed, Operations, OperationsParsed,
 };
 pub use self::style::Styles;
 

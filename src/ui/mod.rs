@@ -379,7 +379,10 @@ impl UI {
     ) -> Result<ControlFlow> {
         if let Some(ops) = self.keybindings.get_operations(&key) {
             for (idx, op) in ops.into_iter().enumerate().skip(starting_index) {
-                match op.execute(&mut self.state, &self.channels.event_tx).await? {
+                match op
+                    .execute(&mut self.state, &self.channels.event_tx, &key)
+                    .await?
+                {
                     RequestedAction::Exit => return Ok(ControlFlow::Exit),
                     RequestedAction::ReloadWatchedCommand => {
                         // Send the command execution an interrupt signal

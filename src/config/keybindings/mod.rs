@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 use crate::ui::EnvVariables;
 
 pub use self::key::{KeyCode, KeyEvent, KeyModifier};
-pub use self::operations::{Operation, OperationParsed, Operations, OperationsParsed};
+pub use self::operations::{OperationExecutable, OperationParsed, Operations, OperationsParsed};
 
 pub struct Keybindings(HashMap<KeyEvent, Operations>);
 
