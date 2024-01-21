@@ -20,26 +20,29 @@ interval = 3
 
 # Delete (multiple) files
 "d" = [
-  '''exec -- echo "$lines" | xargs -I {} rm "$pwd/{}"''',
+  'exec -- echo "$lines" | xargs -I {} rm "$pwd/{}"',
   "reload"
 ]
 
 # Open file (blocking)
-"o" = [ '''exec -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"''' ]
+"o" = [ 'exec -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' ]
 
 # Open file (non-blocking in background)
-"O" = [ '''exec & -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"''' ]
+"O" = [ 'exec & -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' ]
+
+# Edit text file in TUI editor
+"e" = [ 'exec tui -- echo "$line" | xargs -I {} $EDITOR "$pwd/{}"' ]
 
 # Traverse out of directories
 "h" = [ 
   # Set $pwd to the parent dir of current dir
-  '''set-env pwd -- printf "$(dirname "$pwd")"''',
+  'set-env pwd -- printf "$(dirname "$pwd")"',
   "reload"
 ]
 # Traverse into directories
 "l" = [ 
   # Only update $pwd if it is a directory
-  '''set-env pwd -- new_pwd="$pwd/$line"; [ -d "$new_pwd" ] && pwd="$new_pwd"; printf "$pwd"''',
+  'set-env pwd -- new_pwd="$pwd/$line"; [ -d "$new_pwd" ] && pwd="$new_pwd"; printf "$pwd"',
   "reload"
 ]
 

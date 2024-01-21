@@ -8,7 +8,7 @@ use ratatui::Frame;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::config::{Fields, Operation, Operations, OperationsParsed, Styles};
+use crate::config::{Fields, OperationExecutable, Operations, OperationsParsed, Styles};
 
 use self::{
     help_menu::HelpMenu,
@@ -178,14 +178,15 @@ impl State {
 
         // TODO: consider trying to use async iterators to do this in one iterator pass (instead of the mut hashmap) once stable
         for (i, op) in initial_env_ops.into_iter().enumerate() {
-            match (i, op) {
-                (_, Operation::SetEnv(env_var, blocking_cmd)) => {
+            match (i, op.executable) {
+                (_, OperationExecutable::SetEnv(env_var, blocking_cmd)) => {
                     let cmd_output = blocking_cmd.execute().await?;
                     self.set_env(env_var, cmd_output).await;
                 }
                 (op_index, _) => {
-                    // Delay retrieval of printable `OperationParsed` until error case
-                    // => improve performance for correct use of "set-env".
+                    // Delay retrieval of printable `OperationParsed` until
+                    // this error case => improve performance for correct use
+                    // of "set-env".
                     let other_op = initial_env_ops_parsed
                         .into_iter()
                         .nth(op_index)

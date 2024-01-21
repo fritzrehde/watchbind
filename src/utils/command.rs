@@ -29,40 +29,31 @@ pub struct CommandBuilder<B = NonBlocking, E = WithoutEnv, O = NoOutput, I = Non
 // Type-States
 
 // <B> Blocking behavior
-
 /// The command is executed non-blockingly.
 pub struct NonBlocking;
-
 /// The command is executed blockingly.
 pub struct Blocking;
 
 // <E> Environment variables
-
 /// The global `EnvVariables` are **not** made available in the child process.
 pub struct WithoutEnv;
-
 /// The global `EnvVariables` are made available in the sub-process.
 pub struct WithEnv {
     env_variables: Arc<Mutex<EnvVariables>>,
 }
 
 // <O> Ouput/Input
-
 /// The output of the executed command is **not** captured.
 pub struct NoOutput;
-
 /// The output of the executed command is captured.
 pub struct WithOutput;
-
 /// The output of the executed command is **not** captured, but the child
 /// process inherits stdin and stdout of the parent process.
 pub struct InheritedIO;
 
 // <I> Interruptibility
-
 /// The execution of the child process is **non**-interruptible.
 pub struct NonInterruptible;
-
 /// The execution of the child process can be interrupted by sending an
 /// `InterruptSignal` to the `interrupt_rx` channel receiver.
 pub struct Interruptible {
@@ -80,7 +71,6 @@ pub struct Interruptible {
 impl CommandBuilder {
     pub fn new(command: String) -> Self {
         CommandBuilder {
-            // TODO: i think we don't even need command anymore, just the tokiocommand
             command,
             blocking: NonBlocking,
             output: NoOutput,
@@ -202,6 +192,7 @@ impl<B, O, I> CommandBuilder<B, WithoutEnv, O, I> {
 
         let mut command = TokioCommand::new(sh[0]);
         command.args(&sh[1..]);
+
         command.stdin(&self.tokio_command.stdin);
         command.stdout(&self.tokio_command.stdout);
         command.stderr(&self.tokio_command.stderr);
@@ -216,8 +207,9 @@ impl<B, O, I> CommandBuilder<B, WithEnv, O, I> {
         let sh = ["sh", "-c", &self.command];
 
         let mut command = TokioCommand::new(sh[0]);
-
         command.args(&sh[1..]);
+
+        command.stdin(&self.tokio_command.stdin);
         command.stdout(&self.tokio_command.stdout);
         command.stderr(&self.tokio_command.stderr);
 
@@ -234,13 +226,6 @@ impl<B, O, I> CommandBuilder<B, WithEnv, O, I> {
 impl CommandBuilder<NonBlocking, WithoutEnv, NoOutput, NonInterruptible> {
     pub async fn execute(&self) -> Result<()> {
         self.create_shell_command().await.spawn()?;
-
-        // create_shell_command(&self.command)
-        //     // We only need stderr in case of an error, stdout can be ignored
-        //     .stdout(Stdio::null())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         Ok(())
     }
 }
@@ -248,14 +233,6 @@ impl CommandBuilder<NonBlocking, WithoutEnv, NoOutput, NonInterruptible> {
 impl CommandBuilder<NonBlocking, WithEnv, NoOutput, NonInterruptible> {
     pub async fn execute(&self) -> Result<()> {
         self.create_shell_command().await.spawn()?;
-
-        // let env_variables = self.env.env_variables.lock().await.deref().into();
-        // create_shell_command_with_env(&self.command, env_variables)
-        //     // We only need stderr in case of an error, stdout can be ignored
-        //     .stdout(Stdio::null())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         Ok(())
     }
 }
@@ -264,15 +241,9 @@ impl CommandBuilder<Blocking, WithEnv, NoOutput, NonInterruptible> {
     pub async fn execute(&self) -> Result<()> {
         let mut child = self.create_shell_command().await.spawn()?;
 
-        // let env_variables = self.env.env_variables.lock().await.deref().into();
-        // let mut child = create_shell_command_with_env(&self.command, env_variables)
-        //     // We only need stderr in case of an error, stdout can be ignored
-        //     .stdout(Stdio::null())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         let exit_status = child.wait().await?;
-        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+        self.assert_child_exited_successfully(exit_status, &mut child.stderr)
+            .await?;
 
         Ok(())
     }
@@ -283,7 +254,8 @@ impl CommandBuilder<Blocking, WithEnv, InheritedIO, NonInterruptible> {
         let mut child = self.create_shell_command().await.spawn()?;
 
         let exit_status = child.wait().await?;
-        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+        self.assert_child_exited_successfully(exit_status, &mut child.stderr)
+            .await?;
 
         Ok(())
     }
@@ -293,16 +265,11 @@ impl CommandBuilder<Blocking, WithoutEnv, WithOutput, NonInterruptible> {
     pub async fn execute(&self) -> Result<String> {
         let mut child = self.create_shell_command().await.spawn()?;
 
-        // let mut child = create_shell_command(&self.command)
-        //     // Keep both stdout and stderr
-        //     .stdout(Stdio::piped())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         let exit_status = child.wait().await?;
-        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+        self.assert_child_exited_successfully(exit_status, &mut child.stderr)
+            .await?;
 
-        // Read stdout
+        // Read stdout.
         let mut stdout = String::new();
         child.stdout.unwrap().read_to_string(&mut stdout).await?;
 
@@ -314,17 +281,11 @@ impl CommandBuilder<Blocking, WithEnv, WithOutput, NonInterruptible> {
     pub async fn execute(&self) -> Result<String> {
         let mut child = self.create_shell_command().await.spawn()?;
 
-        // let env_variables = self.env.env_variables.lock().await.deref().into();
-        // let mut child = create_shell_command_with_env(&self.command, env_variables)
-        //     // Keep both stdout and stderr
-        //     .stdout(Stdio::piped())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         let exit_status = child.wait().await?;
-        assert_child_exited_successfully(exit_status, &mut child.stderr).await?;
+        self.assert_child_exited_successfully(exit_status, &mut child.stderr)
+            .await?;
 
-        // Read stdout
+        // Read stdout.
         let mut stdout = String::new();
         child.stdout.unwrap().read_to_string(&mut stdout).await?;
 
@@ -350,23 +311,15 @@ impl CommandBuilder<Blocking, WithEnv, WithOutput, Interruptible> {
     pub async fn execute(&mut self) -> Result<ExecutionResult> {
         let mut child = self.create_shell_command().await.spawn()?;
 
-        // let env_variables = self.env.env_variables.lock().await.deref().into();
-
-        // let mut child = create_shell_command_with_env(&self.command, env_variables)
-        //     // Keep both stdout and stderr
-        //     .stdout(Stdio::piped())
-        //     .stderr(Stdio::piped())
-        //     .spawn()?;
-
         tokio::select! {
             _ = self.interruptible.interrupt_rx.recv() => {
                 child.kill().await?;
                 Ok(ExecutionResult::Interrupted)
             },
             exit_status = child.wait() => {
-                assert_child_exited_successfully(exit_status?, &mut child.stderr).await?;
+                self.assert_child_exited_successfully(exit_status?, &mut child.stderr).await?;
 
-                // Read stdout
+                // Read stdout.
                 let mut stdout = String::new();
                 // TODO: remove unwrap()
                 child.stdout.unwrap().read_to_string(&mut stdout).await?;
@@ -395,36 +348,39 @@ impl<B, E, O> CommandBuilder<B, E, O, Interruptible> {
     }
 }
 
-/// Return an error in case the exit status/exit code indicates failure, and
-/// include stderr in error message.
-async fn assert_child_exited_successfully(
-    exit_status: ExitStatus,
-    stderr: &mut Option<tokio::process::ChildStderr>,
-) -> Result<()> {
-    if !exit_status.success() {
-        // Read exit code
-        let status_code_str = match exit_status.code() {
-            Some(code) => Cow::Owned(code.to_string()),
-            None => Cow::Borrowed("unknown"),
-        };
+impl<B, E, O, I> CommandBuilder<B, E, O, I> {
+    /// Return an error in case the exit status/exit code indicates failure, and
+    /// include stderr in error message.
+    async fn assert_child_exited_successfully(
+        &self,
+        exit_status: ExitStatus,
+        stderr: &mut Option<tokio::process::ChildStderr>,
+    ) -> Result<()> {
+        if !exit_status.success() {
+            // Read exit code.
+            let status_code_str = match exit_status.code() {
+                Some(code) => Cow::Owned(format!("status code {}", code)),
+                None => Cow::Borrowed("unknown status code"),
+            };
 
-        let stderr_str = match stderr {
-            Some(stderr) => {
-                // Read stderr
-                let mut stderr_str = String::new();
-                stderr.read_to_string(&mut stderr_str).await?;
-
-                Cow::Owned(format!("stderr:\n{}", stderr_str))
-            }
-            None => Cow::Borrowed("unknown stderr"),
-        };
-        bail!(
-            "Process exited with status code: {} and stderr: {}",
-            status_code_str,
-            stderr_str
-        );
+            let stderr_str = match stderr {
+                Some(stderr) => {
+                    // Read stderr.
+                    let mut stderr_str = String::new();
+                    stderr.read_to_string(&mut stderr_str).await?;
+                    Cow::Owned(format!("--STDERR--\n{}\n----------", stderr_str))
+                }
+                None => Cow::Borrowed("unknown STDERR"),
+            };
+            bail!(
+                "Process \"{}\" exited with {}:\n{}",
+                self.command,
+                status_code_str,
+                stderr_str
+            );
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 // TODO: update tests

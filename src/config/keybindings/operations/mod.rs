@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::ui::EnvVariables;
 
-pub use self::operation::{Operation, OperationParsed};
+pub use self::operation::{Operation, OperationExecutable, OperationParsed};
 
 #[derive(IntoIterator, From)]
 pub struct Operations(#[into_iterator(ref)] Vec<Operation>);
