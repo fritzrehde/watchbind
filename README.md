@@ -191,10 +191,10 @@ Operation | Description
 `help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings.
 
 All `CMD` and `TUI-CMD` shell commands will be executed in a subshell (i.e. `sh -c "CMD"`) that has some environment variables set.
-The environment variable `line` is set to the line the cursor is on.
-The environment variable `lines` set to all selected lines, or if none are selected, the line the cursor is currently on.
+The environment variable `$line` is set to the line the cursor is on.
+The environment variable `$lines` set to all selected lines, or if none are selected, the line the cursor is currently on.
 All set environment variables `ENV` will be made available in all future spawned commands/processes, including the watched command, any executed subcommands, as well as commands executed in `set-env` operations.
-If multiple lines are selected, they will be separated by newlines in `lines`.
+If multiple lines are selected, they will be separated by newlines in `$lines`.
 
 ### Styling
 
@@ -251,7 +251,7 @@ Choose only specific fields to display.
 You can specify a comma-separated list of the indexes (starting at index 1) for individual fields (`X`), ranges (`X-Y`), or the capture of all fields from X onwards (`X-`).
 For instance, the field selection `1,3-4,6-` will display the first, third and fourth fields, as well as all fields from the sixth onwards.
 
-**Important**: The `lines` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
+**Important**: The `$lines` passed to the `exec --` operations will remain unformatted, i.e. will not have the separators replaced with elastic tabstops and will not have non-selected fields ommitted.
 
 ### State management
 
@@ -314,3 +314,9 @@ But note that
 watchbind --bind "enter:notify-send $lines" ls
 ```
 will not work as expected, because `$lines` will be replaced in the shell you are running the `watchbind` command from.
+
+### UI updates while blocking
+
+Watchbind can enter blocking states when a blocking subcommand is executed.
+The default behaviour in a blocking state is to *not* display any new output lines received from the watched command.
+However, this behaviour can easily be customized with the `--update-ui-while-blocking <BOOL>` option.
