@@ -46,6 +46,7 @@ pub struct Config {
     pub header_lines: usize,
     pub fields: Fields,
     pub initial_env_ops: OperationsParsed,
+    pub update_ui_while_blocking: bool,
 }
 
 const GLOBAL_CONFIG_FILE: &str = "config.toml";
@@ -104,18 +105,32 @@ fn global_config_file_path() -> Result<PathBuf> {
     Ok(global_config_dir)
 }
 
+/// Some `PartialConfig` fields **must** be set once everything has been
+/// merged. Panic with this error message if that is not the case.
+macro_rules! expect {
+    ($obj:expr, $field:ident) => {
+        $obj.$field.expect(const_format::formatcp!(
+            "Expected field '{}' to be set in the default TOML config",
+            stringify!($field)
+        ))
+    };
+}
+
 impl TryFrom<PartialConfig> for Config {
     type Error = anyhow::Error;
-    fn try_from(toml: PartialConfig) -> Result<Self, Self::Error> {
+    fn try_from(config: PartialConfig) -> Result<Self, Self::Error> {
         let non_cursor_non_header_style = Style::new(
-            toml.non_cursor_non_header_fg,
-            toml.non_cursor_non_header_bg,
-            toml.non_cursor_non_header_boldness,
+            config.non_cursor_non_header_fg,
+            config.non_cursor_non_header_bg,
+            config.non_cursor_non_header_boldness,
         );
-        let cursor_style = Style::new(toml.cursor_fg, toml.cursor_bg, toml.cursor_boldness);
-        let header_style = Style::new(toml.header_fg, toml.header_bg, toml.header_boldness);
-        let selected_style =
-            Style::new(Color::Unspecified, toml.selected_bg, Boldness::Unspecified);
+        let cursor_style = Style::new(config.cursor_fg, config.cursor_bg, config.cursor_boldness);
+        let header_style = Style::new(config.header_fg, config.header_bg, config.header_boldness);
+        let selected_style = Style::new(
+            Color::Unspecified,
+            config.selected_bg,
+            Boldness::Unspecified,
+        );
         let styles = Styles::new(
             non_cursor_non_header_style,
             cursor_style,
@@ -123,21 +138,19 @@ impl TryFrom<PartialConfig> for Config {
             selected_style,
         );
 
-        // Some fields **must** contain a value in `TomlConfig::default()`.
-        // Panic with this error message if that is not the case.
-        let error_msg = "Should have a value in the default TOML config";
         Ok(Self {
-            log_file: toml.log_file,
-            initial_env_ops: toml.initial_env_vars.unwrap_or_default().try_into()?,
-            watched_command: match toml.watched_command {
+            log_file: config.log_file,
+            initial_env_ops: config.initial_env_vars.unwrap_or_default().try_into()?,
+            watched_command: match config.watched_command {
                 Some(command) => command,
                 None => bail!("A command must be provided via command line or config file"),
             },
-            watch_rate: Duration::from_secs_f64(toml.interval.expect(error_msg)),
+            watch_rate: Duration::from_secs_f64(expect!(config, interval)),
             styles,
-            keybindings_parsed: toml.keybindings.expect(error_msg),
-            header_lines: toml.header_lines.expect(error_msg),
-            fields: Fields::try_new(toml.field_separator, toml.field_selections)?,
+            keybindings_parsed: expect!(config, keybindings),
+            header_lines: expect!(config, header_lines),
+            fields: Fields::try_new(config.field_separator, config.field_selections)?,
+            update_ui_while_blocking: expect!(config, update_ui_while_blocking),
         })
     }
 }
@@ -164,6 +177,7 @@ pub struct PartialConfig {
     selected_bg: Color,
     field_selections: Option<FieldSelections>,
     field_separator: Option<FieldSeparator>,
+    update_ui_while_blocking: Option<bool>,
     keybindings: Option<KeybindingsParsed>,
 }
 
@@ -213,6 +227,9 @@ impl PartialConfig {
             header_lines: self.header_lines.or(other.header_lines),
             field_separator: self.field_separator.or(other.field_separator),
             field_selections: self.field_selections.or(other.field_selections),
+            update_ui_while_blocking: self
+                .update_ui_while_blocking
+                .or(other.update_ui_while_blocking),
             keybindings: KeybindingsParsed::merge(self.keybindings, other.keybindings),
         }
     }
@@ -221,7 +238,7 @@ impl PartialConfig {
     /// file type to be parsed from can be `global` or `local`.
     fn parse_from_optional_toml_file(
         opt_file: Option<&PathBuf>,
-        config_file_type: &'static str,
+        config_file_type: &str,
     ) -> Result<Option<PartialConfig>> {
         match opt_file {
             Some(file) => {
@@ -282,6 +299,8 @@ pub struct TomlFileConfig {
     field_selections: Option<FieldSelections>,
     field_separator: Option<FieldSeparator>,
 
+    update_ui_while_blocking: Option<bool>,
+
     keybindings: Option<StringKeybindings>,
 }
 
@@ -331,6 +350,7 @@ impl TryFrom<TomlFileConfig> for PartialConfig {
             header_lines: toml.header_lines,
             field_separator: toml.field_separator,
             field_selections: toml.field_selections,
+            update_ui_while_blocking: toml.update_ui_while_blocking,
             keybindings: toml
                 .keybindings
                 .map(KeybindingsParsed::try_from)
@@ -360,6 +380,7 @@ impl TryFrom<CliArgs> for PartialConfig {
             header_lines: cli.header_lines,
             field_separator: cli.field_separator,
             field_selections: cli.field_selections,
+            update_ui_while_blocking: cli.update_ui_while_blocking,
             keybindings: cli
                 .keybindings
                 .map(StringKeybindings::from)
@@ -369,6 +390,7 @@ impl TryFrom<CliArgs> for PartialConfig {
     }
 }
 
+// TODO: add test that checks that the default config sets all values.
 impl Default for PartialConfig {
     fn default() -> Self {
         let default_toml = indoc! {r#"
@@ -388,6 +410,8 @@ impl Default for PartialConfig {
 			"non-cursor-non-header-boldness" = "unspecified"
 
 			"selected-bg" = "magenta"
+
+            "update-ui-while-blocking" = false
 
 			[keybindings]
 			"ctrl+c" = [ "exit" ]
@@ -547,6 +571,11 @@ pub struct CliArgs {
     /// Comma-separated field selections/ranges, e.g. `X`, `X-Y`, `X-` (field indexes start at 1).
     #[arg(short = 'f', long = "fields", value_name = "LIST")]
     field_selections: Option<FieldSelections>,
+
+    /// Whether to update the UI with new output from the watched command
+    /// while in a blocking state.
+    #[arg(long, value_name = "BOOL")]
+    update_ui_while_blocking: Option<bool>,
 
     // TODO: replace with ClapKeybindings (currently panics, known clap bug)
     // TODO: replace with StringKeybindings once clap supports parsing into HashMap

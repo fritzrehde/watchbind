@@ -29,6 +29,7 @@ pub struct UI {
     keybindings: Arc<Keybindings>,
     remaining_operations: Option<RemainingOperations>,
     channels: Channels,
+    update_ui_while_blocking: bool,
 }
 
 /// After having blocked, there might be some remaining operations, that
@@ -207,6 +208,7 @@ impl UI {
                 reload_tx,
                 polling_tx,
             },
+            update_ui_while_blocking: config.update_ui_while_blocking,
         };
 
         Ok((ui, polling_state))
@@ -317,11 +319,11 @@ impl UI {
                 },
                 BlockingState::BlockedExecutingSubcommand => match event {
                     Event::CommandOutput(lines) => {
-                        // TODO: it's up for discussion if we really want this behaviour, need to find use-cases against first
-
-                        // We handle new output lines, but don't exit the
-                        // blocking state.
-                        self.state.update_lines(lines?)?;
+                        if self.update_ui_while_blocking {
+                            // We update the UI with the new output lines,
+                            // but don't exit the blocking state.
+                            self.state.update_lines(lines?)?;
+                        }
                     }
                     Event::SubcommandCompleted(potential_error) => {
                         potential_error?;
