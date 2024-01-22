@@ -68,9 +68,8 @@ impl Lines {
             .map(|(line, selected)| Row::new(vec![selected.draw(), line.draw()]))
             .collect();
 
-        let table = Table::new(rows)
-            .widths(&[Constraint::Length(1), Constraint::Percentage(100)])
-            .column_spacing(0);
+        let widths = [Constraint::Length(1), Constraint::Percentage(100)];
+        let table = Table::new(rows, widths).column_spacing(0);
 
         frame.render_stateful_widget(table, frame.size(), &mut self.table_state);
     }

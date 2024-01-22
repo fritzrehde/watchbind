@@ -9,7 +9,7 @@ initial-env = [ '''set-env pwd -- printf "$(pwd)"''' ]
 watched-command = '''echo "$pwd"; ls "$pwd"'''
 header-lines = 1
 
-# Since we reload after each operation that changes the output, a watch rate interval is not necessary.
+# Since we reload after each operation that changes the output, a small interval is not necessary.
 # But we enable need periodic reloads in case some other processes manipulated the filesystem.
 interval = 3
 

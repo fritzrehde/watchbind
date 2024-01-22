@@ -26,7 +26,7 @@ impl<'a> Line {
     /// The formatted string was formatted according to the user's field
     /// separator.
     /// The unformatted and formatted strings may both contain ANSI escape
-    /// codes, which will be converted incorporated into `displayed_text`.
+    /// codes, which will be incorporated into `displayed_text`.
     pub fn new(
         unformatted_ansi: String,
         formatted_ansi: Option<String>,
