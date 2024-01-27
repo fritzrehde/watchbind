@@ -15,11 +15,11 @@ selected-bg = "red"
 
 [keybindings]
 "esc" = [ "unselect-all", "help-hide" ]
-"q" = [ "exit" ]
-"j" = [ "cursor down 1" ]
-"A" = [ "select-all" ]
-"down" = [ "cursor down 1", "cursor down 1", "cursor down 1" ]
-"J" = [ "cursor down 3" ]
+"q" = { operations = "exit", description = "Exit watchbind." }
+"j" = "cursor down 1"
+"A" = { operations = "select-all", description = "Select all lines." }
+"down" = { operations = [ "cursor down 1", "cursor down 1", "cursor down 1" ], description = "Move the cursor down 3 lines in 3 separate steps." }
+"J" = { operations = "cursor down 3", description = "Move the cursor down 3 lines in one step." }
 "K" = [ 
   "cursor up 1",
   "cursor up 1",

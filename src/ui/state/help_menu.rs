@@ -1,70 +1,71 @@
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     text::Text,
-    widgets::{
-        Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
-    },
+    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::config::KeybindingsPrintable;
+
 use super::EnvVariables;
 
 pub struct HelpMenu {
     env_variables: Arc<Mutex<EnvVariables>>,
-    keybindings_str: String,
-    env_variables_str: String,
+    /// A local/non-shared copy of the shared `env_variables`.
+    env_variables_copy: EnvVariables,
+    keybindings: KeybindingsPrintable,
     vertical_scroll_index: usize,
     vertical_scroll_state: ScrollbarState,
 }
 
 // TODO: scrollbar should be hidden if not necessary; currently it's always shown
-// TODO: we should display a mapping of all set EnvVariables (with their actual values)
 
 impl HelpMenu {
-    pub fn new(keybindings_str: String, env_variables: Arc<Mutex<EnvVariables>>) -> Self {
+    pub fn new(keybindings: KeybindingsPrintable, env_variables: Arc<Mutex<EnvVariables>>) -> Self {
         HelpMenu {
-            // vertical_scroll_state: ScrollbarState::default()
-            //     .content_length(keybindings_str.lines().count() as u16),
             env_variables,
-            keybindings_str,
-            env_variables_str: String::default(),
+            env_variables_copy: EnvVariables::default(),
+            keybindings,
             vertical_scroll_state: ScrollbarState::default(),
             vertical_scroll_index: 0,
+            // vertical_scroll_state: ScrollbarState::default()
+            //     .content_length(keybindings_str.lines().count() as u16),
         }
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
         // TODO: maybe in the future, when we add more features for manipulating ENV variable state, we have to fetch the new
-        let area = centered_rect(50, 50, frame.size());
+        let popup_area = centered_rect(90, 90, frame.size());
+        // Get the inner popup width, so take borders into account.
+        let popup_width = popup_area.width - 2;
 
         let rendered_text = format!(
             "ENV VARIABLES:\n{}\nKEYBINDINGS:\n{}\n",
-            self.env_variables_str, self.keybindings_str
+            self.env_variables_copy.display(popup_width),
+            self.keybindings.display(popup_width)
         );
 
-        // let text: Text = self.keybindings_str.as_str().into();
         let text: Text = rendered_text.into();
 
         // Render the paragraph with the updated scroll state
         let paragraph = Paragraph::new(text)
             .block(Block::default().title("help").borders(Borders::ALL))
             .alignment(Alignment::Left)
-            .wrap(Wrap { trim: true })
             // scroll offset for each axis: (y, x)
             .scroll((self.vertical_scroll_index as u16, 0));
 
         // Render the scrollbar next to the paragraph
-        frame.render_widget(Clear, area);
-        frame.render_widget(paragraph, area);
+        frame.render_widget(Clear, popup_area);
+        frame.render_widget(paragraph, popup_area);
 
         frame.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(None)
                 .end_symbol(None),
-            area.inner(&Margin {
+            popup_area.inner(&Margin {
                 vertical: 1,
                 horizontal: 0,
             }),
@@ -109,7 +110,7 @@ impl HelpMenu {
     pub async fn show(&mut self) {
         // TODO: here, we would also have to set the vertical scroll length
         let env_variables = self.env_variables.lock().await;
-        self.env_variables_str = env_variables.to_string();
+        self.env_variables_copy = env_variables.clone();
     }
 
     pub fn hide(&mut self) {
@@ -118,8 +119,8 @@ impl HelpMenu {
 }
 
 /// Helper function to create a centered rect using up certain percentage
-/// of the available rect `r`
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+/// of the available rect `r`.
+pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(

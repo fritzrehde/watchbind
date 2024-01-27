@@ -8,7 +8,9 @@ use ratatui::Frame;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::config::{Fields, OperationExecutable, Operations, OperationsParsed, Styles};
+use crate::config::{
+    Fields, KeybindingsPrintable, OperationExecutable, Operations, OperationsParsed, Styles,
+};
 
 use self::{
     help_menu::HelpMenu,
@@ -36,7 +38,7 @@ impl State {
         header_lines: usize,
         fields: Fields,
         styles: Styles,
-        keybindings_str: String,
+        keybindings_str: KeybindingsPrintable,
         env_variables: EnvVariables,
     ) -> Self {
         let env_variables = Arc::new(Mutex::new(env_variables));
@@ -52,6 +54,11 @@ impl State {
         self.lines.render(frame);
 
         if let Mode::HelpMenu = self.mode {
+            // TODO: ratatui: how to constrain widget to certain custom frame
+            // let popup_frame = centered_rect(90, 90, frame.size());
+            // self.help_menu.render(popup_frame);
+            // dbg!(&frame);
+            log::info!("full-screen frame width: {:?}", &frame.size().width);
             self.help_menu.render(frame);
         }
     }
