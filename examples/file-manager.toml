@@ -3,10 +3,10 @@
 # Note: the `printf`s used in some commands are necessary to remove the newlines produced by their nested commands
 
 # Executed before the watched command is executed
-initial-env = [ '''set-env pwd -- printf "$(pwd)"''' ]
+initial-env = ['set-env pwd -- printf "$(pwd)"']
 
 # All env variables are set as env variables in subshell where watched command is executed
-watched-command = '''echo "$pwd"; ls "$pwd"'''
+watched-command = 'echo "$pwd"; ls "$pwd"'
 header-lines = 1
 
 # Since we reload after each operation that changes the output, a small interval is not necessary.
@@ -14,40 +14,39 @@ header-lines = 1
 interval = 3
 
 [keybindings]
-# Move cursor up and down
-"j" = [ "cursor down 1" ]
-"k" = [ "cursor up 1" ]
-
 # Delete (multiple) files
-"d" = [
+"d" = { description = "Delete (multiple) files", operations = [
   'exec -- echo "$lines" | xargs -I {} rm "$pwd/{}"',
-  "reload"
-]
+  "reload",
+] }
 
 # Open file (blocking)
-"o" = [ 'exec -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' ]
+"o" = { description = "Open file (blocking)", operations = 'exec -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' }
 
 # Open file (non-blocking in background)
-"O" = [ 'exec & -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' ]
+"O" = { description = "Open file (non-blocking in background)", operations = 'exec & -- echo "$lines" | xargs -I {} xdg-open "$pwd/{}"' }
 
 # Edit text file in TUI editor
-"e" = [ 'exec tui -- echo "$line" | xargs -I {} $EDITOR "$pwd/{}"' ]
+"e" = { description = "Edit text file in TUI editor", operations = 'exec tui -- echo "$line" | xargs -I {} $EDITOR "$pwd/{}"' }
 
 # Traverse out of directories
-"h" = [ 
+"h" = { description = "Traverse out of directories", operations = [
   # Set $pwd to the parent dir of current dir
   'set-env pwd -- printf "$(dirname "$pwd")"',
-  "reload"
-]
+  "reload",
+] }
+
 # Traverse into directories
-"l" = [ 
+"l" = { description = "Traverse into directories", operations = [
   # Only update $pwd if it is a directory
   'set-env pwd -- new_pwd="$pwd/$line"; [ -d "$new_pwd" ] && pwd="$new_pwd"; printf "$pwd"',
-  "reload"
-]
+  "reload",
+] }
 
 # Create a new file (with random name)
 # "n" = [ "exec -- touch $(mktemp new_file_XXXXXX.txt)", "reload" ]
+
+# TODO: read-into-env not yet supported
 
 # Create a new file
 # "n" = [

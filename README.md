@@ -105,20 +105,25 @@ The operations are separated by `+` and executed in succession (one after the ot
 
 #### Via TOML Config File
 
-In a TOML config file, specify keybindings like so:
+In a TOML config file, there are several different ways you can specify keybindings:
 ```toml
 [keybindings]
-"KEY" = [ "OP" ]
-"KEY" = [ "OP", "OP", "OP" ]
-"KEY" = [ 
-  "OP",
-  "OP"
-]
+# Single operation, without description
+"KEY" = "OP"
+
+# Single operation, with description
+"KEY" = { description = "DESC", operations = "OP" }
+
+# Multiple operations, without description
+"KEY" = [ "OP_1", "OP_2", "OP_3" ]
+
+# Multiple operations, with description
+"KEY" = { description = "DESC", operations = [ "OP_1", "OP_2", "OP_3" ] }
 ```
 
 This syntax differs from the command-line syntax because using the TOML array feature is more expressive and more native to the TOML file format.
-Furthermore, this allows you to use the `+` character in your commands.
-It also doesn't require escaping shell specific characters like `$` in  (read more [in this section](#subshell)).
+Furthermore, this allows you to use the `+` character in your commands, which is not possible with the CLI arguments (since that character is interpreted as a separator).
+It also doesn't require escaping shell specific characters like `$` (read more about subshell behaviour [here](#subshell)).
 
 You can find some keybinding examples in the [`examples/`](examples/) directory.
 
@@ -193,7 +198,7 @@ Operation | Description
 `exec tui -- <TUI-CMD>` | Execute a `TUI-CMD` that spawns a TUI (e.g. text editor). Watchbind's own TUI is replaced with `TUI-CMD`'s TUI until `TUI-CMD` terminates. Note that `TUI-CMD` must spawn a full-screen TUI that covers the entire terminal, otherwise undefined behaviour will ensue.
 `set-env <ENV> -- <CMD>` | Blockingly execute `CMD`, and save its output to the environment variable `ENV`.
 `unset-env <ENV> -- <CMD>` | Unsets environment variable `ENV`.
-`help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle\] the help menu that shows all activated keybindings.
+`help-[show\|hide\|toggle]` | \[Show\|Hide\|Toggle the visibility of\] the help menu.
 
 All `CMD` and `TUI-CMD` shell commands will be executed in a subshell (i.e. `sh -c "CMD"`) that has some environment variables set.
 The environment variable `$line` is set to the line the cursor is on.
@@ -263,6 +268,12 @@ For instance, the field selection `1,3-4,6-` will display the first, third and f
 The `set-env` and `unset-env` operations allow you to manage state through environment variables.
 Additionally, you can use the `initial-env` option to specify a list of `set-env` commands that will be executed **before** the first execution of the watched command.
 This powerful combination allows you to set some initial state with `initial-env`, reference that state directly in the watched command, and update the state with keybindings at runtime with `set-env`.
+
+### Help menu
+
+Watchbind supports a help menu that displays:
+- All environment variables set by `set-env` commands along with their values.
+- All keybindings along with the operations and the description they are mapped to, though you can customize what exactly gets displayed with `--keybindings-help-menu-format`.
 
 
 ## Tips

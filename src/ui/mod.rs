@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use terminal_manager::Tui;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
-use crate::config::{Config, KeyEvent, Keybindings};
+use crate::config::{Config, KeyEvent, Keybindings, KeybindingsPrintable};
 use crate::utils::command::{
     Blocking, CommandBuilder, ExecutionResult, Interruptible, WasWoken, WithEnv, WithOutput,
 };
@@ -160,12 +160,15 @@ impl UI {
         let terminal_manager = Tui::new()?;
 
         // Create `State`.
-        let keybindings_str = config.keybindings_parsed.to_string();
+        // let keybindings_str = config.keybindings_parsed.to_string();
         let mut state = State::new(
             config.header_lines,
             config.fields,
             config.styles,
-            keybindings_str,
+            KeybindingsPrintable::new(
+                config.keybindings_parsed.clone(),
+                config.keybindings_help_menu_format,
+            ),
             EnvVariables::new(),
         );
         state

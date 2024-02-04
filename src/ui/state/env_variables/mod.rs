@@ -1,13 +1,12 @@
 mod env_variable;
 
-use anyhow::Result;
-use itertools::Itertools;
-use std::{collections::HashMap, fmt, io::Write};
-use tabwriter::TabWriter;
+use std::collections::HashMap;
+
+use crate::config::Table;
 
 pub use self::env_variable::EnvVariable;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct EnvVariables(HashMap<EnvVariable, String>);
 
 impl EnvVariables {
@@ -32,30 +31,23 @@ impl EnvVariables {
         self.0.remove(env_var);
     }
 
-    /// Write formatted version (insert elastic tabstops) to a buffer.
-    fn write<W: Write>(&self, writer: W) -> Result<()> {
-        let mut tw = TabWriter::new(writer);
-        for (env_variable, value) in self.0.iter().sorted() {
-            writeln!(tw, "{}\t= \"{}\"", env_variable, value)?;
-        }
-        tw.flush()?;
-        Ok(())
-    }
+    pub fn display<U>(&self, display_width: U) -> String
+    where
+        usize: From<U>,
+    {
+        let column_names = &["environment variable".to_string(), "value".to_string()];
 
-    // TODO: code duplication from KeybindingsParsed
-    fn fmt(&self) -> Result<String> {
-        let mut buffer = vec![];
-        self.write(&mut buffer)?;
-        let written = String::from_utf8(buffer)?;
-        Ok(written)
-    }
-}
+        let rows_iter = self
+            .0
+            .iter()
+            .map(|(env_variable, value)| [env_variable.to_string(), value.to_owned()]);
 
-// TODO: code duplication from KeybindingsParsed
-impl fmt::Display for EnvVariables {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let formatted = self.fmt().map_err(|_| fmt::Error)?;
-        f.write_str(&formatted)
+        Table::new(rows_iter)
+            .width(Some(display_width))
+            .left_margin(2)
+            .header(column_names)
+            .border()
+            .make_string()
     }
 }
 

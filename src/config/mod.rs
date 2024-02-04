@@ -1,6 +1,7 @@
 mod fields;
 mod keybindings;
 mod style;
+mod table;
 mod xdg;
 
 use anyhow::{bail, Context, Error, Result};
@@ -9,14 +10,13 @@ use indoc::indoc;
 use serde::Deserialize;
 use simplelog::{LevelFilter, WriteLogger};
 use std::{
+    borrow::Cow,
     fs::{read_to_string, File},
     path::{Path, PathBuf},
     str::FromStr,
     time::Duration,
 };
-use tabled::settings::{peaker::PriorityMax, Margin, Padding, Style as TableStyle, Width};
-use tabled::{builder::Builder, Table};
-use terminal_size::{terminal_size, Width as TerminalWidth};
+use terminal_size::Width;
 
 #[cfg(test)]
 use derive_builder::Builder;
@@ -25,15 +25,20 @@ use crate::config::keybindings::{KeyCode, KeyModifier};
 use crate::config::style::PrettyColor;
 use crate::utils::possible_enum_values::PossibleEnumValues;
 
-use self::fields::{FieldSelections, FieldSeparator};
-use self::keybindings::{KeybindingsParsed, StringKeybindings};
+use self::keybindings::{KeybindingCli, KeybindingsHelpMenuFormat, KeybindingsToml};
 use self::style::{Boldness, Color, Style};
+use self::{
+    fields::{FieldSelections, FieldSeparator},
+    keybindings::KeybindingsCli,
+};
 
 pub use self::fields::{Fields, TableFormatter};
 pub use self::keybindings::{
-    KeyEvent, Keybindings, OperationExecutable, OperationParsed, Operations, OperationsParsed,
+    KeyEvent, Keybindings, KeybindingsParsed, KeybindingsPrintable, OperationExecutable,
+    OperationParsed, Operations, OperationsParsed,
 };
 pub use self::style::Styles;
+pub use self::table::Table;
 
 // TODO: don't have public members
 
@@ -43,6 +48,7 @@ pub struct Config {
     pub watch_rate: Duration,
     pub styles: Styles,
     pub keybindings_parsed: KeybindingsParsed,
+    pub keybindings_help_menu_format: KeybindingsHelpMenuFormat,
     pub header_lines: usize,
     pub fields: Fields,
     pub initial_env_ops: OperationsParsed,
@@ -148,6 +154,7 @@ impl TryFrom<PartialConfig> for Config {
             watch_rate: Duration::from_secs_f64(expect!(config, interval)),
             styles,
             keybindings_parsed: expect!(config, keybindings),
+            keybindings_help_menu_format: expect!(config, keybindings_help_menu_format),
             header_lines: expect!(config, header_lines),
             fields: Fields::try_new(config.field_separator, config.field_selections)?,
             update_ui_while_blocking: expect!(config, update_ui_while_blocking),
@@ -179,6 +186,7 @@ pub struct PartialConfig {
     field_separator: Option<FieldSeparator>,
     update_ui_while_blocking: Option<bool>,
     keybindings: Option<KeybindingsParsed>,
+    keybindings_help_menu_format: Option<KeybindingsHelpMenuFormat>,
 }
 
 impl PartialConfig {
@@ -231,6 +239,9 @@ impl PartialConfig {
                 .update_ui_while_blocking
                 .or(other.update_ui_while_blocking),
             keybindings: KeybindingsParsed::merge(self.keybindings, other.keybindings),
+            keybindings_help_menu_format: self
+                .keybindings_help_menu_format
+                .or(other.keybindings_help_menu_format),
         }
     }
 
@@ -301,7 +312,9 @@ pub struct TomlFileConfig {
 
     update_ui_while_blocking: Option<bool>,
 
-    keybindings: Option<StringKeybindings>,
+    keybindings: Option<KeybindingsToml>,
+
+    keybindings_help_menu_format: Option<KeybindingsHelpMenuFormat>,
 }
 
 impl TomlFileConfig {
@@ -355,6 +368,7 @@ impl TryFrom<TomlFileConfig> for PartialConfig {
                 .keybindings
                 .map(KeybindingsParsed::try_from)
                 .transpose()?,
+            keybindings_help_menu_format: toml.keybindings_help_menu_format,
         })
     }
 }
@@ -383,9 +397,10 @@ impl TryFrom<CliArgs> for PartialConfig {
             update_ui_while_blocking: cli.update_ui_while_blocking,
             keybindings: cli
                 .keybindings
-                .map(StringKeybindings::from)
+                .map(KeybindingsCli::from)
                 .map(KeybindingsParsed::try_from)
                 .transpose()?,
+            keybindings_help_menu_format: cli.keybindings_help_menu_format,
         })
     }
 }
@@ -394,39 +409,47 @@ impl TryFrom<CliArgs> for PartialConfig {
 impl Default for PartialConfig {
     fn default() -> Self {
         let default_toml = indoc! {r#"
-			"interval" = 3.0
+            "interval" = 3.0
 
-			"cursor-fg" = "unspecified"
-			"cursor-bg" = "blue"
-			"cursor-boldness" = "bold"
+            "cursor-fg" = "unspecified"
+            "cursor-bg" = "blue"
+            "cursor-boldness" = "bold"
 
-			"header-fg" = "blue"
-			"header-bg" = "unspecified"
-			"header-boldness" = "non-bold"
+            "header-fg" = "blue"
+            "header-bg" = "unspecified"
+            "header-boldness" = "non-bold"
             "header-lines" = 0
 
-			"non-cursor-non-header-fg" = "unspecified"
-			"non-cursor-non-header-bg" = "unspecified"
-			"non-cursor-non-header-boldness" = "unspecified"
+            "non-cursor-non-header-fg" = "unspecified"
+            "non-cursor-non-header-bg" = "unspecified"
+            "non-cursor-non-header-boldness" = "unspecified"
 
-			"selected-bg" = "magenta"
+            "selected-bg" = "magenta"
 
             "update-ui-while-blocking" = false
 
-			[keybindings]
-			"ctrl+c" = [ "exit" ]
-			"q" = [ "exit" ]
-			"r" = [ "reload" ]
-			"?" = [ "help-toggle" ]
-			"space" = [ "toggle-selection", "cursor down 1" ]
-			"v" = [ "toggle-selection" ]
-			"esc" = [ "unselect-all" ]
-			"down" = [ "cursor down 1" ]
-			"up" = [ "cursor up 1" ]
-			"j" = [ "cursor down 1" ]
-			"k" = [ "cursor up 1" ]
-			"g" = [ "cursor first" ]
-			"G" = [ "cursor last" ]
+            "keybindings-help-menu-format" = [ "key", "description", "operations" ]
+
+            [keybindings]
+            "ctrl+c" = { description = "Exit watchbind", operations = "exit" }
+            "q" = { description = "Exit watchbind", operations = "exit" }
+            "r" = { description = "Reload the watched command manually, resets interval timer", operations = "reload" }
+
+            # Moving around
+            "down" = { description = "Move cursor down 1 line", operations = "cursor down 1" }
+            "up" = { description = "Move cursor up 1 line", operations = "cursor up 1" }
+            "j" = { description = "Move cursor down 1 line", operations = "cursor down 1" }
+            "k" = { description = "Move cursor up 1 line", operations = "cursor up 1" }
+            "g" = { description = "Move cursor to the first line", operations = "cursor first" }
+            "G" = { description = "Move cursor to the last line"  , operations = "cursor last" }
+
+            # Selecting lines
+            "space" = { description = "Toggle selection of line that cursor is currently on, and move cursor down 1 line", operations = [ "toggle-selection", "cursor down 1" ] }
+            "v" = { description = "Select line that cursor is currently on", operations = "select" }
+            "esc" = { description = "Unselect all currently selected lines", operations = "unselect-all" }
+
+            # Help menu
+            "?" = { description = "Toggle the visibility of the help menu", operations = "help-toggle" }
 		"#};
 
         default_toml
@@ -577,20 +600,26 @@ pub struct CliArgs {
     #[arg(long, value_name = "BOOL")]
     update_ui_while_blocking: Option<bool>,
 
-    // TODO: replace with ClapKeybindings (currently panics, known clap bug)
-    // TODO: replace with StringKeybindings once clap supports parsing into HashMap
     /// Keybindings as comma-separated `KEY:OP[+OP]*` pairs, e.g. `q:select+exit,r:reload`.
-    #[arg(short = 'b', long = "bind", value_name = "LIST", value_delimiter = ',', value_parser = keybindings::parse_str)]
-    keybindings: Option<Vec<(String, Vec<String>)>>,
+    #[arg(short = 'b', long = "bind", value_name = "LIST", value_delimiter = ',')]
+    keybindings: Option<Vec<KeybindingCli>>,
+
+    /// Format of keybindings help menu as comma-separated list, e.g. `key,operations,description`.
+    #[arg(long, value_name = "FORMAT")]
+    keybindings_help_menu_format: Option<KeybindingsHelpMenuFormat>,
 }
 
-/// Convert [[&str, String]] to [[String, String]] by calling str::to_owned().
-macro_rules! to_owned_first {
+/// Convert [[&str, String]] to [[Cow::Borrowed(&str), Cow::Owned(&str)]].
+macro_rules! cowify {
     ($([$str_slice:expr, $string:expr]),* $(,)?) => {
         [$(
-            [str::to_owned($str_slice), $string],
+            [Cow::Borrowed($str_slice), Cow::Owned($string)],
         )*]
     };
+}
+
+fn terminal_width() -> Option<u16> {
+    terminal_size::terminal_size().map(|(Width(width), _)| width)
 }
 
 impl CliArgs {
@@ -615,7 +644,7 @@ impl CliArgs {
             .custom_names()
             .get();
 
-        let possible_values_table_data = to_owned_first![
+        let possible_values_table_data = cowify![
             ["COLOR", format!("[{color}]")],
             ["BOLDNESS", format!("[{boldness}]")],
             ["KEY", format!("[<KEY-MODIFIER>+<KEY-CODE>, <KEY-CODE>]")],
@@ -623,7 +652,10 @@ impl CliArgs {
             ["KEY-CODE", format!("[{key_code}]")],
             ["OP", format!("[{operation}]")],
         ];
-        let possible_values_table = create_table_from(possible_values_table_data);
+        let possible_values_table = Table::new(possible_values_table_data)
+            .width(terminal_width())
+            .left_margin(2)
+            .displayable();
 
         // Mimic clap's bold underlined style for headers.
         format!(
@@ -637,11 +669,16 @@ impl CliArgs {
     fn global_config_file_help() -> String {
         use owo_colors::OwoColorize;
 
-        let global_config_file = global_config_file_path()
-            .map_or("Unknown".to_string(), |file| file.display().to_string());
+        let global_config_file: Cow<str> = global_config_file_path()
+            .map_or(Cow::Borrowed("Unknown"), |file| {
+                Cow::Owned(file.display().to_string())
+            });
 
-        let global_config_file_table_data = [[global_config_file]];
-        let global_config_file_table = create_table_from(global_config_file_table_data);
+        let global_config_file_table_data = [[global_config_file.as_ref()]];
+        let global_config_file_table = Table::new(global_config_file_table_data)
+            .width(terminal_width())
+            .left_margin(2)
+            .displayable();
 
         // Mimic clap's bold underlined style for headers.
         format!(
@@ -650,31 +687,6 @@ impl CliArgs {
             global_config_file_table,
         )
     }
-}
-
-/// Create a formatted `tabled::Table` with two columns.
-fn create_table_from<R, C>(table_data: R) -> Table
-where
-    R: IntoIterator<Item = C>,
-    C: IntoIterator<Item = String>,
-{
-    let mut table = Builder::from_iter(table_data.into_iter().map(|row| row.into_iter())).build();
-    table
-        .with(TableStyle::blank())
-        // Add left margin for indent.
-        .with(Margin::new(2, 0, 0, 0))
-        // Remove left padding.
-        .with(Padding::new(0, 1, 0, 0));
-
-    // Set table width to terminal width.
-    if let Some((TerminalWidth(width), _)) = terminal_size() {
-        let width: usize = width.into();
-        table
-            .with(Width::wrap(width).priority::<PriorityMax>().keep_words())
-            .with(Width::increase(width));
-    }
-
-    table
 }
 
 #[cfg(test)]
